@@ -25,7 +25,10 @@ shiplog_prompt_input() {
   if is_boring; then
     printf '%s\n' "$value"
   else
-    "$GUM" input --placeholder "$placeholder" --value "$value"
+    local result
+    result=$("$GUM" input --placeholder "$placeholder" --value "$value")
+    printf '%s\n' "$result"
+    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":\"$placeholder\",\"value\":\"$result\"}" >&2
   fi
 }
 
@@ -42,11 +45,14 @@ shiplog_prompt_choice() {
   if is_boring; then
     printf '%s\n' "$value"
   else
+    local result
     if [ -n "$value" ]; then
-      GUM_CHOICE="$value" "$GUM" choose "${options[@]}" --header "$header"
+      result=$(GUM_CHOICE="$value" "$GUM" choose --header "$header" "${options[@]}")
     else
-      "$GUM" choose "${options[@]}" --header "$header"
+      result=$("$GUM" choose --header "$header" "${options[@]}")
     fi
+    printf '%s\n' "$result"
+    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":\"$header\",\"value\":\"$result\"}" >&2
   fi
 }
 
@@ -55,5 +61,10 @@ shiplog_confirm() {
   if is_boring || [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     return 0
   fi
-  "$GUM" confirm "$prompt"
+  if "$GUM" confirm "$prompt"; then
+    "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":\"$prompt\",\"value\":true}" >&2
+    return 0
+  fi
+  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":\"$prompt\",\"value\":false}" >&2
+  return 1
 }

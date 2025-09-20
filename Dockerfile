@@ -198,6 +198,9 @@ case "$subcmd" in
       cat
     fi
     ;;
+  log)
+    exit 0
+    ;;
   table)
     header=""
     while [ $# -gt 0 ]; do

@@ -63,6 +63,7 @@ cmd_write() {
     printf '%s\n' "$msg"
   else
     "$GUM" style --border normal --title "Preview" --padding "1 2" -- "$msg"
+    "$GUM" log --structured --time "rfc822" --level info "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}" >&2
   fi
 
   shiplog_confirm "Sign & append this entry to $REF_ROOT/journal/$env?" || die "Aborted."
@@ -81,6 +82,7 @@ cmd_write() {
     printf '✅ Appended %s to %s\n' "$(git rev-parse --short "$new")" "$(ref_journal "$env")"
   else
     "$GUM" style --border rounded -- "✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
+    "$GUM" log --structured --time "rfc822" --level info "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}" >&2
   fi
 }
 
