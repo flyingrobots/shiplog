@@ -12,6 +12,15 @@ DEFAULT_ENV="${SHIPLOG_ENV:-prod}"
 AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
 ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.git/allowed_signers}"
 GUM=${GUM:-gum}
+SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
+
+for arg in "$@"; do
+  if [ "$arg" = "--boring" ]; then
+    SHIPLOG_BORING=1
+    break
+  fi
+done
+export SHIPLOG_BORING
 
 POLICY_REF_DEFAULT="refs/_shiplog/policy/current"
 POLICY_REF="${SHIPLOG_POLICY_REF:-$POLICY_REF_DEFAULT}"
@@ -38,9 +47,44 @@ source "$LIB_DIR/git.sh"
 source "$LIB_DIR/commands.sh"
 
 need git
-need "$GUM"
+if ! is_boring; then
+  need "$GUM"
+fi
 need yq
 
 export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 
-run_command "$@"
+run_with_global_flags() {
+  local args=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --boring)
+        SHIPLOG_BORING=1
+        export SHIPLOG_BORING
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        args+=("$@")
+        break
+        ;;
+      *)
+        args+=("$1")
+        shift
+        args+=("$@")
+        break
+        ;;
+    esac
+  done
+  if [ ${#args[@]} -eq 0 ]; then
+    run_command
+  else
+    run_command "${args[@]}"
+  fi
+}
+
+run_with_global_flags "$@"

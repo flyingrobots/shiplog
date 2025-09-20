@@ -5,7 +5,11 @@ cmd_init() {
   git config --add remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*" || true
   git config --add remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"  || true
   git config core.logAllRefUpdates true
-  $GUM style --border normal --padding "1 2" -- "Configured refspecs for $REF_ROOT/* and enabled reflogs."
+  if is_boring; then
+    printf 'Configured refspecs for %s/* and enabled reflogs.\n' "$REF_ROOT"
+  else
+    "$GUM" style --border normal --padding "1 2" -- "Configured refspecs for $REF_ROOT/* and enabled reflogs."
+  fi
 }
 
 cmd_write() {
@@ -16,30 +20,52 @@ cmd_write() {
   require_allowed_signer
 
   local service status reason ticket region cluster ns artifact_tag artifact_image run_url
-  service=$($GUM input --placeholder "service (e.g., web)" --value "${SHIPLOG_SERVICE:-}")
-  status=$($GUM choose success failed in_progress skipped override revert finalize --header "Status")
-  reason=$($GUM input --placeholder "reason (e.g., hotfix 503s)" --value "${SHIPLOG_REASON:-}")
-  ticket=$($GUM input --placeholder "ticket/PR (optional, e.g., OPS-7421)" --value "${SHIPLOG_TICKET:-}")
-  region=$($GUM input --placeholder "region (e.g., us-west-2)" --value "${SHIPLOG_REGION:-}")
-  cluster=$($GUM input --placeholder "cluster (e.g., prod-1)" --value "${SHIPLOG_CLUSTER:-}")
-  ns=$($GUM input --placeholder "namespace (e.g., pf3)" --value "${SHIPLOG_NAMESPACE:-}")
-  artifact_image=$($GUM input --placeholder "artifact image (e.g., ghcr.io/acme/web)" --value "${SHIPLOG_IMAGE:-}")
-  artifact_tag=$($GUM input --placeholder "artifact tag (e.g., 2025-09-19.3)" --value "${SHIPLOG_TAG:-}")
-  run_url=$($GUM input --placeholder "pipeline/run URL (optional)" --value "${SHIPLOG_RUN_URL:-}")
+  service="$(shiplog_prompt_input "service (e.g., web)" "SHIPLOG_SERVICE")"
+  status="$(shiplog_prompt_choice "Status" "SHIPLOG_STATUS" success failed in_progress skipped override revert finalize)"
+  reason="$(shiplog_prompt_input "reason (e.g., hotfix 503s)" "SHIPLOG_REASON")"
+  ticket="$(shiplog_prompt_input "ticket/PR (optional, e.g., OPS-7421)" "SHIPLOG_TICKET")"
+  region="$(shiplog_prompt_input "region (e.g., us-west-2)" "SHIPLOG_REGION")"
+  cluster="$(shiplog_prompt_input "cluster (e.g., prod-1)" "SHIPLOG_CLUSTER")"
+  ns="$(shiplog_prompt_input "namespace (e.g., pf3)" "SHIPLOG_NAMESPACE")"
+  artifact_image="$(shiplog_prompt_input "artifact image (e.g., ghcr.io/acme/web)" "SHIPLOG_IMAGE")"
+  artifact_tag="$(shiplog_prompt_input "artifact tag (e.g., 2025-09-19.3)" "SHIPLOG_TAG")"
+  run_url="$(shiplog_prompt_input "pipeline/run URL (optional)" "SHIPLOG_RUN_URL")"
+
+  if is_boring && [ -z "$service" ]; then
+    die "shiplog --boring write requires SHIPLOG_SERVICE"
+  fi
 
   local start_ts end_ts dur_s
   start_ts="$(fmt_ts)"
-  $GUM spin --spinner line --title "Gathering repo state…" -- sleep 0.2
+  if is_boring; then
+    sleep 0.01
+  else
+    "$GUM" spin --spinner line --title "Gathering repo state…" -- sleep 0.2
+  fi
   local repo_head; repo_head="$(git rev-parse HEAD)"
   end_ts="$(fmt_ts)"
   dur_s=$(( $(date -u -d "$end_ts" +%s 2>/dev/null || gdate -u -d "$end_ts" +%s) - $(date -u -d "$start_ts" +%s 2>/dev/null || gdate -u -d "$start_ts" +%s) ))
 
-  local artifact="${artifact_image}:${artifact_tag}"
+  local artifact=""
+  if [ -n "$artifact_image" ] || [ -n "$artifact_tag" ]; then
+    if [ -n "$artifact_image" ] && [ -n "$artifact_tag" ]; then
+      artifact="${artifact_image}:${artifact_tag}"
+    elif [ -n "$artifact_image" ]; then
+      artifact="$artifact_image"
+    else
+      artifact="$artifact_tag"
+    fi
+  fi
 
   local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url")"
 
-  $GUM style --border normal --title "Preview" --padding "1 2" -- "$msg"
-  $GUM confirm "Sign & append this entry to $REF_ROOT/journal/$env?" || die "Aborted."
+  if is_boring; then
+    printf '%s\n' "$msg"
+  else
+    "$GUM" style --border normal --title "Preview" --padding "1 2" -- "$msg"
+  fi
+
+  shiplog_confirm "Sign & append this entry to $REF_ROOT/journal/$env?" || die "Aborted."
 
   local tree; tree="$(empty_tree)"
   local parent; parent="$(current_tip "$(ref_journal "$env")")"
@@ -51,7 +77,11 @@ cmd_write() {
   fi
 
   ff_update "$(ref_journal "$env")" "$new" "$parent" "shiplog: append entry"
-  $GUM style --border rounded -- "✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
+  if is_boring; then
+    printf '✅ Appended %s to %s\n' "$(git rev-parse --short "$new")" "$(ref_journal "$env")"
+  else
+    "$GUM" style --border rounded -- "✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
+  fi
 }
 
 cmd_ls() {
@@ -89,7 +119,11 @@ cmd_verify() {
       bad=$((bad+1)); echo "❌ bad or missing signature on $c" >&2
     fi
   done < <(git rev-list "$(ref_journal "$env")")
-  $GUM style --border normal --padding "1 2" -- "Verified: OK=$ok, BadSig=$bad, Unauthorized=$unauth"
+  if is_boring; then
+    printf 'Verified: OK=%s, BadSig=%s, Unauthorized=%s\n' "$ok" "$bad" "$unauth"
+  else
+    "$GUM" style --border normal --padding "1 2" -- "Verified: OK=$ok, BadSig=$bad, Unauthorized=$unauth"
+  fi
   [ $bad -eq 0 ] && [ $unauth -eq 0 ]
 }
 
@@ -108,6 +142,9 @@ cmd_policy() {
   resolve_policy
 
   local boring=0
+  if is_boring; then
+    boring=1
+  fi
   local action=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -150,7 +187,7 @@ cmd_policy() {
         rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
         rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
         rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
-        $GUM table --separator $'\t' --columns Field,Value <<<"$rows"
+        "$GUM" table --separator $'\t' --columns Field,Value <<<"$rows"
       fi
       ;;
     validate)
@@ -166,15 +203,17 @@ usage() {
   cat <<EOF
 SHIPLOG-Lite
 Usage:
-  $(basename "$0") init
-  $(basename "$0") write [ENV]
-  $(basename "$0") ls   [ENV] [LIMIT]
-  $(basename "$0") show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
-  $(basename "$0") verify [ENV]
-  $(basename "$0") export-json [ENV]
-  $(basename "$0") policy [show]
+  $(basename "$0") [--boring] init
+  $(basename "$0") [--boring] write [ENV]
+  $(basename "$0") [--boring] ls   [ENV] [LIMIT]
+  $(basename "$0") [--boring] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
+  $(basename "$0") [--boring] verify [ENV]
+  $(basename "$0") [--boring] export-json [ENV]
+  $(basename "$0") [--boring] policy [show]
 
 Env via $SHIPLOG_ENV (default: $DEFAULT_ENV). Optional vars: SHIPLOG_* (author, image, tag, run url, log).
+Flags:
+  --boring   Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
 EOF
 }
 

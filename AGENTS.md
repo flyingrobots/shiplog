@@ -1,0 +1,1 @@
+- Never push directly to main; create a branch and open a PR instead.

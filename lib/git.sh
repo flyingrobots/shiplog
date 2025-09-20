@@ -143,7 +143,11 @@ pretty_ls() {
     env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
     rows+="$c\t${status:-?}\t${service:-?}\t${env:-?}\t$author\t$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
-  printf "%s" "$rows" | $GUM table --separator $'\t' --columns "Commit" "Status" "Service" "Env" "Author" "Date"
+  if is_boring; then
+    printf 'Commit\tStatus\tService\tEnv\tAuthor\tDate\n%s' "$rows"
+  else
+    printf "%s" "$rows" | "$GUM" table --separator $'\t' --columns "Commit" "Status" "Service" "Env" "Author" "Date"
+  fi
 }
 
 show_entry() {
@@ -154,18 +158,33 @@ show_entry() {
   human="$(awk '/^---/{exit} {print}' <<< "$body")"
   json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
 
-  $GUM style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
+  if is_boring; then
+    printf '%s\n' "$human"
+    if [ -n "$json" ]; then
+      if command -v jq >/dev/null 2>&1; then
+        echo "$json" | jq .
+      else
+        printf '%s\n' "$json"
+      fi
+    fi
+    if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
+      git notes --ref="$NOTES_REF" show "$target"
+    fi
+    return
+  fi
+
+  "$GUM" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
 
   if [ -n "$json" ]; then
     if command -v jq >/dev/null 2>&1; then
-      echo "$json" | jq . | $GUM style --border rounded --title "Structured Trailer (JSON)"
+      echo "$json" | jq . | "$GUM" style --border rounded --title "Structured Trailer (JSON)"
     else
-      echo "$json" | $GUM style --border rounded --title "Structured Trailer (raw)"
+      echo "$json" | "$GUM" style --border rounded --title "Structured Trailer (raw)"
     fi
   fi
 
   if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
-    git notes --ref="$NOTES_REF" show "$target" | $GUM style --border rounded --title "Attached Log (notes)"
+    git notes --ref="$NOTES_REF" show "$target" | "$GUM" style --border rounded --title "Attached Log (notes)"
   fi
 }
 

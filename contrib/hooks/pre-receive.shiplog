@@ -3,82 +3,49 @@ set -euo pipefail
 
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
 
+if ! command -v yq >/dev/null 2>&1; then
+  echo "shiplog pre-receive: yq not found" >&2
+  exit 1
+fi
+
 read_policy() {
   git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null || return 1
 }
 
 parse_policy_for_env() {
   local env="$1"
-  python3 - "$env" <<'PY'
-import sys
+  local rs="" asf="" authors=""
+  if ! rs=$(yq eval -r '.require_signed // ""' <<<"$policy_content" 2>/dev/null); then
+    rs=""
+  fi
+  if [ -n "$rs" ] && [ "$rs" != "null" ]; then
+    echo "require_signed=${rs}"
+  fi
 
-env = sys.argv[1]
-content = sys.stdin.read().splitlines()
+  if ! asf=$(yq eval -r '.allow_ssh_signers_file // ""' <<<"$policy_content" 2>/dev/null); then
+    asf=""
+  fi
+  if [ -n "$asf" ] && [ "$asf" != "null" ]; then
+    echo "allowed_signers_file=${asf}"
+  fi
 
-stack = []
-authors_default = []
-authors_env = {}
-require_signed = None
-signers_file = None
-
-def push(indent, key):
-    while stack and indent <= stack[-1][0]:
-        stack.pop()
-    stack.append((indent, key))
-
-def keys():
-    return [k for _, k in stack]
-
-for raw in content:
-    raw = raw.rstrip('\n')
-    line = raw.split('#', 1)[0]
-    if not line.strip():
-        continue
-    indent = len(line) - len(line.lstrip(' '))
-    stripped = line.strip()
-
-    if stripped.endswith(':') and not stripped.startswith('-'):
-        key = stripped[:-1].strip()
-        push(indent, key)
-        continue
-
-    ks = keys()
-
-    if stripped.startswith('- '):
-        value = stripped[2:].strip().strip('\"\'')
-        if ks == ['authors', 'default_allowlist']:
-            authors_default.append(value)
-        elif len(ks) >= 3 and ks[:2] == ['authors', 'env_overrides']:
-            env_name = ks[2]
-            authors_env.setdefault(env_name, []).append(value)
-        continue
-
-    if ':' in stripped:
-        key, val = stripped.split(':', 1)
-        key = key.strip()
-        val = val.strip().strip('\"\'')
-        if not ks:
-            if key == 'require_signed':
-                require_signed = val.lower() in ('true', 'yes', '1', 'on')
-            elif key == 'allow_ssh_signers_file':
-                signers_file = val
-        continue
-
-seen = set()
-authors = []
-for source in (authors_default, authors_env.get('default', []), authors_env.get(env, [])):
-    for addr in source:
-        if addr and addr not in seen:
-            seen.add(addr)
-            authors.append(addr)
-
-if require_signed is not None:
-    print(f"require_signed={'1' if require_signed else '0'}")
-if signers_file:
-    print(f"allowed_signers_file={signers_file}")
-if authors:
-    print("authors=" + " ".join(authors))
-PY
+  if ! authors=$(YQ_TARGET_ENV="$env" yq eval -r '
+      [
+        (.authors.default_allowlist // []),
+        (.authors.env_overrides.default // []),
+        (.authors.env_overrides[env(YQ_TARGET_ENV)] // [])
+      ]
+      | flatten
+      | map(select(. != null and . != ""))
+      | unique
+      | select(length > 0)
+      | join(" ")
+    ' <<<"$policy_content" 2>/dev/null); then
+    authors=""
+  fi
+  if [ -n "$authors" ] && [ "$authors" != "null" ]; then
+    echo "authors=${authors}"
+  fi
 }
 
 policy_content=$(read_policy || true)
@@ -96,7 +63,13 @@ check_commits() {
   local allowed_authors=""
   while IFS='=' read -r key value; do
     case "$key" in
-      require_signed) require_signed="$value" ;;
+      require_signed)
+        case "$value" in
+          1|true|yes|on|True|TRUE) require_signed=1 ;;
+          0|false|no|off|False|FALSE) require_signed=0 ;;
+          *) require_signed=0 ;;
+        esac
+        ;;
       allowed_signers_file) allowed_signers="$value" ;;
       authors) allowed_authors="$value" ;;
     esac

@@ -6,8 +6,9 @@ Minimal bash-based prototype for recording deployment events inside a Git reposi
 
 - Bash 5+
 - `git` with commit signing configured (GPG or SSH allowed signers)
-- [`gum`](https://github.com/charmbracelet/gum) for interactive prompts
-- `jq` (optional) for JSON exports
+- [`gum`](https://github.com/charmbracelet/gum) for interactive prompts (`--boring`/`SHIPLOG_BORING=1` skips it)
+- [`jq`](https://stedolan.github.io/jq/) for JSON exports
+- [`yq`](https://github.com/mikefarah/yq) for policy parsing (YAML)
 
 ## Features
 
@@ -17,6 +18,7 @@ Minimal bash-based prototype for recording deployment events inside a Git reposi
 - Optional NDJSON log attachments stored at `refs/_shiplog/notes/logs`
 - Local guardrails: author allowlist & signer precheck before creating entries
 - Pretty `ls`, `show`, and `verify` flows powered by `gum`
+- `--boring` / `SHIPLOG_BORING=1` mode for CI automation (no prompts, plain-text output)
 
 ## Architecture
 
@@ -63,23 +65,37 @@ gitGraph
 chmod +x shiplog-lite.sh
 ./shiplog-lite.sh init
 ./shiplog-lite.sh write
+# Non-interactive (CI):
+# SHIPLOG_BORING=1 ./shiplog-lite.sh write
+# or ./shiplog-lite.sh --boring write
 ```
 
 Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`). For convenience you can symlink the script to `shiplog` and invoke it directly.
 
 ## Tooling Helpers
 
-- Dependency installer: `install-shiplog-deps.sh` installs `gum` + `jq` with `--dry-run` and `--silent` flags.
+- Dependency installer: `install-shiplog-deps.sh` installs `gum`, `jq`, and `yq` with `--dry-run` and `--silent` flags.
   ```bash
   chmod +x install-shiplog-deps.sh
   ./install-shiplog-deps.sh
   ```
-- Docker sandbox: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted.
+- Docker sandbox: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted (git, gum, jq, yq, bats).
   ```bash
   ./shiplog-sandbox.sh            # build + interactive shell
   ./shiplog-sandbox.sh ./shiplog-lite.sh ls prod 5
   ```
   Override the image tag with `SHIPLOG_SANDBOX_IMAGE`, and SSH agent forwarding is wired in when `SSH_AUTH_SOCK` is set.
+
+## Install Layout
+
+`shiplog-lite.sh` now sources helper libraries from `lib/`. When you install the CLI somewhere other than the repo root, set:
+
+```bash
+export SHIPLOG_HOME=/opt/shiplog          # directory that contains shiplog-lite.sh
+export SHIPLOG_LIB_DIR=/opt/shiplog/lib   # path to the bundled libraries
+```
+
+The Docker runner and the Bats suite do this automatically. Packaging scripts should place `shiplog-lite.sh`, `lib/`, and `scripts/` together.
 
 ## How to Configure Shiplog
 
@@ -87,6 +103,7 @@ Short answer: keep policy in Git, in a signed ref, and mirror it into the workin
 
 - **Canonical policy ref** – store the enforced policy under `refs/_shiplog/policy/current`. The ref points at a signed commit whose tree contains `.shiplog/policy.yaml`.
 - **Working copy mirror** – keep the same file (`./.shiplog/policy.yaml`) on your main branch so policy edits go through normal PR review.
+- **Starter template** – copy `examples/policy.yaml` into `.shiplog/policy.yaml` when bootstrapping a repo.
 - **CI publisher** – after merge, run `scripts/shiplog-sync-policy.sh` to publish the reviewed file to the policy ref (fast-forward only, signed by the bot key).
 - **Local overrides** – developers can customise via Git config while iterating:
   ```bash
@@ -133,7 +150,7 @@ Roles and bindings can extend this schema later if you want to model release man
 
 ### Server-side enforcement
 
-- Teach the pre-receive hook to read the policy ref directly. A sample implementation lives in `contrib/hooks/pre-receive.shiplog` – it parses the YAML, checks authors, and verifies signatures for `refs/_shiplog/journal/*` (and anchors).
+- Teach the pre-receive hook to read the policy ref directly. A sample implementation lives in `contrib/hooks/pre-receive.shiplog` (documented in `contrib/README.md`) – it parses the YAML, checks authors, and verifies signatures for `refs/_shiplog/journal/*` (and anchors).
 - Keep reflogs enabled server-side (`core.logAllRefUpdates=true`) so policy moves and journal updates are traceable.
 - Protect the policy ref with fast-forward only updates (`git update-ref` with optimistic old SHA) and signed commits.
 
@@ -156,6 +173,7 @@ Use `shiplog policy show` to inspect the resolved settings (add `--boring` to pr
 - `make test` builds the dockerized Bats image with signing disabled and runs the suite locally.
 - `make test-signing` builds with signing enabled (loopback GPG key) and runs the same tests against signed commits.
 - GitHub Actions (`.github/workflows/ci.yml`) runs both variants on push and pull requests via Docker Buildx cache.
+- To verify the pre-receive hook logic without touching a real remote, run `bats tests/11_pre_receive_hook.bats`; it spins up a throw-away bare repo, installs `contrib/hooks/pre-receive.shiplog`, and exercises the hook via local pushes.
 
 The Bats suite under `tests/` currently covers:
 - init wiring (`refspecs` + `reflogs`) and empty journal behavior.
@@ -190,17 +208,27 @@ stateDiagram-v2
 - `SHIPLOG_AUTHORS` – space-delimited allowlist; restricts authors permitted to append to the journal.
 - `SHIPLOG_ALLOWED_SIGNERS` – path to SSH allowed signers file used during commit verification.
 - `SHIPLOG_IMAGE` / `SHIPLOG_TAG` / `SHIPLOG_RUN_URL` / `SHIPLOG_LOG` – seed prompts for write flow and optional log attachments.
+- `SHIPLOG_STATUS` – pre-select deployment status (defaults to `success` when interactive).
 - `SHIPLOG_REF_ROOT` – override the ref namespace root (default: `refs/_shiplog`; set to e.g. `refs/shiplog` on Git builds that forbid dot-prefixed components).
 - `SHIPLOG_NOTES_REF` – override the git-notes ref (default: `refs/_shiplog/notes/logs`).
 - `SHIPLOG_SIGN` – set to `0`/`false` to skip commit signing (used in CI when no keys exist).
+- `SHIPLOG_BORING` – set to `1` to disable gum UI globally (same as `--boring`).
+- `SHIPLOG_ASSUME_YES` – set to `1` to auto-confirm prompts even when gum is available.
+- `SHIPLOG_HOME` / `SHIPLOG_LIB_DIR` – override autodetected paths when installing the CLI outside the repo root.
+- `SHIPLOG_POLICY_REF` – override the policy ref (default: `refs/_shiplog/policy/current`).
 - `GUM` – path to the `gum` binary (default: `gum`).
 
 ## Project Layout
 
-- `shiplog-lite.sh` – single-file MVP script.
-- `install-shiplog-deps.sh` – cross-platform helper for installing gum + jq.
+- `shiplog-lite.sh` – entrypoint CLI sourcing the `lib/` helpers.
+- `lib/` – bash modules (`common`, `git`, `policy`, `commands`).
+- `scripts/` – plumbing helpers (e.g. `shiplog-sync-policy.sh`).
+- `tests/` – Bats suite (interactive + boring modes) and fixtures.
+- `install-shiplog-deps.sh` – cross-platform helper for installing gum, jq, yq.
 - `shiplog-sandbox.sh` – Docker sandbox launcher (builds `Dockerfile`).
-- `Dockerfile` – Ubuntu-based sandbox with git, gum, jq preinstalled.
+- `Dockerfile` – Debian-based sandbox with git, gum, jq, yq, bats preinstalled.
+- `examples/policy.yaml` – starter policy file for `.shiplog/policy.yaml`.
+- `contrib/README.md` – notes on hooks and CI helpers (`hooks/pre-receive.shiplog`).
 - `.gitignore` – excludes local-only artifacts.
 
 ## License

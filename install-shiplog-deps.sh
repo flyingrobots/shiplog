@@ -10,12 +10,19 @@ set -euo pipefail
 DRY_RUN=0
 SILENT=0
 YQ_VERSION=${YQ_VERSION:-v4.44.3}
+GUM_VERSION=${GUM_VERSION:-0.13.0}
 
 log() { [ "$SILENT" -eq 1 ] || echo -e "$*"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$*"; fi; }
 
 need_sudo() {
-  if [ "$(id -u)" -ne 0 ]; then echo "sudo"; else echo ""; fi
+  if [ "$(id -u)" -eq 0 ]; then
+    echo ""
+  elif command -v sudo >/dev/null 2>&1; then
+    echo "sudo"
+  else
+    die "Require root privileges; rerun as root or install sudo"
+  fi
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -129,6 +136,29 @@ install_gum_snap_or_go() {
   fi
 }
 
+install_gum_tgz() {
+  if have gum; then return 0; fi
+  local arch suffix tmp extract_dir
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) suffix="Linux_x86_64" ;;
+    arm64|aarch64) suffix="Linux_arm64" ;;
+    armv7l|armhf) suffix="Linux_armv6" ;;
+    *)
+      log "❌ Unsupported architecture for gum binary fallback: $arch"
+      return 1
+      ;;
+  esac
+  tmp=$(mktemp)
+  extract_dir=$(mktemp -d)
+  run "curl -fsSL 'https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_${suffix}.tar.gz' -o '$tmp'"
+  run "tar -C '$extract_dir' -xzf '$tmp' gum"
+  run "$(need_sudo) mv '$extract_dir/gum' /usr/local/bin/gum"
+  run "chmod +x /usr/local/bin/gum"
+  rm -f "$tmp"
+  rm -rf "$extract_dir"
+}
+
 install_gum() {
   if have gum; then log "✅ gum already installed ($(gum --version 2>/dev/null || echo gum))"; return; fi
 
@@ -141,6 +171,10 @@ install_gum() {
     install_gum_snap_or_go
   fi
 
+  if ! have gum; then
+    install_gum_tgz || true
+  fi
+
   if have gum; then
     log "✅ gum installed ($(gum --version 2>/dev/null || echo gum))"
   else
@@ -148,6 +182,7 @@ install_gum() {
 Try one of:
   - Homebrew (macOS/Linux): brew tap charmbracelet/tap && brew install gum
   - Snap (Linux): sudo snap install gum
+  - Binary: curl -fsSL https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_<arch>.tar.gz | sudo tar -xz -C /usr/local/bin gum
   - Go: go install github.com/charmbracelet/gum@latest && sudo cp \$(go env GOPATH)/bin/gum /usr/local/bin/
 "
     exit 1
