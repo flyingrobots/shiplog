@@ -1,7 +1,9 @@
 #!/usr/bin/env bats
 
+load helpers/common
+
 setup() {
-  install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+  shiplog_install_cli
   export SHIPLOG_SIGN=0
   export SHIPLOG_ENV="prod"
   export SHIPLOG_SERVICE="ui"

@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
+
+read_policy() {
+  git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null || return 1
+}
+
+parse_policy_for_env() {
+  local env="$1"
+  python3 - "$env" <<'PY'
+import sys
+
+env = sys.argv[1]
+content = sys.stdin.read().splitlines()
+
+stack = []
+authors_default = []
+authors_env = {}
+require_signed = None
+signers_file = None
+
+def push(indent, key):
+    while stack and indent <= stack[-1][0]:
+        stack.pop()
+    stack.append((indent, key))
+
+def keys():
+    return [k for _, k in stack]
+
+for raw in content:
+    raw = raw.rstrip('\n')
+    line = raw.split('#', 1)[0]
+    if not line.strip():
+        continue
+    indent = len(line) - len(line.lstrip(' '))
+    stripped = line.strip()
+
+    if stripped.endswith(':') and not stripped.startswith('-'):
+        key = stripped[:-1].strip()
+        push(indent, key)
+        continue
+
+    ks = keys()
+
+    if stripped.startswith('- '):
+        value = stripped[2:].strip().strip('\"\'')
+        if ks == ['authors', 'default_allowlist']:
+            authors_default.append(value)
+        elif len(ks) >= 3 and ks[:2] == ['authors', 'env_overrides']:
+            env_name = ks[2]
+            authors_env.setdefault(env_name, []).append(value)
+        continue
+
+    if ':' in stripped:
+        key, val = stripped.split(':', 1)
+        key = key.strip()
+        val = val.strip().strip('\"\'')
+        if not ks:
+            if key == 'require_signed':
+                require_signed = val.lower() in ('true', 'yes', '1', 'on')
+            elif key == 'allow_ssh_signers_file':
+                signers_file = val
+        continue
+
+seen = set()
+authors = []
+for source in (authors_default, authors_env.get('default', []), authors_env.get(env, [])):
+    for addr in source:
+        if addr and addr not in seen:
+            seen.add(addr)
+            authors.append(addr)
+
+if require_signed is not None:
+    print(f"require_signed={'1' if require_signed else '0'}")
+if signers_file:
+    print(f"allowed_signers_file={signers_file}")
+if authors:
+    print("authors=" + " ".join(authors))
+PY
+}
+
+policy_content=$(read_policy || true)
+if [ -z "$policy_content" ]; then
+  echo "shiplog pre-receive: policy ref $POLICY_REF not found" >&2
+  exit 1
+fi
+
+check_commits() {
+  local env="$1" old="$2" new="$3"
+  local parsed
+  parsed=$(printf "%s" "$policy_content" | parse_policy_for_env "$env") || parsed=""
+  local require_signed=""
+  local allowed_signers=""
+  local allowed_authors=""
+  while IFS='=' read -r key value; do
+    case "$key" in
+      require_signed) require_signed="$value" ;;
+      allowed_signers_file) allowed_signers="$value" ;;
+      authors) allowed_authors="$value" ;;
+    esac
+  done <<<"$parsed"
+
+  local range_args=()
+  if [ "$old" = "0000000000000000000000000000000000000000" ]; then
+    range_args=("$new")
+  else
+    range_args=("$new" "^$old")
+  fi
+
+  local commit
+  while read -r commit; do
+    [ -n "$commit" ] || continue
+    author=$(git show -s --format='%ae' "$commit")
+    if [ -n "$allowed_authors" ]; then
+      allowed=0
+      for a in $allowed_authors; do
+        if [ "$a" = "$author" ]; then
+          allowed=1
+          break
+        fi
+      done
+      if [ "$allowed" -ne 1 ]; then
+        echo "❌ shiplog: author <$author> not allowed for $env" >&2
+        exit 1
+      fi
+    fi
+
+    if [ "$require_signed" = "1" ]; then
+      if ! git cat-file commit "$commit" | grep -q '^gpgsig '; then
+        echo "❌ shiplog: commit $commit missing signature" >&2
+        exit 1
+      fi
+      if [ -n "$allowed_signers" ] && [ -f "$allowed_signers" ]; then
+        if ! GIT_SSH_ALLOWED_SIGNERS="$allowed_signers" git verify-commit "$commit" >/dev/null 2>&1; then
+          echo "❌ shiplog: signature for $commit not accepted by $allowed_signers" >&2
+          exit 1
+        fi
+      else
+        if ! git verify-commit "$commit" >/dev/null 2>&1; then
+          echo "❌ shiplog: signature verification failed for $commit" >&2
+          exit 1
+        fi
+      fi
+    fi
+  done < <(git rev-list "${range_args[@]}")
+}
+
+while read -r old_sha new_sha refname; do
+  [[ "$new_sha" = 0000000000000000000000000000000000000000 ]] && continue
+  case "$refname" in
+    refs/_shiplog/journal/*)
+      env="${refname#refs/_shiplog/journal/}"
+      check_commits "$env" "$old_sha" "$new_sha"
+      ;;
+    refs/_shiplog/anchors/*)
+      env="${refname#refs/_shiplog/anchors/}"
+      check_commits "$env" "$old_sha" "$new_sha"
+      ;;
+    *)
+      ;;
+  esac
+done
+
+exit 0

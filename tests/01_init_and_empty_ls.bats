@@ -1,10 +1,12 @@
 #!/usr/bin/env bats
 
+load helpers/common
+
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 
 setup() {
   [ -d .git ] || { echo "Run inside docker test runner" >&2; exit 1; }
-  install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+  shiplog_install_cli
 }
 
 @test "shiplog init sets refspecs and reflogs" {

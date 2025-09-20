@@ -1,10 +1,12 @@
 #!/usr/bin/env bats
 
+load helpers/common
+
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 NOTES_REF=${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}
 
 setup() {
-  install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+  shiplog_install_cli
   export SHIPLOG_SIGN=0
   export SHIPLOG_SERVICE="api"
   export SHIPLOG_REASON="attached log test"

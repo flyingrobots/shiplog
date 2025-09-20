@@ -1,7 +1,9 @@
 #!/usr/bin/env bats
 
+load helpers/common
+
 setup() {
-  install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+  shiplog_install_cli
 }
 
 @test "signed commits verify when ENABLE_SIGNING=true image is used" {

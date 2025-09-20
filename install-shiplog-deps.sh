@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shiplog deps installer: gum + jq
+# shiplog deps installer: gum + jq + yq
 # - Supports: macOS (brew), Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum),
 #             Arch (pacman), Alpine (apk), openSUSE (zypper), Snap, or Go fallback for gum.
 # - Idempotent: skips installs if already present.
@@ -9,6 +9,7 @@ set -euo pipefail
 
 DRY_RUN=0
 SILENT=0
+YQ_VERSION=${YQ_VERSION:-v4.44.3}
 
 log() { [ "$SILENT" -eq 1 ] || echo -e "$*"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$*"; fi; }
@@ -41,8 +42,8 @@ for arg in "$@"; do
       cat <<'USAGE'
 Usage: $0 [--dry-run] [--silent]
 
-Installs gum + jq using your package manager (brew/apt/dnf/yum/pacman/apk/zypper),
-or Snap/Go fallback for gum if needed. Safe to re-run.
+Installs gum + jq + yq using your package manager (brew/apt/dnf/yum/pacman/apk/zypper),
+with Snap/Go fallback for gum and binary fallback for yq if needed. Safe to re-run.
 USAGE
       exit 0
       ;;
@@ -153,11 +154,97 @@ Try one of:
   fi
 }
 
+install_yq_pkgmgr() {
+  case "$PM" in
+    brew)
+      run "brew install yq"
+      ;;
+    apt)
+      run "$(need_sudo) apt-get update"
+      run "$(need_sudo) apt-get install -y yq" || return 1
+      ;;
+    dnf)
+      run "$(need_sudo) dnf install -y yq" || return 1
+      ;;
+    yum)
+      run "$(need_sudo) yum install -y yq" || return 1
+      ;;
+    pacman)
+      run "$(need_sudo) pacman -Sy --noconfirm yq" || return 1
+      ;;
+    apk)
+      run "$(need_sudo) apk add --no-cache yq" || return 1
+      ;;
+    zypper)
+      run "$(need_sudo) zypper --non-interactive install yq" || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+install_yq_fallback() {
+  if have yq; then return 0; fi
+  local uname_s uname_m target tmp dest
+  uname_s="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  uname_m="$(uname -m)"
+  case "$uname_s" in
+    linux) target="linux" ;;
+    darwin) target="darwin" ;;
+    *)
+      log "❌ Unsupported OS for yq fallback: $uname_s"
+      return 1
+      ;;
+  esac
+
+  case "$uname_m" in
+    x86_64|amd64) target="${target}_amd64" ;;
+    arm64|aarch64) target="${target}_arm64" ;;
+    armv7l) target="${target}_arm" ;;
+    *)
+      log "❌ Unsupported architecture for yq fallback: $uname_m"
+      return 1
+      ;;
+  esac
+
+  tmp=$(mktemp)
+  dest="/usr/local/bin/yq"
+  run "curl -fsSL 'https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_${target}' -o '$tmp'"
+  run "chmod +x '$tmp'"
+  run "$(need_sudo) mv '$tmp' '$dest'"
+  return 0
+}
+
+install_yq() {
+  if have yq; then
+    log "✅ yq already installed ($(yq --version 2>/dev/null || echo yq))"
+    return
+  fi
+
+  if ! install_yq_pkgmgr; then
+    install_yq_fallback || {
+      log "❌ Could not install yq automatically."
+      exit 1
+    }
+  fi
+
+  if have yq; then
+    log "✅ yq installed ($(yq --version 2>/dev/null || echo yq))"
+  else
+    log "❌ yq installation reported success but binary not found"
+    exit 1
+  fi
+}
+
 log "🔎 Detected OS: $OS, Package manager: $PM"
 install_jq
 install_gum
+install_yq
 
 log ""
 log "🎉 Done. Versions:"
 log "  - $(jq --version 2>/dev/null || echo 'jq not found')"
 log "  - $(gum --version 2>/dev/null || echo 'gum not found')"
+log "  - $(yq --version 2>/dev/null || echo 'yq not found')"

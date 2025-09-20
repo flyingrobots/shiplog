@@ -15,6 +15,7 @@ Minimal bash-based prototype for recording deployment events inside a Git reposi
 - Signed empty-tree commits via `git commit-tree -S`
 - Optimistic fast-forward updates using `git update-ref`
 - Optional NDJSON log attachments stored at `refs/_shiplog/notes/logs`
+- Local guardrails: author allowlist & signer precheck before creating entries
 - Pretty `ls`, `show`, and `verify` flows powered by `gum`
 
 ## Architecture
@@ -36,7 +37,25 @@ flowchart TD
   script -->|optional log note| notes
 ```
 
-Mermaid diagrams render on GitHub, Obsidian, and other markdown viewers with Mermaid support.
+## Git-Native Ship Log
+
+Shiplog keeps records of who, what, where, when, why, and how deployments were made right in git, with the rest of your code. Shipit keeps a journal of deployment events, writing them to an append-only, immutable tree in the repo, `refs/_shiplog/journal/<env>`. 
+
+```mermaid
+gitGraph
+  commit id:"init" tag:"main"
+  branch journal_prod
+  checkout journal_prod
+  commit id:"prod-001" tag:"refs/_shiplog/journal/prod"
+  commit id:"prod-002"
+  branch journal_staging
+  commit id:"stg-001" tag:"refs/_shiplog/journal/staging"
+  commit id:"stg-002"
+  checkout journal_prod
+  commit id:"prod-003"
+  checkout main
+```
+
 
 ## Quick Start
 
@@ -62,6 +81,76 @@ Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`). For con
   ```
   Override the image tag with `SHIPLOG_SANDBOX_IMAGE`, and SSH agent forwarding is wired in when `SSH_AUTH_SOCK` is set.
 
+## How to Configure Shiplog
+
+Short answer: keep policy in Git, in a signed ref, and mirror it into the working tree so humans can review it.
+
+- **Canonical policy ref** – store the enforced policy under `refs/_shiplog/policy/current`. The ref points at a signed commit whose tree contains `.shiplog/policy.yaml`.
+- **Working copy mirror** – keep the same file (`./.shiplog/policy.yaml`) on your main branch so policy edits go through normal PR review.
+- **CI publisher** – after merge, run `scripts/shiplog-sync-policy.sh` to publish the reviewed file to the policy ref (fast-forward only, signed by the bot key).
+- **Local overrides** – developers can customise via Git config while iterating:
+  ```bash
+  git config shiplog.policy.allowedAuthors "deploy-bot@ci you@example.com"
+  git config shiplog.policy.requireSigned true
+  git config shiplog.policy.allowedSignersFile .git/allowed_signers
+  ```
+- **Resolution order (CLI + hooks)**
+  1. `refs/_shiplog/policy/current` if present.
+  2. `.shiplog/policy.yaml` in the working tree (warn: not enforced server-side).
+  3. `git config shiplog.policy.*` fallback.
+  4. `SHIPLOG_*` environment variables for sandboxes/tests.
+
+### Example policy file
+
+`.shiplog/policy.yaml` (mirrored exactly into `refs/_shiplog/policy/current`):
+
+```yaml
+version: 1
+require_signed: true
+allow_ssh_signers_file: ".git/allowed_signers"
+authors:
+  default_allowlist:
+    - deploy-bot@ci
+    - james@flyingrobots.dev
+  env_overrides:
+    prod:
+      - deploy-bot@ci
+      - james@flyingrobots.dev
+wwwwwh_requirements:
+  prod:
+    require_ticket: true
+    require_service: true
+    require_where: [cluster, region, namespace]
+  default:
+    require_ticket: false
+ff_only: true
+notes_ref: "refs/_shiplog/notes"
+journals_ref_prefix: "refs/_shiplog/journal/"
+anchors_ref_prefix:  "refs/_shiplog/anchors/"
+```
+
+Roles and bindings can extend this schema later if you want to model release managers or staged access.
+
+### Server-side enforcement
+
+- Teach the pre-receive hook to read the policy ref directly. A sample implementation lives in `contrib/hooks/pre-receive.shiplog` – it parses the YAML, checks authors, and verifies signatures for `refs/_shiplog/journal/*` (and anchors).
+- Keep reflogs enabled server-side (`core.logAllRefUpdates=true`) so policy moves and journal updates are traceable.
+- Protect the policy ref with fast-forward only updates (`git update-ref` with optimistic old SHA) and signed commits.
+
+### Publishing helper (CI)
+
+`scripts/shiplog-sync-policy.sh` performs the plumbing steps required to push the reviewed file to the policy ref:
+
+```bash
+scripts/shiplog-sync-policy.sh          # uses commit-tree -S by default
+SHIPLOG_POLICY_SIGN=0 scripts/shiplog-sync-policy.sh  # skip signing (not recommended)
+git push origin refs/_shiplog/policy/current
+```
+
+Run this in CI after the PR merges so the policy ref stays the canonical source of truth.
+
+Use `shiplog policy show` to inspect the resolved settings (add `--boring` to print plain text suitable for CI logs).
+
 ## Testing
 
 - `make test` builds the dockerized Bats image with signing disabled and runs the suite locally.
@@ -83,12 +172,15 @@ stateDiagram-v2
     BuildSigned --> RunSigned
     RunSigned --> [*]
 
-    note right of RunUnsigned: 
+    note right of RunUnsigned
       make test
       (SHIPLOG_SIGN=0)
-    note right of RunSigned: 
+    end note
+
+    note right of RunSigned
       make test-signing
       (loopback GPG)
+    end note
 ```
 
 ## Environment Variables
@@ -114,3 +206,202 @@ stateDiagram-v2
 ## License
 
 This project is currently unlicensed. All rights reserved.
+
+---
+
+# 🚢 SHIPLOG
+
+**Who shipped what, when, where, why, and how — signed and append-only.** 
+
+SHIPLOG is your deployment black box recorder: a ledger built on Git.  
+Every release leaves a receipt. No guesswork. No mystery deployments. Just truth you can prove.
+
+## 🔍 Why SHIPLOG Exists
+
+- Incidents = less “what changed?” scrambling  
+- Audits = clean provenance for deploys  
+- Compliance = cryptographic receipts  
+- Team alignment = everyone knows exactly what happened  
+
+---
+
+## 🛠️ How It Works
+
+- Hidden refs under `_shiplog`: `refs/_shiplog/journal/<env>` & `refs/_shiplog/anchors/<env>`  
+- Each deploy produces a **signed**, **empty-tree commit** with human-readable header + optional JSON trailer  
+- Fast-forward-only ref writes, no history rewriting  
+- Optional logs attached via `git notes` (`refs/notes/_shiplog/logs`)  
+
+```mermaid
+gitGraph
+  commit id: "code commit A"
+  commit id: "code commit B"
+  branch shiplog/prod
+  commit id: "deploy: web v1.0 → prod ✅"
+  commit id: "deploy: web v1.1 → prod ❌"
+  commit id: "rollback to v1.0"
+````
+
+---
+
+## **🚀 Quickstart (MVP)**
+
+```
+# Clone or create your repo
+git init my-project
+cd my-project
+git commit --allow-empty -m "init"
+
+# Setup
+curl -fsSL https://example.com/shiplog-lite.sh -o shiplog && chmod +x shiplog
+
+# Record a deploy
+export SHIPLOG_ENV=prod
+export SHIPLOG_SERVICE=web
+export SHIPLOG_REASON="Hotfix: checkout cart failing"
+export SHIPLOG_TICKET="OPS-7421"
+export SHIPLOG_REGION="us-west-2"
+export SHIPLOG_CLUSTER="prod-1"
+export SHIPLOG_NAMESPACE="frontend"
+export SHIPLOG_IMAGE="ghcr.io/yourorg/web"
+export SHIPLOG_TAG="v2.1.3"
+export SHIPLOG_RUN_URL="https://ci.example.com/runs/12345"
+
+./shiplog write
+
+# Inspect history
+./shiplog ls --env prod
+./shiplog show $(git rev-parse refs/_shiplog/journal/prod)
+
+# Export JSON for external tools
+./shiplog export-json --env prod | jq .
+```
+
+---
+
+## **⚙️ Commands**
+
+|**Command**|**Description**|**Example**|
+|---|---|---|
+|shiplog init|Setup refspecs & reflog configs|shiplog init|
+|shiplog write|Append a deploy entry|see “Record a deploy” above|
+|shiplog ls|List recent entries|shiplog ls --env prod --limit 20|
+|shiplog show|Show details of one entry|shiplog show <commit>|
+|shiplog verify|Check signatures + author allowlist|shiplog verify --env prod|
+|shiplog export-json|Machine-readable output|`shiplog export-json|
+
+---
+
+## **🔐 Security & Audit Model**
+
+- **Signatures required**: use your GPG / SSH signing key
+    
+- **Author allowlist**: restrict who can write entries
+    
+- **Fast-forward only**: no rewriting history; overrides are explicit entries
+    
+- **Anchors**: refs/_shiplog/anchors/<env> mark last good state
+    
+
+---
+
+## **🌱 Migration Path**
+
+```
+graph LR
+  A[Day 1: Human Headers Only] --> B[Week 2: JSON Trailers]
+  B --> C[Month 1: Signature Verification + Author Policies]
+  C --> D[Month 3: Anchors + Resume Logic]
+  D --> E[Month 6: SIEM Export + UI Dashboard]
+```
+
+---
+
+## **💡 Real-World Example**
+
+```
+Deploy: web v2.1.3 → prod-us-west-2/frontend
+Reason: Hotfix checkout-cart failing (OPS-7421)
+Status: SUCCESS (2m15s)
+Author: alice@company.com
+Repo:   7a8b9c1
+Artifact: ghcr.io/yourorg/web:v2.1.3
+```
+
+And JSON trailer:
+
+```
+{
+  "env": "prod",
+  "ts": "2025-09-19T22:31:07Z",
+  "who": {"name":"Alice","email":"alice@company.com"},
+  "what": {
+    "service":"web",
+    "repo_head":"7a8b9c1",
+    "artifact":"ghcr.io/yourorg/web:v2.1.3"
+  },
+  "where": {
+    "region":"us-west-2",
+    "cluster":"prod-1",
+    "namespace":"frontend"
+  },
+  "why": {
+    "reason":"Hotfix checkout-cart failing",
+    "ticket":"OPS-7421"
+  },
+  "how": {
+    "run_url":"https://ci.example.com/runs/67890"
+  },
+  "status":"success"
+}
+```
+
+---
+
+## **🧪 Tests (Running Locally or in Docker)**
+
+```
+# Build the test image
+make build
+
+# Run tests without signing (faster)
+make test
+
+# Run tests with signing enabled
+make test-signing
+```
+
+---
+
+## **🧾 Requirements**
+
+- Git >= 2.x
+    
+- Bash shell
+    
+- gum (for nicer prompts / display)
+    
+- jq (for JSON export)
+    
+- Optional: GPG / SSH key for signing (for production / audit mode)
+    
+
+---
+
+## **🏁 License**
+
+  
+
+MIT © YourOrg
+
+(Yes, you can use, fork, contribute — just don’t remove my name 😄)
+
+---
+
+> **“Trust but verify”** — every deploy should leave a signature you can’t lose.
+
+```
+---
+
+If you want, I can also format this as a **GitHub-README template** (placeholders for org name, version badge, sponsor badges, etc.) so it looks polished from day one.
+```

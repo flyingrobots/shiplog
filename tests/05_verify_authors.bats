@@ -1,11 +1,21 @@
 #!/usr/bin/env bats
 
+load helpers/common
+
 setup() {
-  install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+  shiplog_install_cli
   export SHIPLOG_SIGN=0
   export SHIPLOG_SERVICE="svc"
   run bash -lc 'yes | shiplog write'
   [ "$status" -eq 0 ]
+}
+
+@test "write rejects author outside allowlist" {
+  export SHIPLOG_AUTHORS="deploy@example.com"
+  run bash -lc 'yes | shiplog write'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not in allowlist"* ]]
+  unset SHIPLOG_AUTHORS
 }
 
 @test "verify passes when no allowlist set" {
