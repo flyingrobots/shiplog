@@ -7,6 +7,7 @@ PROFILE_FILE=${SHIPLOG_PROFILE:-}
 FORCE_CLONE=0
 DRY_RUN=0
 SILENT=0
+SKIP_PROFILE=0
 
 usage() {
   cat <<'USAGE'
@@ -19,6 +20,7 @@ Options:
   --profile FILE  shell profile to update (default: auto-detect)
   --dry-run       show what would happen without making changes
   --silent        reduce logging
+  --no-profile    do not modify any shell profile (print instructions instead)
   -h, --help      show this help
 USAGE
 }
@@ -31,6 +33,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE_CLONE=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --silent) SILENT=1 ;;
+    --no-profile) SKIP_PROFILE=1 ;;
     --profile)
       shift || { usage; exit 1; }
       PROFILE_FILE="$1"
@@ -88,9 +91,13 @@ BIN_LINE="export PATH=\\\"$INSTALL_DIR/bin:\\\$PATH\\\""
 HOME_LINE="export SHIPLOG_HOME=\\\"$INSTALL_DIR\\\""
 PROFILE_UPDATED=0
 
-if [ -n "$PROFILE_FILE" ]; then
+if [ "$SKIP_PROFILE" -eq 0 ] && [ -n "$PROFILE_FILE" ]; then
   touch "$PROFILE_FILE"
   if [ "$DRY_RUN" -eq 0 ]; then
+    if [ ! -f "$PROFILE_FILE.bak" ]; then
+      log "Creating backup $PROFILE_FILE.bak"
+      cp "$PROFILE_FILE" "$PROFILE_FILE.bak"
+    fi
     if ! grep -F "SHIPLOG_HOME" "$PROFILE_FILE" >/dev/null 2>&1; then
       log "Updating $PROFILE_FILE"
       printf '\n# Shiplog\n%s\n%s\n' "$HOME_LINE" "$BIN_LINE" >> "$PROFILE_FILE"
@@ -102,7 +109,7 @@ if [ -n "$PROFILE_FILE" ]; then
     log "Would append env vars to $PROFILE_FILE"
   fi
 else
-  log "No shell profile detected; export vars manually:"
+  log "No shell profile updated; export vars manually:"
   log "  $HOME_LINE"
   log "  $BIN_LINE"
 fi
