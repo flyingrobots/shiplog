@@ -12,8 +12,6 @@ Every release leaves a receipt. No guesswork. No mystery deployments. Just truth
 - Compliance = cryptographic receipts  
 - Team alignment = everyone knows exactly what happened  
 
----
-
 ## 🛠️ How It Works
 
 - Hidden refs under `_shiplog`: `refs/_shiplog/journal/<env>` & `refs/_shiplog/anchors/<env>`  
@@ -29,13 +27,11 @@ gitGraph
   commit id: "deploy: web v1.0 → prod ✅"
   commit id: "deploy: web v1.1 → prod ❌"
   commit id: "rollback to v1.0"
-````
-
----
+```
 
 ## **🚀 Quickstart (MVP)**
 
-```
+```bash
 # Clone or create your repo
 git init my-project
 cd my-project
@@ -66,9 +62,7 @@ export SHIPLOG_RUN_URL="https://ci.example.com/runs/12345"
 ./shiplog export-json --env prod | jq .
 ```
 
----
-
-## **⚙️ Commands**
+## **⚙Commands**
 
 |**Command**|**Description**|**Example**|
 |---|---|---|
@@ -79,24 +73,16 @@ export SHIPLOG_RUN_URL="https://ci.example.com/runs/12345"
 |shiplog verify|Check signatures + author allowlist|shiplog verify --env prod|
 |shiplog export-json|Machine-readable output|`shiplog export-json|
 
----
-
-## **🔐 Security & Audit Model**
+## **Security & Audit Model**
 
 - **Signatures required**: use your GPG / SSH signing key
-    
 - **Author allowlist**: restrict who can write entries
-    
 - **Fast-forward only**: no rewriting history; overrides are explicit entries
-    
 - **Anchors**: refs/_shiplog/anchors/<env> mark last good state
-    
 
----
+## **Migration Path**
 
-## **🌱 Migration Path**
-
-```
+```mermaid
 graph LR
   A[Day 1: Human Headers Only] --> B[Week 2: JSON Trailers]
   B --> C[Month 1: Signature Verification + Author Policies]
@@ -104,11 +90,9 @@ graph LR
   D --> E[Month 6: SIEM Export + UI Dashboard]
 ```
 
----
+## **Real-World Example**
 
-## **💡 Real-World Example**
-
-```
+```bash
 Deploy: web v2.1.3 → prod-us-west-2/frontend
 Reason: Hotfix checkout-cart failing (OPS-7421)
 Status: SUCCESS (2m15s)
@@ -119,7 +103,7 @@ Artifact: ghcr.io/yourorg/web:v2.1.3
 
 And JSON trailer:
 
-```
+```json
 {
   "env": "prod",
   "ts": "2025-09-19T22:31:07Z",
@@ -145,11 +129,9 @@ And JSON trailer:
 }
 ```
 
----
+## **Tests (Running Locally or in Docker)**
 
-## **🧪 Tests (Running Locally or in Docker)**
-
-```
+```bash
 # Build the test image
 make build
 
@@ -160,37 +142,14 @@ make test
 make test-signing
 ```
 
----
-
-## **🧾 Requirements**
+## **Requirements**
 
 - Git >= 2.x
-    
 - Bash shell
-    
 - gum (for nicer prompts / display)
-    
 - jq (for JSON export)
-    
 - Optional: GPG / SSH key for signing (for production / audit mode)
-    
 
----
+## **License**
 
-## **🏁 License**
-
-  
-
-MIT © YourOrg
-
-(Yes, you can use, fork, contribute — just don’t remove my name 😄)
-
----
-
-> **“Trust but verify”** — every deploy should leave a signature you can’t lose.
-
-```
----
-
-If you want, I can also format this as a **GitHub-README template** (placeholders for org name, version badge, sponsor badges, etc.) so it looks polished from day one.
-```
+MIT © J. Kirby Ross
