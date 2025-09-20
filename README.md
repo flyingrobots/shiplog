@@ -88,6 +88,13 @@ Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`).
    "$SHIPLOG_HOME/install-shiplog-deps.sh"
    ```
 
+Prefer a one-liner? Use the bootstrap helper:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/flyingrobots/shiplog/main/scripts/install-shiplog.sh | bash
+```
+It clones into `~/.shiplog`, runs the dependency installer, and appends the necessary exports to your shell profile. Pass `--dry-run` or `--profile FILE` for finer control.
+
 Those variables are no longer required at runtime—the CLI discovers its `lib/` directory automatically from the executable location—but keeping `SHIPLOG_HOME` exported makes downstream scripts (and documentation snippets) consistent.
 
 ## Tooling Helpers
