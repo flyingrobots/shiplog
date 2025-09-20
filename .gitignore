@@ -1,0 +1,12 @@
+# Local overrides
+*.local
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+/tmp/
+.obsidian/
