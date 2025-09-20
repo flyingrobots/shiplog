@@ -103,6 +103,7 @@ Those variables are no longer required at runtime—the CLI discovers its `lib/`
   ./shiplog-sandbox.sh ./bin/shiplog ls prod 5
   ```
   Override the image tag with `SHIPLOG_SANDBOX_IMAGE`, and SSH agent forwarding is wired in when `SSH_AUTH_SOCK` is set.
+- VS Code Dev Container: open the repository in VS Code and run “Dev Containers: Reopen in Container” to get a ready-to-go environment (`.devcontainer/` provisions gum, jq, yq, bats, etc.).
 
 ## Install Layout
 
