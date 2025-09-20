@@ -19,7 +19,7 @@
     git config user.name Smoke
     git config user.email smoke@example.com
     git commit --allow-empty -m init >/dev/null
-    SHIPLOG_HOME=/workspace SHIPLOG_LIB_DIR=/workspace/lib /workspace/shiplog-lite.sh --boring init >/dev/null
+    SHIPLOG_HOME=/workspace /workspace/bin/shiplog --boring init >/dev/null
     echo OK
   '
   [ "$status" -eq 0 ]

@@ -1,4 +1,4 @@
-# Common utility functions for shiplog-lite
+# Common utility functions for Shiplog CLI
 
 is_boring() {
   [ "${SHIPLOG_BORING:-0}" = "1" ]

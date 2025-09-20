@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SHIPLOG_HOME="${SHIPLOG_HOME:-$SCRIPT_DIR}"
+DEFAULT_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
+SHIPLOG_HOME="${SHIPLOG_HOME:-$DEFAULT_HOME}"
 LIB_DIR="${SHIPLOG_LIB_DIR:-$SHIPLOG_HOME/lib}"
 
 # -------- Config Defaults --------

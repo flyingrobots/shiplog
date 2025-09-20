@@ -1,6 +1,6 @@
 # SHIPLOG Lite
 
-Minimal bash-based prototype for recording deployment events inside a Git repository. Entries are stored under hidden refs so they can be synced and audited without touching the main branch history.
+Record deployment events inside a Git repository. Entries are stored under hidden refs so they can be synced and audited without touching the main branch history.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ Minimal bash-based prototype for recording deployment events inside a Git reposi
 flowchart TD
   dev[Team Member]
   gum[Gum Prompts]
-  script[shiplog-lite.sh]
+  script[shiplog]
   git[(Git Repository)]
   journal[refs/_shiplog/journal/<env>]
   notes[refs/_shiplog/notes/logs]
@@ -62,15 +62,33 @@ gitGraph
 ## Quick Start
 
 ```bash
-chmod +x shiplog-lite.sh
-./shiplog-lite.sh init
-./shiplog-lite.sh write
+shiplog init
+shiplog write
 # Non-interactive (CI):
-# SHIPLOG_BORING=1 ./shiplog-lite.sh write
-# or ./shiplog-lite.sh --boring write
+# SHIPLOG_BORING=1 shiplog write
+# or shiplog --boring write
 ```
 
-Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`). For convenience you can symlink the script to `shiplog` and invoke it directly.
+Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`).
+
+## Installation
+
+1. Clone the repository somewhere on your machine (for example, under `$HOME/.shiplog`):
+   ```bash
+   git clone https://github.com/flyingrobots/shiplog.git "$HOME/.shiplog"
+   ```
+2. Update your shell configuration (`~/.bashrc`, `~/.zshrc`, etc.) so the command is on `PATH`:
+   ```bash
+   export SHIPLOG_HOME="$HOME/.shiplog"
+   export PATH="$SHIPLOG_HOME/bin:$PATH"
+   ```
+   Reload your shell (or `source` the file) and run `shiplog --help` to verify.
+3. Optional but recommended: run the dependency installer once to ensure `gum`, `jq`, and `yq` are available:
+   ```bash
+   "$SHIPLOG_HOME/install-shiplog-deps.sh"
+   ```
+
+Those variables are no longer required at runtime—the CLI discovers its `lib/` directory automatically from the executable location—but keeping `SHIPLOG_HOME` exported makes downstream scripts (and documentation snippets) consistent.
 
 ## Tooling Helpers
 
@@ -82,20 +100,13 @@ Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`). For con
 - Docker sandbox: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted (git, gum, jq, yq, bats).
   ```bash
   ./shiplog-sandbox.sh            # build + interactive shell
-  ./shiplog-sandbox.sh ./shiplog-lite.sh ls prod 5
+  ./shiplog-sandbox.sh ./bin/shiplog ls prod 5
   ```
   Override the image tag with `SHIPLOG_SANDBOX_IMAGE`, and SSH agent forwarding is wired in when `SSH_AUTH_SOCK` is set.
 
 ## Install Layout
 
-`shiplog-lite.sh` now sources helper libraries from `lib/`. When you install the CLI somewhere other than the repo root, set:
-
-```bash
-export SHIPLOG_HOME=/opt/shiplog          # directory that contains shiplog-lite.sh
-export SHIPLOG_LIB_DIR=/opt/shiplog/lib   # path to the bundled libraries
-```
-
-The Docker runner and the Bats suite do this automatically. Packaging scripts should place `shiplog-lite.sh`, `lib/`, and `scripts/` together.
+The binary lives in `bin/shiplog` and dynamically resolves `lib/` relative to that path. Packaging scripts should place `bin/`, `lib/`, and `scripts/` together (for example, under `/opt/shiplog`). Setting `SHIPLOG_HOME` in your shell config is optional but convenient for downstream scripts.
 
 ## How to Configure Shiplog
 
@@ -214,13 +225,14 @@ stateDiagram-v2
 - `SHIPLOG_SIGN` – set to `0`/`false` to skip commit signing (used in CI when no keys exist).
 - `SHIPLOG_BORING` – set to `1` to disable gum UI globally (same as `--boring`).
 - `SHIPLOG_ASSUME_YES` – set to `1` to auto-confirm prompts even when gum is available.
-- `SHIPLOG_HOME` / `SHIPLOG_LIB_DIR` – override autodetected paths when installing the CLI outside the repo root.
+- `SHIPLOG_HOME` – point to a nonstandard installation directory (rarely needed if you cloned to `$HOME/.shiplog`).
+- `SHIPLOG_LIB_DIR` – advanced override when `lib/` lives somewhere other than `$SHIPLOG_HOME/lib`.
 - `SHIPLOG_POLICY_REF` – override the policy ref (default: `refs/_shiplog/policy/current`).
 - `GUM` – path to the `gum` binary (default: `gum`).
 
 ## Project Layout
 
-- `shiplog-lite.sh` – entrypoint CLI sourcing the `lib/` helpers.
+- `bin/shiplog` – entrypoint CLI sourcing the `lib/` helpers.
 - `lib/` – bash modules (`common`, `git`, `policy`, `commands`).
 - `scripts/` – plumbing helpers (e.g. `shiplog-sync-policy.sh`).
 - `tests/` – Bats suite (interactive + boring modes) and fixtures.
@@ -280,8 +292,8 @@ git init my-project
 cd my-project
 git commit --allow-empty -m "init"
 
-# Setup
-curl -fsSL https://example.com/shiplog-lite.sh -o shiplog && chmod +x shiplog
+# Setup (assuming you've exported SHIPLOG_HOME and added $SHIPLOG_HOME/bin to PATH)
+
 
 # Record a deploy
 export SHIPLOG_ENV=prod
@@ -295,14 +307,14 @@ export SHIPLOG_IMAGE="ghcr.io/yourorg/web"
 export SHIPLOG_TAG="v2.1.3"
 export SHIPLOG_RUN_URL="https://ci.example.com/runs/12345"
 
-./shiplog write
+shiplog write
 
 # Inspect history
-./shiplog ls --env prod
-./shiplog show $(git rev-parse refs/_shiplog/journal/prod)
+shiplog ls --env prod
+shiplog show $(git rev-parse refs/_shiplog/journal/prod)
 
 # Export JSON for external tools
-./shiplog export-json --env prod | jq .
+shiplog export-json --env prod | jq .
 ```
 
 ---
