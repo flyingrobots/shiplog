@@ -9,9 +9,6 @@ setup() {
 }
 
 @test "--boring write consumes SHIPLOG_* defaults" {
-  # Save original environment
-  local original_vars=$(env | grep '^SHIPLOG_' || true)
-  
   export SHIPLOG_SERVICE="boring-web"
   export SHIPLOG_STATUS="success"
   export SHIPLOG_REASON="non-interactive deploy"

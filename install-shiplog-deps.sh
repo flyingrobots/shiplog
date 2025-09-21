@@ -139,12 +139,12 @@ install_gum_snap_or_go() {
 
 install_gum_tgz() {
   if have gum; then return 0; fi
-  local arch suffix tmp extract_dir checksum expected_checksum
+  local arch suffix tmp extract_dir checksums_file
   arch="$(uname -m)"
   case "$arch" in
     x86_64|amd64) suffix="Linux_x86_64" ;;
     arm64|aarch64) suffix="Linux_arm64" ;;
-    armv7l|armhf) suffix="Linux_armv6" ;;
+    armv7l|armhf) suffix="Linux_armv7" ;;
     *)
       log "❌ Unsupported architecture for gum binary fallback: $arch"
       return 1
@@ -152,21 +152,36 @@ install_gum_tgz() {
   esac
 
   tmp=$(mktemp) || { log "❌ Failed to create temp file"; return 1; }
+  checksums_file=$(mktemp) || { rm -f "$tmp"; log "❌ Failed to create checksums file"; return 1; }
   extract_dir=$(mktemp -d) || { rm -f "$tmp"; log "❌ Failed to create temp dir"; return 1; }
 
   # Cleanup function
   cleanup_gum_install() {
     rm -f "$tmp"
+    rm -f "$checksums_file"
     rm -rf "$extract_dir"
   }
   trap cleanup_gum_install EXIT
 
   run "curl -fsSL 'https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_${suffix}.tar.gz' -o '$tmp'"
+  run "curl -fsSL 'https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/checksums.txt' -o '$checksums_file'"
 
   # Verify download succeeded and file isn't empty
-  if [ ! -s "$tmp" ]; then
+  if [ ! -s "$tmp" ] || [ ! -s "$checksums_file" ]; then
     log "❌ Download failed or empty file"
     return 1
+  fi
+
+  # Verify checksum
+  if command -v sha256sum >/dev/null 2>&1; then
+    expected_checksum=$(grep "gum_${GUM_VERSION}_${suffix}.tar.gz" "$checksums_file" | cut -d' ' -f1)
+    actual_checksum=$(sha256sum "$tmp" | cut -d' ' -f1)
+    if [ "$expected_checksum" != "$actual_checksum" ]; then
+      log "❌ Checksum verification failed"
+      return 1
+    fi
+  else
+    log "⚠️  Warning: sha256sum not available, skipping checksum verification"
   fi
 
   run "tar -C '$extract_dir' -xzf '$tmp' gum"

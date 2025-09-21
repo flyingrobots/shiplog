@@ -69,7 +69,11 @@ gitGraph
 
 ```bash
 # Install
-curl -fsSL https://shiplog.dev/install | bash
+# Verify the script first:
+curl -fsSL https://shiplog.dev/install -o install-shiplog.sh
+curl -fsSL https://shiplog.dev/install.sha256 -o install-shiplog.sh.sha256
+sha256sum -c install-shiplog.sh.sha256
+bash install-shiplog.sh
 
 # Initialize in your repo
 cd your-project

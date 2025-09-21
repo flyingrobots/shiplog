@@ -1,7 +1,10 @@
 # Common utility functions for Shiplog CLI
 
 is_boring() {
-  [ "${SHIPLOG_BORING:-0}" = "1" ]
+  case "${SHIPLOG_BORING:-0}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 die() {
@@ -24,6 +27,12 @@ shiplog_prompt_input() {
   local placeholder="$1"
   local env_var="$2"
   local fallback="${3:-}"
+  
+  # Validate env_var is a valid variable name
+  case "$env_var" in
+    [!a-zA-Z_]*|*[!a-zA-Z0-9_]*) die "Invalid environment variable name: $env_var" ;;
+  esac
+  
   local value="${!env_var:-$fallback}"
   if is_boring; then
     printf '%s\n' "$value"
@@ -31,11 +40,11 @@ shiplog_prompt_input() {
     local result
     result=$("$GUM" input --placeholder "$placeholder" --value "$value")
     printf '%s\n' "$result"
-    # Properly escape JSON values
-    local escaped_placeholder escaped_result
-    escaped_placeholder=$(printf '%s' "$placeholder" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    escaped_result=$(printf '%s' "$result" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":\"$escaped_placeholder\",\"value\":\"$escaped_result\"}" >&2
+    # Use jq for proper JSON escaping if available, otherwise skip structured logging
+    if command -v jq >/dev/null 2>&1; then
+      jq -nc --arg prompt "$placeholder" --arg value "$result" '{"prompt":$prompt,"value":$value}' | \
+        "$GUM" log --structured --time "rfc822" --level info --file /dev/stdin >&2
+    fi
   fi
 }
 

@@ -182,12 +182,17 @@ show_entry() {
   local human json
   human="$(awk '/^---/{exit} {print}' <<< "$body")"
   json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
+show_entry() {
+  local target="$1"
+  local body
+  body="$(git show -s --format=%B "$target")"
+  local human json
+  human="$(awk '/^---/{exit} {print}' <<< "$body")"
+  json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
   local gum_bin="${GUM:-gum}"
   local gum_available=0
 
-  if command -v "$gum_bin" >/dev/null 2>&1; then
-    gum_available=1
-  fi
+  check_gum_available "$gum_bin" && gum_available=1
 
   if is_boring || [ "$gum_available" -ne 1 ]; then
     if [ "$gum_available" -ne 1 ] && ! is_boring; then
@@ -206,6 +211,8 @@ show_entry() {
     fi
     return
   fi
+  # ... rest of function
+}
 
   "$gum_bin" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
 

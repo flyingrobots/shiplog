@@ -12,7 +12,7 @@ if [ ! -f "$POLICY_FILE" ]; then
 fi
 
 blob=$(git hash-object -w "$POLICY_FILE")
-entry=$(printf '100644 blob %s\t.shiplog/policy.json\n' "$blob")
+entry=$(printf '100644 blob %s\t%s\n' "$blob" "$(basename "$POLICY_FILE")")
 tree=$(printf "%s" "$entry" | git mktree)
 parent=$(git rev-parse -q --verify "$POLICY_REF" 2>/dev/null || echo "")
 

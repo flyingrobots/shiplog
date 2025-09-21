@@ -29,6 +29,4 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 - Always run tests inside Docker; host execution is unsupported and may skip required setup.
 
 ## Troubleshooting
-- If the suite fails with "git-shiplog binary not found", ensure the CLI was built and is executable at `bin/git-shiplog` before running `make test`.
-- For signing failures during `make test-signing`, remove stale GPG state by wiping the Docker image (`docker image rm shiplog-tests`) and rerunning the target.
-- When updating policy-related behavior, verify both `make test` and `make test-signing` so unsigned and signed paths stay green.
+- If you see this error:

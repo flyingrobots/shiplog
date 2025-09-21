@@ -24,7 +24,7 @@ USAGE
 }
 
 log() { [ "$SILENT" -eq 1 ] || echo "[shiplog-uninstall] $*"; }
-run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$@"; fi; }
+run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else "$@"; fi; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -176,3 +176,4 @@ log "Shiplog uninstall complete"
 if [ "$SILENT" -ne 1 ]; then
   echo "Remote refs under refs/_shiplog/* were left intact on your remotes; remove them manually only if you intend to delete history."
 fi
+

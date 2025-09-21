@@ -1,7 +1,7 @@
 # Verify Command
 
 ## Summary
-`git shiplog verify` walks a journal and confirms each entry meets the configured signing and allowlist requirements. It surfaces counts for valid entries, bad signatures, and unauthorized authors.
+`git shiplog verify` validates entries in the shiplog journal (git commit history) against configured signing policies and author allowlists. It reports counts of valid entries, commits with bad signatures, and commits from unauthorized authors.
 
 ## Usage
 ```bash
@@ -9,14 +9,14 @@ git shiplog verify [ENV]
 ```
 
 ## Behavior
-- Resolves policy inputs from the policy ref, working tree, git config, and environment variables.
+- Resolves policy inputs from multiple sources in order of precedence: environment variables, git config, working tree, then policy ref (git reference containing policy configuration).
 - Uses `git verify-commit` (with `GIT_SSH_ALLOWED_SIGNERS` when provided) to check signatures when required.
-- Fails fast on unauthorized authors or missing signatures and summarizes the results for humans or gum.
+- Exits immediately (code 1) when encountering unauthorized authors or missing required signatures, otherwise provides a summary report suitable for human reading or machine parsing.
 
 ## Related Code
-- `lib/commands.sh:107`
-- `lib/git.sh:58`
-- `lib/policy.sh:105`
+- `lib/commands.sh` - Main verify command implementation
+- `lib/git.sh` - Git signature verification utilities
+- `lib/policy.sh` - Policy resolution and validation logic
 
 ## Tests
 - `test/05_verify_authors.bats:22`

@@ -3,19 +3,17 @@
 shiplog_install_cli() {
   export SHIPLOG_HOME="${SHIPLOG_HOME:-/workspace}"
 
-  if [[ ! -f /workspace/bin/git-shiplog ]]; then
-    echo "ERROR: Source file /workspace/bin/git-shiplog does not exist!" >&2
+  if [[ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]]; then
+    echo "ERROR: Source file ${SHIPLOG_HOME}/bin/git-shiplog does not exist!" >&2
     return 1
   fi
 
-  if [[ ! -x /workspace/bin/git-shiplog ]]; then
-    echo "ERROR: Source file /workspace/bin/git-shiplog is not executable!" >&2
+  if [[ ! -x "${SHIPLOG_HOME}/bin/git-shiplog" ]]; then
+    echo "ERROR: Source file ${SHIPLOG_HOME}/bin/git-shiplog is not executable!" >&2
     return 1
   fi
 
-  install -m 0755 /workspace/bin/git-shiplog /usr/local/bin/git-shiplog
-
-  if [[ $? -ne 0 ]]; then
+  if ! install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog; then
     echo "ERROR: Failed to install git-shiplog binary!" >&2
     return 1
   fi

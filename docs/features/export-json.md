@@ -9,7 +9,7 @@ git shiplog export-json [ENV] | jq '.'
 ```
 
 ## Behavior
-- Requires `jq` to be available.
+- Requires `jq` version 1.6 or later to be available.
 - Streams commits in reverse chronological order and appends a `commit` field to each JSON payload.
 - Works with the same environment resolution rules as other commands.
 

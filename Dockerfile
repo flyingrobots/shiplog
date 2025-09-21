@@ -85,11 +85,11 @@ git config user.email "$TEST_AUTHOR_EMAIL"
 git commit --allow-empty -m init >/dev/null
 
 # Bring in shiplog script from mounted workspace
-if [ ! -f /workspace/bin/git-shiplog ]; then
-  echo "Missing /workspace/bin/git-shiplog. Mount your project into /workspace." >&2
+if [ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]; then
+  echo "Missing ${SHIPLOG_HOME}/bin/git-shiplog. Mount your project into ${SHIPLOG_HOME}." >&2
   exit 1
 fi
-install -m 0755 /workspace/bin/git-shiplog /usr/local/bin/git-shiplog
+install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 
 # Create a non-interactive gum stub for CI runs
 cat <<'GUM' > /tmp/gum-ci

@@ -43,10 +43,16 @@ SIGNERS_FILE_EFFECTIVE=""
 # -------- Source Library Functions --------
 [ -d "$LIB_DIR" ] || { echo "❌ shiplog: unable to locate lib dir ($LIB_DIR)" >&2; exit 1; }
 
-source "$LIB_DIR/common.sh"
-source "$LIB_DIR/policy.sh"
-source "$LIB_DIR/git.sh"
-source "$LIB_DIR/commands.sh"
+for lib in common.sh policy.sh git.sh commands.sh; do
+  if [[ ! -f "$LIB_DIR/$lib" ]]; then
+    echo "❌ shiplog: missing required library: $LIB_DIR/$lib" >&2
+    exit 1
+  fi
+  source "$LIB_DIR/$lib" || {
+    echo "❌ shiplog: failed to source $lib" >&2
+    exit 1
+  }
+done
 
 need git
 if ! is_boring; then
@@ -115,8 +121,6 @@ run_with_global_flags() {
       *)
         args+=("$1")
         shift
-        args+=("$@")
-        break
         ;;
     esac
   done

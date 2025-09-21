@@ -1,7 +1,7 @@
 # Init Command
 
 ## Summary
-`git shiplog init` bootstraps a repo so Shiplog journals and notes sync like any other ref. It adds the hidden refspecs for `_shiplog/*` and enables reflogs so rollbacks remain detectable.
+`git shiplog init` configures a Git repository to synchronize Shiplog journals and notes by adding remote tracking refspecs for `refs/_shiplog/*` references and enabling comprehensive reflog tracking via `core.logAllRefUpdates` to maintain rollback capability.
 
 ## Usage
 ```bash
@@ -10,7 +10,9 @@ git shiplog init
 
 ## Behavior
 - Requires running inside a Git repo with at least one commit.
-- Adds fetch/push refspecs for `refs/_shiplog/*` and turns on `core.logAllRefUpdates`, adding a `HEAD` push refspec only when none existed to preserve default push behavior.
+- Adds fetch/push refspecs for `refs/_shiplog/*` to enable remote synchronization.
+- Enables `core.logAllRefUpdates` to maintain comprehensive reflog history.
+- Conditionally adds a HEAD push refspec only if no push configuration exists (preserves existing push behavior).
 - Produces a human-friendly confirmation in interactive shells and a plain message when `--boring` is supplied.
 
 ## Related Code

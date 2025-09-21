@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL=${SHIPLOG_REPO_URL:-https://github.com/flyingrobots/shiplog.git}
+# REPO_URL must be explicitly set - no unsafe defaults
+if [ -z "${SHIPLOG_REPO_URL:-}" ]; then
+  echo "Error: SHIPLOG_REPO_URL must be set explicitly" >&2
+  exit 1
+fi
+REPO_URL="$SHIPLOG_REPO_URL"
 INSTALL_DIR=${SHIPLOG_HOME:-$HOME/.shiplog}
 PROFILE_FILE=${SHIPLOG_PROFILE:-}
 FORCE_CLONE=0
 DRY_RUN=0
 SILENT=0
 SKIP_PROFILE=0
-
 usage() {
   cat <<'USAGE'
 Shiplog bootstrap installer
@@ -86,15 +90,26 @@ if [ "$DRY_RUN" -eq 0 ]; then
     log "Error: install-shiplog-deps.sh not found in $INSTALL_DIR"
     exit 1
   fi
+  # Basic validation of the dependency installer
+  if [ ! -x "$INSTALL_DIR/install-shiplog-deps.sh" ]; then
+    echo "Error: install-shiplog-deps.sh is not executable" >&2
+    exit 1
+  fi
+  # Check it's actually a file, not a symlink to something dangerous
+  if [ -L "$INSTALL_DIR/install-shiplog-deps.sh" ]; then
+    echo "Error: install-shiplog-deps.sh is a symlink - security risk" >&2
+    exit 1
+  fi
   (cd "$INSTALL_DIR" && ./install-shiplog-deps.sh ${SILENT:+--silent})
   if [ -x "$INSTALL_DIR/scripts/bosun" ]; then
     log "Linking bosun helper into bin/"
     mkdir -p "$INSTALL_DIR/bin"
     ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
   fi
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # Fix the context - we need to be in the current directory, not the install dir
+  if git -C "$(pwd)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     log "Fetching Shiplog refs from origin"
-    run "git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'" || log "Warning: unable to fetch refs/_shiplog/*"
+    run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*' || log "Warning: unable to fetch refs/_shiplog/*"
   else
     log "(Skipping git fetch; not inside a git worktree)"
   fi

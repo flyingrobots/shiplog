@@ -10,12 +10,23 @@ parse_policy_json() {
   local anchors_prefix
   local authors
 
+  # Validate jq is available
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq command not found" >&2
+    return 1
+  fi
+
+  # Validate file is readable
+  if [ ! -r "$src" ]; then
+    echo "ERROR: Cannot read policy file: $src" >&2
+    return 1
+  fi
+
   require_signed=$(jq -r '.require_signed // empty' "$src" 2>/dev/null || echo "")
   signers_file=$(jq -r '.allow_ssh_signers_file // empty' "$src" 2>/dev/null || echo "")
   notes_ref=$(jq -r '.notes_ref // empty' "$src" 2>/dev/null || echo "")
   journals_prefix=$(jq -r '.journals_ref_prefix // empty' "$src" 2>/dev/null || echo "")
   anchors_prefix=$(jq -r '.anchors_ref_prefix // empty' "$src" 2>/dev/null || echo "")
-
   authors=$(jq -r --arg env "$env" '
       [
         (.authors.default_allowlist // []),

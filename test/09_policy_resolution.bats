@@ -40,6 +40,6 @@ POLICY
   }
 }
 POLICY
-  run bash -lc 'git shiplog --yes write'
+  run git shiplog --yes write
   [ "$status" -eq 0 ]
 }

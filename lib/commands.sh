@@ -75,10 +75,13 @@ cmd_write() {
   artifact_tag="$(shiplog_prompt_input "artifact tag (e.g., 2025-09-19.3)" "SHIPLOG_TAG")"
   run_url="$(shiplog_prompt_input "pipeline/run URL (optional)" "SHIPLOG_RUN_URL")"
 
-  if is_boring && [ -z "$service" ]; then
-    die "shiplog --boring write requires SHIPLOG_SERVICE"
+  if [ -z "$service" ]; then
+    if is_boring; then
+      die "shiplog: SHIPLOG_SERVICE environment variable is required in non-interactive mode"
+    else
+      die "shiplog: service name is required but not provided"
+    fi
   fi
-
   local start_ts end_ts dur_s
   start_ts="$(fmt_ts)"
   if is_boring; then
@@ -132,11 +135,14 @@ cmd_write() {
   fi
 
   if [ "$have_origin" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
-    if ! git push origin "$journal_ref" >/dev/null 2>&1; then
-      die "shiplog: failed to push $journal_ref to origin"
+    local push_output
+    if ! push_output=$(git push origin "$journal_ref" 2>&1); then
+      die "shiplog: failed to push $journal_ref to origin: $push_output"
     fi
     if [ "$note_attached" -eq 1 ]; then
-      git push origin "$notes_ref" >/dev/null 2>&1 || die "shiplog: failed to push $notes_ref to origin"
+      if ! push_output=$(git push origin "$notes_ref" 2>&1); then
+        die "shiplog: failed to push $notes_ref to origin: $push_output"
+      fi
     fi
     if ! is_boring && command -v "$GUM" >/dev/null 2>&1; then
       "$GUM" style --border normal -- "📤 Pushed $journal_ref to origin"
@@ -264,30 +270,50 @@ cmd_policy() {
 }
 
 usage() {
+usage() {
   local cmd="$(basename "$0")"
   if [ "$cmd" = "git-shiplog" ]; then
     cmd="git shiplog"
   fi
   cat <<EOF
 SHIPLOG-Lite
-Usage:
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] init
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] write [ENV]
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] ls   [ENV] [LIMIT]
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] verify [ENV]
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] export-json [ENV]
-  $cmd [--boring] [--yes] [--no-push] [--env ENV] policy [show]
+A structured deployment logging tool for Git repositories.
 
-Env via --env or $SHIPLOG_ENV (default: $DEFAULT_ENV). Optional vars: SHIPLOG_* (author, image, tag, run url, log).
-Flags:
-  --env ENV        Target environment when none supplied positionally.
-  --boring         Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
-  --yes|--auto-accept  Auto-confirm prompts (sets SHIPLOG_ASSUME_YES=1).
-  --no-push        Skip automatic `git push` of `_shiplog/*` refs (same as SHIPLOG_AUTO_PUSH=0).
+Usage:
+  $cmd [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
+
+Commands:
+  init                 Initialize shiplog configuration in current repo
+  write [ENV]          Create a new deployment log entry
+  ls [ENV] [LIMIT]     List recent deployment entries (default: last 20)
+  show [COMMIT]        Show detailed deployment entry
+  verify [ENV]         Verify signatures and authorization of entries
+  export-json [ENV]    Export entries as JSON lines
+  policy [show]        Show current policy configuration
+
+Global Options:
+  --env ENV            Target environment (default: $DEFAULT_ENV)
+  --boring             Non-interactive mode (requires SHIPLOG_* env vars)
+  --yes                Auto-confirm all prompts
+  --no-push            Skip automatic git push of shiplog refs
+
+Environment Variables:
+  SHIPLOG_SERVICE      Service name (required in --boring mode)
+  SHIPLOG_STATUS       Deployment status (success|failed|in_progress|...)
+  SHIPLOG_REASON       Deployment reason/description
+  SHIPLOG_TICKET       Associated ticket or PR number
+  SHIPLOG_REGION       Target region
+  SHIPLOG_CLUSTER      Target cluster
+  SHIPLOG_NAMESPACE    Target namespace
+  SHIPLOG_IMAGE        Container image name
+  SHIPLOG_TAG          Container image tag
+  SHIPLOG_RUN_URL      CI/CD pipeline URL
+  SHIPLOG_LOG          Path to log file to attach as notes
+  SHIPLOG_AUTO_PUSH    Auto-push to origin (default: 1)
+  SHIPLOG_ASSUME_YES   Auto-confirm prompts (default: 0)
+  SHIPLOG_BORING       Enable non-interactive mode (default: 0)
 EOF
 }
-
 run_command() {
   local sub="${1:-}"
   shift || true
