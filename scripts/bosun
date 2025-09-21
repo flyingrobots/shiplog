@@ -15,7 +15,40 @@ ansi() {
 color() { ansi "$1"; shift; printf '%s' "$*"; ansi '0'; }
 
 # ---- JSON helper ------------------------------------------------------------
-json_escape() { sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\"/g'; }
+json_escape() {
+  local data output=""
+  data=$(cat)
+  if command -v python3 >/dev/null 2>&1; then
+    output=$(python3 - <<'PY' "$data" 2>/dev/null || true)
+import json, sys
+print(json.dumps(sys.argv[1])[1:-1])
+PY
+  elif command -v python >/dev/null 2>&1; then
+    output=$(python - <<'PY' "$data" 2>/dev/null || true)
+import json, sys
+print(json.dumps(sys.argv[1])[1:-1])
+PY
+  elif command -v jq >/dev/null 2>&1; then
+    output=$(printf '%s' "$data" | jq -Rs @json 2>/dev/null || true)
+    output=${output#"}
+    output=${output%"}
+  fi
+
+  if [ -n "$output" ]; then
+    printf '%s' "$output"
+    return 0
+  fi
+
+  local fallback
+  fallback=$(printf '%s' "$data" | sed -e 's/\\\\/\\\\\\\\/g' \
+                                 -e 's/"/\\"/g' \
+                                 -e 's/\r/\\r/g' \
+                                 -e 's/\t/\\t/g' \
+                                 -e 's/\f/\\f/g' \
+                                 -e 's/\b/\\b/g' \
+                                 -e 's/\n/\\n/g')
+  printf '%s' "$fallback"
+}
 emit_json_kv() {
   printf '{"%s":' "$1"
   if [ "$2" = "true" ] || [ "$2" = "false" ] || [[ "$2" =~ ^-?[1-9][0-9]*$|^0$|^-[1-9][0-9]*$ ]]; then
@@ -35,7 +68,12 @@ draw_box() {
   local border_top="─" corner_tl="┌" corner_tr="┐"
   local border_side="│" corner_bl="└" corner_br="┘"
   [ "$inner" -lt 1 ] && inner=1
-  local title_raw="$(printf '%s' "$title_col" | sed $'s/\033\[[0-9;]*[A-Za-z]//g')"
+  local title_raw
+  if command -v perl >/dev/null 2>&1; then
+    title_raw="$(printf '%s' "$title_col" | perl -pe 's/\e\[[0-9;]*[0-9A-PR-TZcf-nq-uy=><]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[P^_].*?\e\\//g')"
+  else
+    title_raw="$(printf '%s' "$title_col" | sed $'s/\033\[[0-9;]*[A-Za-z]//g')"
+  fi
   if [ -n "$title_raw" ]; then
     local barlen=$(( width - ${#title_raw} - 4 ))
     [ "$barlen" -lt 0 ] && barlen=0
@@ -190,6 +228,10 @@ cmd_table() {
   local r
   for r in "${rows[@]}"; do
     IFS=$'\t' read -r -a cols <<< "$r"
+    if [ ${#cols[@]} -ne ${#headers[@]} ]; then
+      echo "bosun table: row has ${#cols[@]} columns but expected ${#headers[@]}" >&2
+      return 3
+    fi
     for idx in "${!headers[@]}"; do
       local col="${cols[$idx]:-}"
       ((${#col} > ${widths[$idx]})) && widths[$idx]=${#col}

@@ -4,6 +4,12 @@ load helpers/common
 
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 
+count_exact_matches() {
+  local needle="$1"
+  local haystack="$2"
+  printf '%s\n' "$haystack" | grep -Fx -c "$needle"
+}
+
 setup() {
   [ -d .git ] || { echo "Run inside docker test runner" >&2; exit 1; }
   shiplog_install_cli
@@ -34,14 +40,14 @@ setup() {
 
   run git config --get-all remote.origin.fetch
   [ "$status" -eq 0 ]
-  fetch_count=$(printf '%s\n' "$output" | grep -Fx "$expected" | wc -l | tr -d '[:space:]')
+  fetch_count=$(count_exact_matches "$expected" "$output")
   [ "$fetch_count" -eq 1 ] || fail "expected single fetch refspec, got $fetch_count"
 
   run git config --get-all remote.origin.push
   [ "$status" -eq 0 ]
-  head_count=$(printf '%s\n' "$output" | grep -Fx "HEAD" | wc -l | tr -d '[:space:]')
+  head_count=$(count_exact_matches "HEAD" "$output")
   [ "$head_count" -eq 1 ] || fail "expected single HEAD push refspec, got $head_count"
-  push_count=$(printf '%s\n' "$output" | grep -Fx "${REF_ROOT}/*:${REF_ROOT}/*" | wc -l | tr -d '[:space:]')
+  push_count=$(count_exact_matches "${REF_ROOT}/*:${REF_ROOT}/*" "$output")
   [ "$push_count" -eq 1 ] || fail "expected single shiplog push refspec, got $push_count"
 }
 
@@ -53,7 +59,7 @@ setup() {
   run git config --get-all remote.origin.push
   [ "$status" -eq 0 ]
   [[ "$output" == *"refs/heads/*:refs/remotes/origin/*"* ]] || fail "missing existing push refspec"
-  shiplog_count=$(printf '%s\n' "$output" | grep -Fx "${REF_ROOT}/*:${REF_ROOT}/*" | wc -l | tr -d '[:space:]')
+  shiplog_count=$(count_exact_matches "${REF_ROOT}/*:${REF_ROOT}/*" "$output")
   [ "$shiplog_count" -eq 1 ] || fail "expected single shiplog push refspec"
   head_present=$(printf '%s\n' "$output" | grep -Fx "HEAD" | wc -l | tr -d '[:space:]')
   [ "$head_present" -eq 0 ] || fail "HEAD refspec should not be added when custom pushes exist"

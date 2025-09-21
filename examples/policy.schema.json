@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Shiplog Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "require_signed",
+    "authors",
+    "deployment_requirements",
+    "ff_only",
+    "notes_ref",
+    "journals_ref_prefix",
+    "anchors_ref_prefix"
+  ],
+  "properties": {
+    "schema": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "format_compat": { "type": "string" },
+    "require_signed": { "type": "boolean" },
+    "allow_ssh_signers_file": { "type": "string", "minLength": 1 },
+    "authors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default_allowlist"],
+      "properties": {
+        "default_allowlist": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "env_overrides": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "deployment_requirements": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "require_ticket": { "type": "boolean" },
+          "require_service": { "type": "boolean" },
+          "require_where": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["region", "cluster", "namespace", "service", "environment"]
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "ff_only": { "type": "boolean" },
+    "notes_ref": { "type": "string", "pattern": "^refs/[^\s]+" },
+    "journals_ref_prefix": { "type": "string", "pattern": "^refs/[^\s]+/" },
+    "anchors_ref_prefix": { "type": "string", "pattern": "^refs/[^\s]+/" }
+  }
+}

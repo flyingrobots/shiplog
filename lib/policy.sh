@@ -27,17 +27,17 @@ parse_policy_json() {
   notes_ref=$(jq -r '.notes_ref // empty' "$src" 2>/dev/null || echo "")
   journals_prefix=$(jq -r '.journals_ref_prefix // empty' "$src" 2>/dev/null || echo "")
   anchors_prefix=$(jq -r '.anchors_ref_prefix // empty' "$src" 2>/dev/null || echo "")
-  authors=$(jq -r --arg env "$env" '
-      [
-        (.authors.default_allowlist // []),
-        (.authors.env_overrides.default // []),
-        (.authors.env_overrides[$env] // [])
-      ]
-      | flatten
-      | map(select(. != null and . != ""))
-      | unique
-      | join(" ")
-    ' "$src" 2>/dev/null || echo "")
+
+  local authors_default authors_env_default authors_env combined
+  authors_default=$(jq -r '(.authors.default_allowlist // [])[]?' "$src" 2>/dev/null || true)
+  authors_env_default=$(jq -r '(.authors.env_overrides.default // [])[]?' "$src" 2>/dev/null || true)
+  authors_env=$(jq -r --arg env "$env" '(.authors.env_overrides[$env] // [])[]?' "$src" 2>/dev/null || true)
+  combined=$(printf '%s\n%s\n%s\n' "$authors_default" "$authors_env_default" "$authors_env" | awk 'NF' | sort -u)
+  if [ -n "$combined" ]; then
+    authors=$(printf '%s\n' "$combined" | paste -sd' ' -)
+  else
+    authors=""
+  fi
 
   if [ -n "$require_signed" ]; then
     echo "require_signed=$require_signed"
@@ -150,6 +150,14 @@ resolve_policy() {
     SIGNERS_FILE_EFFECTIVE="$ALLOWED_SIGNERS_FILE"
   fi
 
+  if [ -n "$SIGNERS_FILE_EFFECTIVE" ] && [[ "$SIGNERS_FILE_EFFECTIVE" != /* ]]; then
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$repo_root" ]; then
+      SIGNERS_FILE_EFFECTIVE="$repo_root/$SIGNERS_FILE_EFFECTIVE"
+    fi
+  fi
+
   local sign_mode="${SHIPLOG_SIGN:-}"
   if [ -z "$sign_mode" ]; then
     if [ -n "$POLICY_REQUIRE_SIGNED" ]; then
@@ -166,6 +174,12 @@ resolve_policy() {
     "") SHIPLOG_SIGN_EFFECTIVE=1 ;;
     *) SHIPLOG_SIGN_EFFECTIVE=1 ;;
   esac
+
+  if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" != "0" ] && [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
+    if [ ! -r "$SIGNERS_FILE_EFFECTIVE" ]; then
+      die "shiplog: allowed signers file '$SIGNERS_FILE_EFFECTIVE' not found or unreadable"
+    fi
+  fi
 
   if [ -n "$POLICY_NOTES_REF" ]; then
     NOTES_REF="$POLICY_NOTES_REF"

@@ -15,16 +15,25 @@ Shiplog uninstaller
 Usage: uninstall-shiplog.sh [options]
 
 Options:
-  --dry-run     show actions without performing them
-  --silent      reduce logging
-  --no-backup   do not create profile backups before editing
+  --dry-run       show actions without performing them
+  --silent        reduce logging
+  --no-backup     do not create profile backups before editing
   --profile FILE  explicit profile to edit (default: auto-detect)
-  -h, --help    show this help
+  --force         proceed even if local refs are ahead of origin
+  -h, --help      show this help
 USAGE
 }
 
 log() { [ "$SILENT" -eq 1 ] || echo "[shiplog-uninstall] $*"; }
-run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else "$@"; fi; }
+run() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '+ '
+    printf '%q ' "$@"
+    printf '\n'
+    return 0
+  fi
+  "$@" || return $?
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -79,7 +88,9 @@ git_config_remove_refspec remote.origin.push "refs/_shiplog/*:refs/_shiplog/*"
 
 unpublished_refs=()
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remote.origin.url >/dev/null 2>&1; then
-  run "git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'" || log "Warning: unable to fetch refs/_shiplog/*"
+  if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
+    log "Warning: unable to fetch refs/_shiplog/*"
+  fi
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
     local_tip=$(git rev-parse "$ref" 2>/dev/null || echo "")
@@ -116,14 +127,14 @@ BOSUN_TARGET="$INSTALL_DIR/scripts/bosun"
 
 if [ -d "$INSTALL_DIR" ]; then
   log "Removing $INSTALL_DIR"
-  run "rm -rf '$INSTALL_DIR'"
+  run rm -rf "$INSTALL_DIR"
 else
   log "Install directory $INSTALL_DIR not found"
 fi
 
 if [ -L "/usr/local/bin/git-shiplog" ] && [ "$(readlink "/usr/local/bin/git-shiplog")" = "$GIT_SHIPLOG_TARGET" ]; then
   log "Removing /usr/local/bin/git-shiplog"
-  run "rm -f /usr/local/bin/git-shiplog"
+  run rm -f /usr/local/bin/git-shiplog
 fi
 
 for shim in shiplog bosun; do
@@ -133,7 +144,7 @@ for shim in shiplog bosun; do
     [ "$shim" = "bosun" ] && target="$BOSUN_TARGET"
     if [ -L "$shim_path" ] && [ "$(readlink "$shim_path")" = "$target" ]; then
       log "Removing $shim shim at $shim_path"
-      run "rm -f '$shim_path'"
+      run rm -f "$shim_path"
     fi
   fi
 done
@@ -149,24 +160,44 @@ if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "+ removing Shiplog entries from $PROFILE_FILE"
   else
-    python - "$PROFILE_FILE" "$INSTALL_DIR" <<'PY'
+    python_cmd=""
+    if command -v python3 >/dev/null 2>&1; then
+      python_cmd=python3
+    elif command -v python >/dev/null 2>&1; then
+      python_cmd=python
+    fi
+    if [ -z "$python_cmd" ]; then
+      log "Python not available; please remove SHIPLOG entries from $PROFILE_FILE manually."
+    else
+      tmp_profile=$(mktemp)
+      if ! "$python_cmd" - "$PROFILE_FILE" "$INSTALL_DIR" "$tmp_profile" <<'PY'; then
 import sys
 from pathlib import Path
 profile = Path(sys.argv[1])
 install_dir = sys.argv[2]
+output = Path(sys.argv[3])
 lines = profile.read_text().splitlines()
-filtered = []
-for line in lines:
-    stripped = line.strip()
+
+def should_skip(stripped: str) -> bool:
     if stripped.startswith('# Shiplog'):
-        continue
-    if 'SHIPLOG_HOME' in stripped and install_dir in stripped:
-        continue
-    if install_dir + '/bin:$PATH' in stripped:
-        continue
-    filtered.append(line)
-profile.write_text('\n'.join(filtered) + ('\n' if filtered else ''))
+        return True
+    if stripped.startswith('export SHIPLOG_HOME=') and install_dir in stripped:
+        return True
+    if stripped.startswith('export PATH=') and install_dir in stripped:
+        needle = f"{install_dir}/bin"
+        if needle in stripped:
+            return True
+    return False
+
+filtered = [line for line in lines if not should_skip(line.strip())]
+output.write_text('\n'.join(filtered) + ('\n' if filtered else ''))
 PY
+        log "Error: failed to clean $PROFILE_FILE; leaving original in place."
+        rm -f "$tmp_profile"
+      else
+        mv "$tmp_profile" "$PROFILE_FILE"
+      fi
+    fi
   fi
 else
   log "Profile file not found or unspecified; remove PATH/SHIPLOG_HOME entries manually if needed."
@@ -176,4 +207,3 @@ log "Shiplog uninstall complete"
 if [ "$SILENT" -ne 1 ]; then
   echo "Remote refs under refs/_shiplog/* were left intact on your remotes; remove them manually only if you intend to delete history."
 fi
-

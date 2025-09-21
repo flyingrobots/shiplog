@@ -1,15 +1,18 @@
 {
-  "version": 1,
+  "version": "1.0.0",
+  "schema": "examples/policy.schema.json",
+  "format_compat": ">=1.0.0 <2.0.0",
   "require_signed": true,
-  "allow_ssh_signers_file": ".git/allowed_signers",
+  "allow_ssh_signers_file": ".shiplog/allowed_signers",
   "authors": {
     "default_allowlist": [
       "${DEPLOY_BOT_EMAIL:-deploy-bot@ci}",
       "${ENGINEERING_EMAIL:-engineering@example.com}"
     ],
     "env_overrides": {
-      "default": [],
-      "prod": []
+      "prod": [
+        "${PROD_APPROVER_EMAIL:-prod-approver@example.com}"
+      ]
     }
   },
   "deployment_requirements": {
@@ -23,7 +26,7 @@
     }
   },
   "ff_only": true,
-  "notes_ref": "refs/shiplog/notes/logs",
-  "journals_ref_prefix": "refs/shiplog/journal/",
-  "anchors_ref_prefix": "refs/shiplog/anchors/"
+  "notes_ref": "refs/_shiplog/notes/logs",
+  "journals_ref_prefix": "refs/_shiplog/journal/",
+  "anchors_ref_prefix": "refs/_shiplog/anchors/"
 }

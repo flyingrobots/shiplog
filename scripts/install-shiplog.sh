@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# REPO_URL must be explicitly set - no unsafe defaults
-if [ -z "${SHIPLOG_REPO_URL:-}" ]; then
-  echo "Error: SHIPLOG_REPO_URL must be set explicitly" >&2
-  exit 1
-fi
-REPO_URL="$SHIPLOG_REPO_URL"
+REPO_URL=${SHIPLOG_REPO_URL:-https://github.com/flyingrobots/shiplog.git}
 INSTALL_DIR=${SHIPLOG_HOME:-$HOME/.shiplog}
 PROFILE_FILE=${SHIPLOG_PROFILE:-}
 FORCE_CLONE=0
@@ -30,7 +25,51 @@ USAGE
 }
 
 log() { [ "$SILENT" -eq 1 ] || echo "[shiplog-install] $*"; }
-run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$@"; fi; }
+run() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '+ '
+    printf '%q ' "$@"
+    printf '\n'
+    return 0
+  fi
+  "$@" || return $?
+}
+
+resolve_path() {
+  local raw="$1" resolved=""
+  if command -v python3 >/dev/null 2>&1; then
+    resolved=$(python3 - "$raw" <<'PY' 2>/dev/null || true)
+import os, sys
+path = os.path.expanduser(sys.argv[1])
+if not path:
+    raise SystemExit(1)
+print(os.path.realpath(path))
+PY
+  elif command -v python >/dev/null 2>&1; then
+    resolved=$(python - "$raw" <<'PY' 2>/dev/null || true)
+import os, sys
+path = os.path.expanduser(sys.argv[1])
+if not path:
+    raise SystemExit(1)
+print(os.path.realpath(path))
+PY
+  fi
+  if [ -z "$resolved" ]; then
+    local expanded="$raw"
+    case "$expanded" in
+      ~*) expanded="$HOME${expanded#~}" ;;
+    esac
+    local dir
+    dir=$(dirname "$expanded")
+    local base
+    base=$(basename "$expanded")
+    if ! resolved=$(cd "$dir" 2>/dev/null && pwd)/"$base"; then
+      return 1
+    fi
+    resolved=$(cd "$(dirname "$resolved")" 2>/dev/null && pwd)/"$(basename "$resolved")"
+  fi
+  printf '%s' "$resolved"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -69,19 +108,80 @@ if [ -z "$PROFILE_FILE" ]; then
   fi
 fi
 
+if [ -z "$INSTALL_DIR" ]; then
+  echo "Error: SHIPLOG_HOME (install directory) must not be empty" >&2
+  exit 1
+fi
+
+RESOLVED_INSTALL_DIR=$(resolve_path "$INSTALL_DIR")
+if [ -z "$RESOLVED_INSTALL_DIR" ]; then
+  echo "Error: unable to resolve install path '$INSTALL_DIR'" >&2
+  exit 1
+fi
+
+case "$RESOLVED_INSTALL_DIR" in
+  /|/root|/root/*)
+    echo "Error: refusing to install into $RESOLVED_INSTALL_DIR" >&2
+    exit 1
+    ;;
+esac
+
+ALLOWED_BASES=${SHIPLOG_ALLOWED_BASES:-$HOME:/opt/shiplog}
+IFS=':' read -r -a _shiplog_allowed <<< "$ALLOWED_BASES"
+allowed_ok=0
+for base in "${_shiplog_allowed[@]}"; do
+  [ -z "$base" ] && continue
+  resolved_base=$(resolve_path "$base" 2>/dev/null || true)
+  [ -z "$resolved_base" ] && continue
+  case "$RESOLVED_INSTALL_DIR" in
+    "$resolved_base"|"$resolved_base"/*)
+      allowed_ok=1
+      break
+      ;;
+  esac
+done
+unset _shiplog_allowed
+
+if [ "$allowed_ok" -ne 1 ]; then
+  echo "Error: install directory $RESOLVED_INSTALL_DIR is outside permitted bases ($ALLOWED_BASES)" >&2
+  exit 1
+fi
+
+INSTALL_DIR="$RESOLVED_INSTALL_DIR"
 log "Install dir: $INSTALL_DIR"
 if [ -d "$INSTALL_DIR" ]; then
   if [ "$FORCE_CLONE" -eq 1 ]; then
+    if [ -L "$INSTALL_DIR" ]; then
+      echo "Error: refusing to remove symlinked install dir ($INSTALL_DIR). Remove it manually first." >&2
+      exit 1
+    fi
     log "Removing existing directory"
-    run "rm -rf '$INSTALL_DIR'"
+    run rm -rf "$INSTALL_DIR"
   else
     log "Directory already exists; pulling latest"
-    run "git -C '$INSTALL_DIR' fetch --all"
-    run "git -C '$INSTALL_DIR' reset --hard origin/main"
+    if ! git -C "$INSTALL_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "Error: $INSTALL_DIR exists but is not a git repository (use --force to replace it)" >&2
+      exit 1
+    fi
+    default_branch=$(git -C "$INSTALL_DIR" remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')
+    if [ -z "$default_branch" ]; then
+      for candidate in main master; do
+        if git -C "$INSTALL_DIR" show-ref --verify --quiet "refs/remotes/origin/$candidate"; then
+          default_branch="$candidate"
+          break
+        fi
+      done
+    fi
+    if [ -z "$default_branch" ]; then
+      echo "Error: unable to determine origin default branch for $INSTALL_DIR" >&2
+      exit 1
+    fi
+    run git -C "$INSTALL_DIR" fetch origin "$default_branch"
+    run git -C "$INSTALL_DIR" reset --hard "origin/$default_branch"
   fi
 else
   log "Cloning repo from $REPO_URL"
-  run "git clone '$REPO_URL' '$INSTALL_DIR'"
+  run git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
 if [ "$DRY_RUN" -eq 0 ]; then
@@ -107,9 +207,11 @@ if [ "$DRY_RUN" -eq 0 ]; then
     ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
   fi
   # Fix the context - we need to be in the current directory, not the install dir
-  if git -C "$(pwd)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     log "Fetching Shiplog refs from origin"
-    run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*' || log "Warning: unable to fetch refs/_shiplog/*"
+    if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
+      log "Warning: unable to fetch refs/_shiplog/*"
+    fi
   else
     log "(Skipping git fetch; not inside a git worktree)"
   fi

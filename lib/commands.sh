@@ -44,18 +44,42 @@ cmd_write() {
   maybe_sync_shiplog_ref() {
     local ref="$1"
     [ "$have_origin" -eq 1 ] || return 0
-    if git ls-remote --exit-code origin "$ref" >/dev/null 2>&1; then
-      if git fetch origin "$ref:$ref" >/dev/null 2>&1; then
-        return 0
-      fi
-      if [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
-        if git push origin "$ref" >/dev/null 2>&1; then
-          git fetch origin "$ref:$ref" >/dev/null 2>&1 && return 0
-        fi
-      fi
-      die "shiplog: unable to sync $ref with origin; push or resolve divergence before continuing"
+
+    local ls_output="" remote_oid="" local_oid="" fetch_output=""
+    if ! ls_output=$(git ls-remote origin "$ref" 2>&1); then
+      printf '⚠️ shiplog: unable to query origin for %s (%s)\n' "$ref" "$ls_output" >&2
+      return 0
     fi
-    return 0
+
+    remote_oid=$(printf '%s\n' "$ls_output" | awk 'NF{print $1; exit}')
+    [ -n "$remote_oid" ] || return 0
+
+    local_oid=$(git rev-parse "$ref" 2>/dev/null || echo "")
+
+    if [ -z "$local_oid" ]; then
+      if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
+        die "shiplog: failed to fetch $ref from origin: $fetch_output"
+      fi
+      return 0
+    fi
+
+    if [ "$local_oid" = "$remote_oid" ]; then
+      return 0
+    fi
+
+    if git merge-base --is-ancestor "$local_oid" "$remote_oid" >/dev/null 2>&1; then
+      if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
+        die "shiplog: failed to fast-forward $ref from origin: $fetch_output"
+      fi
+      return 0
+    fi
+
+    if git merge-base --is-ancestor "$remote_oid" "$local_oid" >/dev/null 2>&1; then
+      # Local is ahead; defer to post-write push logic
+      return 0
+    fi
+
+    die "shiplog: $ref has diverged between local and origin; reconcile before writing"
   }
 
   maybe_sync_shiplog_ref "$journal_ref"

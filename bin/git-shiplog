@@ -11,18 +11,12 @@ REF_ROOT="${SHIPLOG_REF_ROOT:-refs/_shiplog}"
 NOTES_REF="${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}"
 DEFAULT_ENV="${SHIPLOG_ENV:-prod}"
 AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
-ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.git/allowed_signers}"
+ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.shiplog/allowed_signers}"
 GUM=${GUM:-gum}
 SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
 SHIPLOG_AUTO_PUSH="${SHIPLOG_AUTO_PUSH:-1}"
-
-for arg in "$@"; do
-  if [ "$arg" = "--boring" ]; then
-    SHIPLOG_BORING=1
-    break
-  fi
-done
 export SHIPLOG_BORING
+export SHIPLOG_AUTO_PUSH
 
 POLICY_REF_DEFAULT="refs/_shiplog/policy/current"
 POLICY_REF="${SHIPLOG_POLICY_REF:-$POLICY_REF_DEFAULT}"
@@ -99,12 +93,12 @@ run_with_global_flags() {
         export SHIPLOG_AUTO_PUSH
         shift
         ;;
-      --yes|--assume-yes|--auto-accept)
+      --yes)
         SHIPLOG_ASSUME_YES=1
         export SHIPLOG_ASSUME_YES
         shift
         ;;
-      --boring)
+     --boring)
         SHIPLOG_BORING=1
         export SHIPLOG_BORING
         shift

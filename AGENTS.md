@@ -31,28 +31,28 @@
 
 ## Worklog
 
-- [ ] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
-- [ ] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
-- [ ] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with Python guard.
-- [ ] Refactor `lib/common.sh` JSON escaping/logging helpers.
-- [ ] Replace `maybe_sync_shiplog_ref` with robust fetch/push handling and clear errors.
-- [ ] Remove legacy `is_boring` fallback in `lib/git.sh` and standardise env vars.
-- [ ] Split policy author extraction logic and improve `docs/features/init/verify` plus new schema docs.
-- [ ] Improve `scripts/bosun` ANSI stripping, JSON escaping, table parsing.
-- [ ] Update `README.md` installer instructions (no `curl|bash`), flag consistency, remove progress bar, adjust feature table evidence.
-- [ ] Document uninstaller and auto-push behaviour in README & env vars.
-- [ ] Create `.devcontainer/post-create.sh`, make executable.
-- [ ] Update CONTRIBUTING docs (`contrib/README.md`) paths for clarity.
-- [ ] Add warning about remote refs being preserved.
-- [ ] Update test suite:
-  - [ ] Simplify count helpers in `test/01_init_and_empty_ls.bats`.
-  - [ ] Expand `test/10_boring_mode.bats` assertions for all SHIPLOG_* vars.
-  - [ ] Refactor `make_entry` in `test/11_pre_receive_hook.bats` to use locals/clear args.
-  - [ ] Remove subshells in `test/13_uninstall.bats` git checks.
-  - [ ] Clarify `test/README.md` (image name, sandbox script) and rename MoC header.
-- [ ] Adjust README feature table (evidence links or drop Finished column) and policy example (env overrides, schema, semantic version).
-- [ ] Update scripts to support canonical `--yes`/`SHIPLOG_ASSUME_YES` naming and remove redundant `--boring` pre-scan.
-- [ ] Add JSON schema (`examples/policy.schema.json`) and link in docs/CI.
+- [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
+- [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
+- [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with Python guard.
+- [x] Refactor `lib/common.sh` JSON escaping/logging helpers.
+- [x] Replace `maybe_sync_shiplog_ref` with robust fetch/push handling and clear errors.
+- [x] Remove legacy `is_boring` fallback in `lib/git.sh` and standardise env vars.
+- [x] Split policy author extraction logic and improve `docs/features/init/verify` plus new schema docs.
+- [x] Improve `scripts/bosun` ANSI stripping, JSON escaping, table parsing.
+- [x] Update `README.md` installer instructions (no `curl|bash`), flag consistency, remove progress bar, adjust feature table evidence.
+- [x] Document uninstaller and auto-push behaviour in README & env vars.
+- [x] Create `.devcontainer/post-create.sh`, make executable.
+- [x] Update CONTRIBUTING docs (`contrib/README.md`) paths for clarity.
+- [x] Add warning about remote refs being preserved.
+- [x] Update test suite:
+  - [x] Simplify count helpers in `test/01_init_and_empty_ls.bats`.
+  - [x] Expand `test/10_boring_mode.bats` assertions for all SHIPLOG_* vars.
+  - [x] Refactor `make_entry` in `test/11_pre_receive_hook.bats` to use locals/clear args.
+  - [x] Remove subshells in `test/13_uninstall.bats` git checks.
+  - [x] Clarify `test/README.md` (image name, sandbox script) and rename MoC header.
+- [x] Adjust README feature table (evidence links or drop Finished column) and policy example (env overrides, schema, semantic version).
+- [x] Update scripts to support canonical `--yes`/`SHIPLOG_ASSUME_YES` naming and remove redundant `--boring` pre-scan.
+- [x] Add JSON schema (`examples/policy.schema.json`) and link in docs/CI.
 
 ## Testing
 
@@ -63,4 +63,3 @@
 ### Project-Specific Notes
 
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
-

@@ -1,9 +1,8 @@
 # Git-interaction helpers
 
-if ! command -v is_boring >/dev/null 2>&1; then
-  is_boring() {
-    [ "${SHIPLOG_BORING:-0}" = "1" ] || [ "${BORING_OUTPUT:-0}" = "1" ]
-  }
+if ! declare -F is_boring >/dev/null 2>&1; then
+  echo "❌ shiplog: missing required helper is_boring (common.sh not sourced)" >&2
+  exit 1
 fi
 
 ref_journal() { echo "$REF_ROOT/journal/$1"; }

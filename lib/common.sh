@@ -20,6 +20,32 @@ fmt_ts() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+escape_json_string() {
+  local input="$1" output=""
+  if command -v python3 >/dev/null 2>&1; then
+    output=$(python3 - "$input" <<'PY' 2>/dev/null || true)
+import json, sys
+print(json.dumps(sys.argv[1]))
+PY
+  elif command -v python >/dev/null 2>&1; then
+    output=$(python - "$input" <<'PY' 2>/dev/null || true)
+import json, sys
+print(json.dumps(sys.argv[1]))
+PY
+  elif command -v jq >/dev/null 2>&1; then
+    output=$(printf '%s' "$input" | jq -Rs . 2>/dev/null || true)
+  fi
+
+  if [ -n "$output" ]; then
+    printf '%s' "$output"
+    return 0
+  fi
+
+  local fallback
+  fallback=$(printf '%s' "$input" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\r/\\r/g; s/\t/\\t/g; s/\f/\\f/g; s/\b/\\b/g; s/\n/\\n/g')
+  printf '"%s"' "$fallback"
+}
+
 shiplog_prompt_input() {
   [ $# -ge 2 ] || die "shiplog_prompt_input requires at least 2 arguments"
   [ -n "${GUM:-}" ] || die "GUM variable not set"
@@ -40,11 +66,10 @@ shiplog_prompt_input() {
     local result
     result=$("$GUM" input --placeholder "$placeholder" --value "$value")
     printf '%s\n' "$result"
-    # Use jq for proper JSON escaping if available, otherwise skip structured logging
-    if command -v jq >/dev/null 2>&1; then
-      jq -nc --arg prompt "$placeholder" --arg value "$result" '{"prompt":$prompt,"value":$value}' | \
-        "$GUM" log --structured --time "rfc822" --level info --file /dev/stdin >&2
-    fi
+    local escaped_placeholder escaped_result
+    escaped_placeholder=$(escape_json_string "$placeholder")
+    escaped_result=$(escape_json_string "$result")
+    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":$escaped_placeholder,\"value\":$escaped_result}" >&2
   fi
 }
 
@@ -72,11 +97,10 @@ shiplog_prompt_choice() {
       result=$("$GUM" choose --header "$header" "${options[@]}")
     fi
     printf '%s\n' "$result"
-    # Properly escape JSON values
     local escaped_header escaped_result
-    escaped_header=$(printf '%s' "$header" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    escaped_result=$(printf '%s' "$result" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":\"$escaped_header\",\"value\":\"$escaped_result\"}" >&2
+    escaped_header=$(escape_json_string "$header")
+    escaped_result=$(escape_json_string "$result")
+    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":$escaped_header,\"value\":$escaped_result}" >&2
   fi
 }
 
@@ -88,14 +112,13 @@ shiplog_confirm() {
   if is_boring || [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     return 0
   fi
+  local escaped_prompt
+  escaped_prompt=$(escape_json_string "$prompt")
+  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":null}" >&2
   if "$GUM" confirm "$prompt"; then
-    local escaped_prompt
-    escaped_prompt=$(printf '%s' "$prompt" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":\"$escaped_prompt\",\"value\":true}" >&2
+    "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":true}" >&2
     return 0
   fi
-  local escaped_prompt  
-  escaped_prompt=$(printf '%s' "$prompt" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":\"$escaped_prompt\",\"value\":false}" >&2
+  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":false}" >&2
   return 1
 }

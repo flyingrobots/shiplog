@@ -82,8 +82,7 @@ git shiplog init
 # Record your first deployment
 git shiplog write
 # Non-interactive (CI):
-# SHIPLOG_BORING=1 git shiplog --yes write
-# or git shiplog --boring write
+git shiplog --boring --yes write
 
 # View your deployment history  
 git shiplog --env prod ls
@@ -160,7 +159,7 @@ gitGraph
 - **Local guardrails**: author allowlist & signer precheck before creating entries
 - **Pretty `ls`, `show`, and `verify` flows** powered by `gum`
 - **`--boring` / `SHIPLOG_BORING=1` mode** for CI automation (no prompts, plain-text output)
-- **`--yes` / `--auto-accept` / `SHIPLOG_ASSUME_YES=1`** to auto-confirm prompts in non-interactive pipelines
+- **`--yes` / `SHIPLOG_ASSUME_YES=1`** to auto-confirm prompts in non-interactive pipelines
 - **Auto-push** of updated `_shiplog/*` refs (and notes) to `origin` by default; override with `--no-push` or `SHIPLOG_AUTO_PUSH=0`
 
 ## Real Deployment Entry
@@ -210,6 +209,7 @@ Keep policy in Git, in a signed ref, and mirror it into the working tree so huma
 - **Working copy mirror** – keep the same file (`./.shiplog/policy.json`) on your main branch so policy edits go through normal PR review.
 - **Starter template** – copy `examples/policy.json` into `.shiplog/policy.json` when bootstrapping a repo.
 - **CI publisher** – after merge, run `scripts/shiplog-sync-policy.sh` to publish the reviewed file to the policy ref (fast-forward only, signed by the bot key).
+- See [`docs/policy.md`](docs/policy.md) and [`examples/policy.schema.json`](examples/policy.schema.json) for field definitions and validation guidance.
 
 ### Example Policy File
 
@@ -219,7 +219,7 @@ Keep policy in Git, in a signed ref, and mirror it into the working tree so huma
 {
   \"version\": 1,
   \"require_signed\": true,
-  \"allow_ssh_signers_file\": \".git/allowed_signers\",
+  \"allow_ssh_signers_file\": \".shiplog/allowed_signers\",
   \"authors\": {
     \"default_allowlist\": [
       \"deploy-bot@ci\",
@@ -260,7 +260,7 @@ Developers can customise via Git config while iterating:
 ```bash
 git config shiplog.policy.allowedAuthors \"deploy-bot@ci you@example.com\"
 git config shiplog.policy.requireSigned true
-git config shiplog.policy.allowedSignersFile .git/allowed_signers
+git config shiplog.policy.allowedSignersFile .shiplog/allowed_signers
 ```
 
 ## Security Model
@@ -276,9 +276,13 @@ git config shiplog.policy.allowedSignersFile .git/allowed_signers
 ### Quick Install
 
 ```bash
-# Bootstrap helper
-curl -fsSL https://raw.githubusercontent.com/flyingrobots/shiplog/main/scripts/install-shiplog.sh | bash
+curl -fsSL -o install-shiplog.sh https://raw.githubusercontent.com/flyingrobots/shiplog/main/scripts/install-shiplog.sh
+less install-shiplog.sh   # review before executing
+sha256sum install-shiplog.sh   # optional: verify against release checksum
+bash install-shiplog.sh
 ```
+
+> Security tip: avoid piping remote scripts directly into a shell—download, inspect, and verify them first.
 
 ### Manual Installation
 
@@ -310,7 +314,7 @@ Run the bundled helper to remove Shiplog and restore your Git/Git config:
 $SHIPLOG_HOME/scripts/uninstall-shiplog.sh
 ```
 
-Use `--dry-run` to preview changes or `--profile` to target a specific shell profile. The uninstaller removes Shiplog's `_shiplog/*` refspecs, PATH/profile entries, and any `git-shiplog` / `shiplog` shims.
+Use `--dry-run` to preview changes, `--profile` to target a specific shell profile, and `--force` if you intentionally want to proceed despite local-only journal entries. The uninstaller removes Shiplog's `_shiplog/*` refspecs, PATH/profile entries, and any `git-shiplog` / `shiplog` shims.
 Remote refs under `refs/_shiplog/*` are left untouched so history remains auditable—prune them manually only if you truly intend to delete records.
 
 ## Requirements
@@ -331,7 +335,7 @@ Remote refs under `refs/_shiplog/*` are left untouched so history remains audita
 - `SHIPLOG_STATUS` – pre-select deployment status (defaults to `success` when interactive)
 - `SHIPLOG_SIGN` – set to `0`/`false` to skip commit signing (used in CI when no keys exist)
 - `SHIPLOG_BORING` – set to `1` to disable gum UI globally (same as `--boring`)
-- `SHIPLOG_ASSUME_YES` – set to `1` to auto-confirm prompts even when gum is available (same as passing `--yes` / `--auto-accept`)
+- `SHIPLOG_ASSUME_YES` – set to `1` to auto-confirm prompts even when gum is available (same as passing `--yes`)
 - `SHIPLOG_AUTO_PUSH` – set to `0` to skip automatic `git push` of updated `_shiplog/*` refs (use `--no-push` on the CLI for one-off runs)
 
 Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`).
@@ -389,13 +393,6 @@ stateDiagram-v2
 
 ## Roadmap
 
-<!-- <progress_bar> -->
-### `v1.0.0` Progress
-```text
-███████████████████▓░░░░░░░░░░░░░░░░░░░ 48%
-```
-<!-- </progress_bar> -->
-
 ### Completed Features
 
 The following features are finished, tested, and documented.
@@ -427,15 +424,15 @@ The following features are currently being worked on.
 - Harden policy publishing automation (`scripts/shiplog-sync-policy.sh`).
 
 <!-- <features_table> -->
-| Feature | Description | Planned? | Started? | Finished? | Code | Tests | Documentation | Remarks |
-|---------|-------------|----------|----------|-----------|------|-------|---------------|---------|
-| Journaling bootstrap | Configure hidden refspecs and reflogs via `git shiplog init` | Yes | Yes | Yes | lib/commands.sh:3 | test/01_init_and_empty_ls.bats:12 | docs/features/init.md | Sets up fetch/push for refs/_shiplog/* |
-| Deployment write flow | Interactive/boring write path with policy enforcement | Yes | Yes | Yes | lib/commands.sh:15 | test/02_write_and_ls_show.bats:22 | docs/features/write.md | Signs empty-tree commits and attaches logs |
-| Listing & detail views | `git shiplog ls` and `git shiplog show` render journal entries | Yes | Yes | Yes | lib/git.sh:141 | test/02_write_and_ls_show.bats:31 | docs/features/ls.md | Gum UI with plain fallbacks |
-| Verification tooling | Author + signature checks through `git shiplog verify` | Yes | Yes | Yes | lib/commands.sh:107 | test/05_verify_authors.bats:22 | docs/features/verify.md | Honors policy ref + git config |
-| JSON export | NDJSON output for downstream automation | Yes | Yes | Yes | lib/commands.sh:132 | test/03_export_json_ndjson.bats:11 | docs/features/export-json.md | Adds commit SHA metadata |
-| Policy resolution | Surfacing effective policy with `git shiplog policy` | Yes | Yes | In progress | lib/policy.sh:3 | test/09_policy_resolution.bats:25 | docs/features/policy.md | Needs richer validation UX |
-| Notes attachments | Optional NDJSON log notes displayed in `git shiplog show` | Yes | Yes | Yes | lib/git.sh:52 | test/04_notes_attachment.bats:20 | docs/features/notes.md | Shares ref with journals |
+| Feature | Description | Planned? | Started? | Code | Tests | Documentation | Remarks |
+|---------|-------------|----------|----------|------|-------|---------------|---------|
+| Journaling bootstrap | Configure hidden refspecs and reflogs via `git shiplog init` | Yes | Yes | lib/commands.sh:3 | test/01_init_and_empty_ls.bats:12 | docs/features/init.md | Sets up fetch/push for refs/_shiplog/* |
+| Deployment write flow | Interactive/boring write path with policy enforcement | Yes | Yes | lib/commands.sh:15 | test/02_write_and_ls_show.bats:22 | docs/features/write.md | Signs empty-tree commits and attaches logs |
+| Listing & detail views | `git shiplog ls` and `git shiplog show` render journal entries | Yes | Yes | lib/git.sh:141 | test/02_write_and_ls_show.bats:31 | docs/features/ls.md | Gum UI with plain fallbacks |
+| Verification tooling | Author + signature checks through `git shiplog verify` | Yes | Yes | lib/commands.sh:107 | test/05_verify_authors.bats:22 | docs/features/verify.md | Honors policy ref + git config |
+| JSON export | NDJSON output for downstream automation | Yes | Yes | lib/commands.sh:132 | test/03_export_json_ndjson.bats:11 | docs/features/export-json.md | Adds commit SHA metadata |
+| Policy resolution | Surfacing effective policy with `git shiplog policy` | Yes | In progress | lib/policy.sh:3 | test/09_policy_resolution.bats:25 | docs/features/policy.md | Needs richer validation UX |
+| Notes attachments | Optional NDJSON log notes displayed in `git shiplog show` | Yes | Yes | lib/git.sh:52 | test/04_notes_attachment.bats:20 | docs/features/notes.md | Shares ref with journals |
 <!-- </features_table> -->
 
 ```mermaid

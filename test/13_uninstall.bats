@@ -38,19 +38,26 @@ PROFILE
 }
 
 teardown() {
-  teardown() {
-    # Clean up user files
-    rm -rf "$HOME/.shiplog" "$HOME/.test_profile" "$HOME/.test_profile.shiplog.bak" 2>/dev/null || echo "Warning: Failed to remove user files"
+  rm -rf "$HOME/.shiplog" "$HOME/.test_profile" "$HOME/.test_profile.shiplog.bak" 2>/dev/null || true
 
-    # Clean up system binaries (might fail due to permissions)
-    if [[ -w /usr/local/bin ]]; then
-      rm -f /usr/local/bin/git-shiplog /usr/local/bin/shiplog /usr/local/bin/bosun
-    fi
+  if [[ -w /usr/local/bin ]]; then
+    rm -f /usr/local/bin/git-shiplog /usr/local/bin/shiplog /usr/local/bin/bosun
+  fi
 
-    # Restore git config
-    git config --unset-all remote.origin.fetch '+refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || echo "Warning: Failed to unset fetch config"
-    git config --unset-all remote.origin.push 'refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || echo "Warning: Failed to unset push config"
-  }
+  git config --unset-all remote.origin.fetch '+refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
+  git config --unset-all remote.origin.push 'refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
+
+  if [ -n "$ORIGINAL_FETCH" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && git config --add remote.origin.fetch "$line"
+    done <<< "$ORIGINAL_FETCH"
+  fi
+  if [ -n "$ORIGINAL_PUSH" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && git config --add remote.origin.push "$line"
+    done <<< "$ORIGINAL_PUSH"
+  fi
+}
 
 @test "uninstall removes shiplog artifacts" {
   run scripts/uninstall-shiplog.sh --silent
@@ -61,11 +68,13 @@ teardown() {
   [ ! -e /usr/local/bin/shiplog ]
   [ ! -e /usr/local/bin/bosun ]
 
-  run bash -lc 'git config --get-all remote.origin.fetch || true'
-  [[ "$output" != *"refs/_shiplog"* ]]
+  local fetch_config
+  fetch_config=$(git config --get-all remote.origin.fetch 2>/dev/null || echo "")
+  [[ "$fetch_config" != *"refs/_shiplog"* ]]
 
-  run bash -lc 'git config --get-all remote.origin.push || true'
-  [[ "$output" != *"refs/_shiplog"* ]]
+  local push_config
+  push_config=$(git config --get-all remote.origin.push 2>/dev/null || echo "")
+  [[ "$push_config" != *"refs/_shiplog"* ]]
 
   # File should exist but not contain Shiplog
   [ -f "$HOME/.test_profile" ]

@@ -36,16 +36,27 @@ publish_policy() {
 }
 
 make_entry() {
-  export SHIPLOG_SERVICE=${1:-hook-test}
-  export SHIPLOG_STATUS=${2:-success}
-  export SHIPLOG_REASON=${3:-"policy exercise"}
-  export SHIPLOG_TICKET=${4:-HOOK-1}
-  export SHIPLOG_REGION=${5:-us-west-2}
-  export SHIPLOG_CLUSTER=${6:-prod-1}
-  export SHIPLOG_NAMESPACE=${7:-default}
-  export SHIPLOG_IMAGE=${8:-ghcr.io/example/app}
-  export SHIPLOG_TAG=${9:-v0.0.1}
-  run git shiplog --boring write
+  local service=${1:-hook-test}
+  local status=${2:-success}
+  local reason=${3:-"policy exercise"}
+  local ticket=${4:-HOOK-1}
+  local region=${5:-us-west-2}
+  local cluster=${6:-prod-1}
+  local namespace=${7:-default}
+  local image=${8:-ghcr.io/example/app}
+  local tag=${9:-v0.0.1}
+
+  # --boring keeps the command non-interactive so tests never block waiting for input.
+  SHIPLOG_SERVICE="$service" \
+  SHIPLOG_STATUS="$status" \
+  SHIPLOG_REASON="$reason" \
+  SHIPLOG_TICKET="$ticket" \
+  SHIPLOG_REGION="$region" \
+  SHIPLOG_CLUSTER="$cluster" \
+  SHIPLOG_NAMESPACE="$namespace" \
+  SHIPLOG_IMAGE="$image" \
+  SHIPLOG_TAG="$tag" \
+  run git shiplog --boring --yes write
   [ "$status" -eq 0 ]
 }
 

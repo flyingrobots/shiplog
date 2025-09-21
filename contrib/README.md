@@ -9,10 +9,12 @@ Supporting assets that help you wire Shiplog into a larger deployment workflow.
   - commit signatures (GPG or SSH allowed signers)
   - author allowlists pulled from the active policy
 
-To install on a bare repository:
+To install on a bare repository (run from the repository root):
 
 #!/bin/bash
 set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
 
 if [[ ! -f "contrib/hooks/pre-receive.shiplog" ]]; then
   echo "Error: contrib/hooks/pre-receive.shiplog not found" >&2
@@ -27,16 +29,16 @@ The hook expects the policy file to be available under `refs/_shiplog/policy/cur
 
 ## CI Helpers
 
-- `../scripts/shiplog-sync-policy.sh` – publishes `.shiplog/policy.json` to the policy ref as a fast-forward signed commit (does not push). Run this from CI after merging the policy change branch, then push the ref:
+- `scripts/shiplog-sync-policy.sh` – publishes `.shiplog/policy.json` to the policy ref as a fast-forward signed commit (does not push). Run this from the repository root (CI or local) after merging the policy change branch, then push the ref:
 
 ```bash
-scripts/shiplog-sync-policy.sh
+./scripts/shiplog-sync-policy.sh
 git push origin refs/_shiplog/policy/current
 ```
 
 ## Policy Templates
 
-- `../examples/policy.json` – starter policy you can copy into `.shiplog/policy.json` before publishing with the sync script.
+- `examples/policy.json` – starter policy you can copy into `.shiplog/policy.json` before publishing with the sync script (for example: `cp examples/policy.json .shiplog/policy.json`).
 
 ## Suggested Workflow
 

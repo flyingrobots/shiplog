@@ -8,6 +8,9 @@
 git shiplog verify [ENV]
 ```
 
+### Parameters
+- `ENV` (optional): journal environment to verify (for example `prod`, `staging`, `dev`). When omitted, the command uses the resolved default environment (`SHIPLOG_ENV` or `prod`).
+
 ## Behavior
 - Resolves policy inputs from multiple sources in order of precedence: environment variables, git config, working tree, then policy ref (git reference containing policy configuration).
 - Uses `git verify-commit` (with `GIT_SSH_ALLOWED_SIGNERS` when provided) to check signatures when required.
