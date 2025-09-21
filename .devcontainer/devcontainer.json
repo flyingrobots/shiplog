@@ -2,7 +2,7 @@
   "name": "Shiplog",
   "build": {
     "dockerfile": "dev.Dockerfile",
-    "context": ".",
+    "context": "..",
     "args": {
       "GUM_VERSION": "0.13.0"
     }
@@ -24,5 +24,5 @@
       }
     }
   },
-  "postCreateCommand": "if [ -x bin/shiplog ]; then bin/shiplog --help >/dev/null; fi"
+  "postCreateCommand": "if [ -x bin/shiplog ]; then bin/shiplog --help >/dev/null 2>&1 || echo 'WARNING: bin/shiplog --help failed during container initialization'; fi"
 }

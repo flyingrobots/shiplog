@@ -186,8 +186,12 @@ case "$subcmd" in
     fi
     ;;
   log)
-    # TODO: Implement actual log functionality
-    exit 0
+    # Non-interactive: print message to stdout
+    if [ $# -gt 0 ]; then
+      printf "%s\n" "$*"
+    else
+      cat
+    fi
     ;;
   table)
     header=""

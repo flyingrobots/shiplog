@@ -7,7 +7,6 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "shiplog pre-receive: jq not found" >&2
   exit 1
 fi
-
 read_policy() {
   git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || return 1
 }

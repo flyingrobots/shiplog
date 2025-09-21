@@ -1,5 +1,10 @@
 # Git Workflow Guidelines
 
+## Quick Reminders
+- Never push directly to main; create a branch and open a PR instead.
+- Never amend commits or force-push without explicit user approval; prefer new commits and merges.
+- If a task appears to require a force push, stop and ask the user before proceeding.
+
 ## Branch Management
 - Never push directly to `main`. Create a feature branch from `main` and open a pull request for review.
 

@@ -7,7 +7,7 @@ Record deployment events inside a Git repository. Entries are stored under hidde
 - Bash 3.2+
 - `git` with commit signing configured (GPG or SSH allowed signers)
 - [`gum`](https://github.com/charmbracelet/gum) for interactive prompts (`--boring`/`SHIPLOG_BORING=1` skips it)
-- [`jq`](https://stedolan.github.io/jq/) for policy parsing and JSON exports
+- [`jq`](https://jqlang.github.io/jq/) for policy parsing and JSON exports
 
 ## Features
 
@@ -312,8 +312,7 @@ git init my-project
 cd my-project
 git commit --allow-empty -m "init"
 
-# Setup (assuming you've exported SHIPLOG_HOME and added $SHIPLOG_HOME/bin to PATH)
-
+# Setup: if you used the bootstrap, `shiplog` is already on PATH; otherwise export SHIPLOG_HOME and add $SHIPLOG_HOME/bin
 
 # Record a deploy
 export SHIPLOG_ENV=prod
@@ -464,4 +463,3 @@ MIT © YourOrg
 ---
 
 If you want, I can also format this as a **GitHub-README template** (placeholders for org name, version badge, sponsor badges, etc.) so it looks polished from day one.
-```

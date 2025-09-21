@@ -14,6 +14,8 @@ GUM_VERSION=${GUM_VERSION:-0.13.0}
 log() { [ "$SILENT" -eq 1 ] || echo -e "$*"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$*"; fi; }
 
+die() { echo "❌ $*" >&2; exit 1; }
+
 need_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
     echo ""
