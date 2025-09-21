@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# bosun — bash-only TUI helpers (confirm/input/choose/style/table/spin)
+# No deps. Honors NO_COLOR. Works in CI (non-TTY) and interactive shells.
+
+set -Eeuo pipefail
+
+# ---- TTY & Color ------------------------------------------------------------
+is_tty() { [ -t 1 ]; }
+ansi() {
+  local on="${BOSUN_NO_COLOR:-0}"
+  [ -n "${NO_COLOR:-}" ] && on=1
+  [ "${on}" = "1" ] && return 0
+  [ -n "$1" ] && printf '\033[%sm' "$1"
+}
+color() { ansi "$1"; shift; printf '%s' "$*"; ansi '0'; }
+
+# ---- JSON helper ------------------------------------------------------------
+json_escape() { sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\"/g'; }
+emit_json_kv() {
+  printf '{"%s":' "$1"
+  if [ "$2" = "true" ] || [ "$2" = "false" ] || [[ "$2" =~ ^-?[0-9]+$ ]]; then
+    printf '%s' "$2"
+  else
+    printf '"%s"' "$(printf '%s' "$2" | json_escape)"
+  fi
+  printf '}\n'
+}
+
+# ---- UI primitives ----------------------------------------------------------
+draw_box() {
+  local title="$1"; shift
+  local text="$*"
+  local width="${BOSUN_WIDTH:-80}"
+  local border_top="─" corner_tl="┌" corner_tr="┐"
+  local border_side="│" corner_bl="└" corner_br="┘"
+  if [ -n "$title" ]; then
+    local barlen=$(( width - 2 - ${#title} - 1 ))
+    (( barlen < 0 )) && barlen=0
+    printf "%s %s %s\n" "${corner_tl}" "${title}" "$(printf '%*s' "$barlen" '' | tr ' ' "$border_top")"
+  else
+    printf "%s%s%s\n" "${corner_tl}" "$(printf '%*s' $((width-2)) '' | tr ' ' "$border_top")" "${corner_tr}"
+  fi
+  local line chunk
+  while IFS= read -r line; do
+    while [ "${#line}" -gt $((width-4)) ]; do
+      chunk="${line:0:$((width-4))}"
+      printf "%s %s %s\n" "${border_side}" "$chunk" "${border_side}"
+      line="${line:$((width-4))}"
+    done
+    printf "%s %-${((width-4))}s %s\n" "${border_side}" "$line" "${border_side}"
+  done <<< "$text"
+  printf "%s%s%s\n" "${corner_bl}" "$(printf '%*s' $((width-2)) '' | tr ' ' "$border_top")" "${corner_br}"
+}
+
+# ---- Commands ---------------------------------------------------------------
+cmd_confirm() {
+  local yes=0 json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --yes|-y) yes=1 ;;
+      --json) json=1 ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  local prompt="${*:-Are you sure?}"
+  if [ "$yes" -eq 1 ] || ! is_tty; then
+    [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"
+    return 0
+  fi
+  read -r -p "$(color '1;36' "$prompt") [y/N] " ans || true
+  case "${ans,,}" in
+    y|yes) [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0 ;;
+    *)     [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no";  return 1 ;;
+  esac
+}
+
+cmd_input() {
+  local placeholder="" def="" json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --placeholder) placeholder="$2"; shift ;;
+      --value|--default) def="$2"; shift ;;
+      --json) json=1 ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  local prompt="${placeholder:->}"
+  local out
+  if is_tty; then
+    read -r -p "$(color '1;33' "$prompt") " out || true
+  else
+    out="$(cat - 2>/dev/null || true)"
+  fi
+  [ -z "$out" ] && out="$def"
+  [ "$json" -eq 1 ] && emit_json_kv value "$out" || printf '%s\n' "$out"
+}
+
+cmd_choose() {
+  local header="" json=0 def=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --header) header="$2"; shift ;;
+      --json) json=1 ;;
+      --default) def="$2"; shift ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  local opts=("$@")
+  if [ ${#opts[@]} -eq 0 ]; then
+    echo "bosun choose: no options" >&2; return 2
+  fi
+  if ! is_tty; then
+    local pick="${def:-${opts[0]}}"
+    [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"
+    return 0
+  fi
+  [ -n "$header" ] && echo "$(color '1;36' "$header")"
+  local i=1 o
+  for o in "${opts[@]}"; do
+    printf "  %s) %s\n" "$(color '1;35' "$i")" "$o"
+    i=$((i+1))
+  done
+  local sel
+  read -r -p "$(color '1;33' '> ')" sel || true
+  if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le ${#opts[@]} ]; then
+    local pick="${opts[$((sel-1))]}"
+    [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"
+    return 0
+  fi
+  echo "invalid selection" >&2; return 1
+}
+
+cmd_style() {
+  local title=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --title) title="$2"; shift ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --width) BOSUN_WIDTH="$2"; shift ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  local text="$*"
+  [ -z "$text" ] && text="$(cat - 2>/dev/null || echo)"
+  draw_box "$(color '1;34' "$title")" "$text"
+}
+
+cmd_table() {
+  local columns="" rows_file=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --columns) columns="$2"; shift ;;
+      --rows-file) rows_file="$2"; shift ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --width) BOSUN_WIDTH="$2"; shift ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  [ -z "$columns" ] && { echo "bosun table: --columns required" >&2; return 2; }
+  local IFS=, headers=($columns)
+  local rows=()
+  if [ -n "$rows_file" ]; then
+    mapfile -t rows < "$rows_file"
+  else
+    mapfile -t rows < <(cat - 2>/dev/null)
+  fi
+  local -a widths=()
+  local idx
+  for idx in "${!headers[@]}"; do
+    widths[$idx]=${#headers[$idx]}
+  done
+  local r
+  for r in "${rows[@]}"; do
+    IFS=$'\t' read -r -a cols <<< "$r"
+    for idx in "${!headers[@]}"; do
+      local col="${cols[$idx]:-}"
+      ((${#col} > ${widths[$idx]})) && widths[$idx]=${#col}
+    done
+  done
+  for idx in "${!headers[@]}"; do
+    printf "%s" "$(color '1;37' "$(printf "%-${widths[$idx]}s" "${headers[$idx]}")")"
+    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+  done
+  printf "\n"
+  for idx in "${!headers[@]}"; do
+    printf "%s" "$(printf "%-${widths[$idx]}s" '' | tr ' ' '─')"
+    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+  done
+  printf "\n"
+  for r in "${rows[@]}"; do
+    IFS=$'\t' read -r -a cols <<< "$r"
+    for idx in "${!headers[@]}"; do
+      printf "%-${widths[$idx]}s" "${cols[$idx]:-}"
+      [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+    done
+    printf "\n"
+  done
+}
+
+cmd_spin() {
+  local title=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --title) title="$2"; shift ;;
+      --no-color) BOSUN_NO_COLOR=1 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac; shift
+  done
+  local cmd=( "$@" )
+  if ! is_tty || [ ${#cmd[@]} -eq 0 ]; then
+    "${cmd[@]}"
+    return $?
+  fi
+  local frames='-\|/' i=0
+  "${cmd[@]}" & local pid=$!
+  while kill -0 $pid 2>/dev/null; do
+    i=$(( (i+1) % 4 ))
+    printf "\r%s %s" "$(color '1;36' "${frames:i:1}")" "$title"
+    sleep 0.1
+  done
+  wait $pid
+  local rc=$?
+  local glyph=$( [ $rc -eq 0 ] && color '1;32' '✔' || color '1;31' '✖' )
+  printf "\r%s %s\n" "$glyph" "$title"
+  return $rc
+}
+
+usage() {
+  cat <<EOF
+bosun — bash-only TUI helpers
+
+Usage:
+  bosun confirm [--yes] [--json] [--no-color] "Prompt"
+  bosun input [--placeholder P] [--value V] [--json]
+  bosun choose [--header H] [--default OPT] [--json] OPT1 OPT2 …
+  bosun style [--title T] [--width N] [--no-color] -- "text"
+  bosun table --columns "Col1,Col2" [--rows-file file.tsv]
+  bosun spin --title "Doing X" -- <command>
+EOF
+}
+
+sub="${1:-}"; shift || true
+case "$sub" in
+  confirm) cmd_confirm "$@";;
+  input)   cmd_input "$@";;
+  choose)  cmd_choose "$@";;
+  style)   cmd_style "$@";;
+  table)   cmd_table "$@";;
+  spin)    cmd_spin "$@";;
+  ''|-h|--help|help) usage;;
+  *) echo "bosun: unknown subcommand '$sub'" >&2; usage; exit 64;;
+esac

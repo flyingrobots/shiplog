@@ -4,7 +4,7 @@ Record deployment events inside a Git repository. Entries are stored under hidde
 
 ## Requirements
 
-- Bash 5+
+- Bash 3.2+
 - `git` with commit signing configured (GPG or SSH allowed signers)
 - [`gum`](https://github.com/charmbracelet/gum) for interactive prompts (`--boring`/`SHIPLOG_BORING=1` skips it)
 - [`jq`](https://stedolan.github.io/jq/) for JSON exports
