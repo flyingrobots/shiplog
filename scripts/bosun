@@ -28,17 +28,18 @@ emit_json_kv() {
 
 # ---- UI primitives ----------------------------------------------------------
 draw_box() {
-  local title="$1"; shift
+  local title_col="$1"; shift
   local text="$*"
   local width="${BOSUN_WIDTH:-80}"
   local inner=$((width-4))
   local border_top="─" corner_tl="┌" corner_tr="┐"
   local border_side="│" corner_bl="└" corner_br="┘"
   [ "$inner" -lt 1 ] && inner=1
-  if [ -n "$title" ]; then
-    local barlen=$(( width - 2 - ${#title} - 1 ))
-    (( barlen < 0 )) && barlen=0
-    printf "%s %s %s\n" "${corner_tl}" "${title}" "$(printf '%*s' "$barlen" '' | tr ' ' "$border_top")"
+  local title_raw="$(printf '%s' "$title_col" | sed $'s/\033\[[0-9;]*[A-Za-z]//g')"
+  if [ -n "$title_raw" ]; then
+    local barlen=$(( width - ${#title_raw} - 4 ))
+    [ "$barlen" -lt 0 ] && barlen=0
+    printf "%s %s %s%s\n" "${corner_tl}" "$title_col" "$(printf '%*s' "$barlen" '' | tr ' ' "$border_top")" "${corner_tr}"
   else
     printf "%s%s%s\n" "${corner_tl}" "$(printf '%*s' $((width-2)) '' | tr ' ' "$border_top")" "${corner_tr}"
   fi
