@@ -83,8 +83,15 @@ fi
 if [ "$DRY_RUN" -eq 0 ]; then
   log "Running dependency installer"
   (cd "$INSTALL_DIR" && ./install-shiplog-deps.sh ${SILENT:+--silent})
+  if [ -x "$INSTALL_DIR/scripts/bosun" ]; then
+    log "Linking bosun helper into bin/"
+    ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
+  fi
 else
   log "Would run dependency installer"
+  if [ -x "$INSTALL_DIR/scripts/bosun" ]; then
+    log "Would link $INSTALL_DIR/scripts/bosun -> $INSTALL_DIR/bin/bosun"
+  fi
 fi
 
 BIN_LINE="export PATH=\"$INSTALL_DIR/bin:\$PATH\""
