@@ -73,6 +73,8 @@ cmd_confirm() {
     return 0
   fi
   read -r -p "$(color '1;36' "$prompt") [y/N] " ans || true
+  # Sanitize input - only allow reasonable characters
+  ans="${ans//[^yYnN]/}"
   case "${ans,,}" in
     y|yes) [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0 ;;
     *)     [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no";  return 1 ;;
@@ -224,15 +226,28 @@ cmd_spin() {
     return $?
   fi
   local frames='-\|/' i=0
+  local cmd=( "$@" )
+  # Validate that we have a command
+  [ ${#cmd[@]} -eq 0 ] && { echo "No command specified" >&2; return 1; }
+  if ! is_tty || [ ${#cmd[@]} -eq 0 ]; then
+    "${cmd[@]}"
+    return $?
+  fi
+  local frames='-\|/' i=0
   "${cmd[@]}" & local pid=$!
-  while kill -0 $pid 2>/dev/null; do
+  while kill -0 "$pid" 2>/dev/null; do
     i=$(( (i+1) % 4 ))
     printf "\r%s %s" "$(color '1;36' "${frames:i:1}")" "$title"
     sleep 0.1
   done
   wait $pid
   local rc=$?
-  local glyph=$( [ $rc -eq 0 ] && color '1;32' '✔' || color '1;31' '✖' )
+  local glyph
+  if [ "$rc" -eq 0 ]; then
+    glyph=$(color '1;32' '✔')
+  else
+    glyph=$(color '1;31' '✖')
+  fi
   printf "\r%s %s\n" "$glyph" "$title"
   return $rc
 }

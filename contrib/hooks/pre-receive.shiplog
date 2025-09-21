@@ -3,47 +3,53 @@ set -euo pipefail
 
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
 
-if ! command -v yq >/dev/null 2>&1; then
-  echo "shiplog pre-receive: yq not found" >&2
+if ! command -v jq >/dev/null 2>&1; then
+  echo "shiplog pre-receive: jq not found" >&2
   exit 1
 fi
 
 read_policy() {
-  git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null || return 1
+  git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || return 1
 }
 
 parse_policy_for_env() {
   local env="$1"
+  local policy_content="$2"
   local rs="" asf="" authors=""
-  if ! rs=$(yq eval -r '.require_signed // ""' <<<"$policy_content" 2>/dev/null); then
+
+  if [ -z "$policy_content" ]; then
+    echo "ERROR: No policy content provided" >&2
+    return 1
+  fi
+
+  if ! rs=$(jq -r '.require_signed // empty' <<<"$policy_content" 2>/dev/null); then
     rs=""
   fi
-  if [ -n "$rs" ] && [ "$rs" != "null" ]; then
+  if [ -n "$rs" ]; then
     echo "require_signed=${rs}"
   fi
 
-  if ! asf=$(yq eval -r '.allow_ssh_signers_file // ""' <<<"$policy_content" 2>/dev/null); then
+  if ! asf=$(jq -r '.allow_ssh_signers_file // empty' <<<"$policy_content" 2>/dev/null); then
     asf=""
   fi
-  if [ -n "$asf" ] && [ "$asf" != "null" ]; then
+  if [ -n "$asf" ]; then
     echo "allowed_signers_file=${asf}"
   fi
 
-  if ! authors=$(YQ_TARGET_ENV="$env" yq eval -r '
+  if ! authors=$(jq -r --arg env "$env" '
       [
         (.authors.default_allowlist // []),
         (.authors.env_overrides.default // []),
-        (.authors.env_overrides[env(YQ_TARGET_ENV)] // [])
+        (.authors.env_overrides[$env] // [])
       ]
       | flatten
       | map(select(. != null and . != ""))
       | unique
-      | select(length > 0)
       | join(" ")
     ' <<<"$policy_content" 2>/dev/null); then
     authors=""
   fi
-  if [ -n "$authors" ] && [ "$authors" != "null" ]; then
+  if [ -n "$authors" ]; then
     echo "authors=${authors}"
   fi
 }
@@ -67,7 +73,10 @@ check_commits() {
         case "$value" in
           1|true|yes|on|True|TRUE) require_signed=1 ;;
           0|false|no|off|False|FALSE) require_signed=0 ;;
-          *) require_signed=0 ;;
+          *) 
+            echo "❌ shiplog: Invalid require_signed value: '$value'" >&2
+            exit 1
+            ;;
         esac
         ;;
       allowed_signers_file) allowed_signers="$value" ;;

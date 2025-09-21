@@ -1,5 +1,11 @@
 # Git-interaction helpers
 
+if ! command -v is_boring >/dev/null 2>&1; then
+  is_boring() {
+    [ "${SHIPLOG_BORING:-0}" = "1" ] || [ "${BORING_OUTPUT:-0}" = "1" ]
+  }
+fi
+
 ref_journal() { echo "$REF_ROOT/journal/$1"; }
 ref_anchor()  { echo "$REF_ROOT/anchors/$1"; }
 
@@ -135,6 +141,18 @@ require_allowed_signer() {
 pretty_ls() {
   local ref="$1" limit="$2"
   local rows=""
+  local header_cols=(Commit Status Service Env Author Date)
+  local header_line
+  local gum_bin="${GUM:-gum}"
+  local gum_available=0
+
+  if command -v "$gum_bin" >/dev/null 2>&1; then
+    gum_available=1
+  fi
+
+  header_line=$(printf '%s\t' "${header_cols[@]}")
+  header_line=${header_line%$'\t'}
+
   while IFS= read -r c; do
     local subj author date status service env
     author="$(git show -s --format='%ae' "$c")"
@@ -145,10 +163,15 @@ pretty_ls() {
     env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
     rows+="$c\t${status:-?}\t${service:-?}\t${env:-?}\t$author\t$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
-  if is_boring; then
-    printf 'Commit\tStatus\tService\tEnv\tAuthor\tDate\n%s' "$rows"
+
+  if is_boring || [ "$gum_available" -ne 1 ]; then
+    if [ "$gum_available" -ne 1 ] && ! is_boring; then
+      printf 'shiplog: %s not found; falling back to plain output\n' "$gum_bin" >&2
+    fi
+    printf '%s\n' "$header_line"
+    printf '%s' "$rows"
   else
-    printf "%s" "$rows" | "$GUM" table --separator $'\t' --columns "Commit" "Status" "Service" "Env" "Author" "Date"
+    "$gum_bin" table --separator $'\t' --columns "${header_cols[@]}" <<< "$rows"
   fi
 }
 
@@ -159,8 +182,17 @@ show_entry() {
   local human json
   human="$(awk '/^---/{exit} {print}' <<< "$body")"
   json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
+  local gum_bin="${GUM:-gum}"
+  local gum_available=0
 
-  if is_boring; then
+  if command -v "$gum_bin" >/dev/null 2>&1; then
+    gum_available=1
+  fi
+
+  if is_boring || [ "$gum_available" -ne 1 ]; then
+    if [ "$gum_available" -ne 1 ] && ! is_boring; then
+      printf 'shiplog: %s not found; falling back to plain output\n' "$gum_bin" >&2
+    fi
     printf '%s\n' "$human"
     if [ -n "$json" ]; then
       if command -v jq >/dev/null 2>&1; then
@@ -175,18 +207,18 @@ show_entry() {
     return
   fi
 
-  "$GUM" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
+  "$gum_bin" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
 
   if [ -n "$json" ]; then
     if command -v jq >/dev/null 2>&1; then
-      echo "$json" | jq . | "$GUM" style --border rounded --title "Structured Trailer (JSON)"
+      echo "$json" | jq . | "$gum_bin" style --border rounded --title "Structured Trailer (JSON)"
     else
-      echo "$json" | "$GUM" style --border rounded --title "Structured Trailer (raw)"
+      echo "$json" | "$gum_bin" style --border rounded --title "Structured Trailer (raw)"
     fi
   fi
 
   if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
-    git notes --ref="$NOTES_REF" show "$target" | "$GUM" style --border rounded --title "Attached Log (notes)"
+    git notes --ref="$NOTES_REF" show "$target" | "$gum_bin" style --border rounded --title "Attached Log (notes)"
   fi
 }
 

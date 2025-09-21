@@ -4,7 +4,6 @@ FROM debian:bookworm-slim
 ARG ENABLE_SIGNING=false
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GUM_VERSION=0.13.0
-ARG YQ_VERSION=4.44.3
 
 # Base dependencies for shiplog tests
 RUN apt-get update \
@@ -31,18 +30,6 @@ RUN arch="$(dpkg --print-architecture)" \
     && rm -f /tmp/gum.tgz \
     && chmod +x /usr/local/bin/gum \
     && gum --version
-
-RUN arch="$(dpkg --print-architecture)" \
-    && case "$arch" in \
-         amd64)  yq_bin=yq_linux_amd64 ;; \
-         arm64)  yq_bin=yq_linux_arm64 ;; \
-         armhf)  yq_bin=yq_linux_arm ;; \
-         *) echo "Unsupported arch for yq: $arch" >&2 && exit 1 ;; \
-       esac \
-    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${yq_bin}" \
-         -o /usr/local/bin/yq \
-    && chmod +x /usr/local/bin/yq \
-    && yq --version
 
 WORKDIR /workspace
 
@@ -199,6 +186,7 @@ case "$subcmd" in
     fi
     ;;
   log)
+    # TODO: Implement actual log functionality
     exit 0
     ;;
   table)

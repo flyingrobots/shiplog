@@ -23,5 +23,5 @@
     echo OK
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"OK"* ]]
+  [[ "${lines[-1]}" == "SUCCESS" ]]
 }

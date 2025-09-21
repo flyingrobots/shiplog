@@ -82,9 +82,14 @@ fi
 
 if [ "$DRY_RUN" -eq 0 ]; then
   log "Running dependency installer"
+  if [ ! -f "$INSTALL_DIR/install-shiplog-deps.sh" ]; then
+    log "Error: install-shiplog-deps.sh not found in $INSTALL_DIR"
+    exit 1
+  fi
   (cd "$INSTALL_DIR" && ./install-shiplog-deps.sh ${SILENT:+--silent})
   if [ -x "$INSTALL_DIR/scripts/bosun" ]; then
     log "Linking bosun helper into bin/"
+    mkdir -p "$INSTALL_DIR/bin"
     ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
   fi
 else
@@ -105,7 +110,7 @@ if [ "$SKIP_PROFILE" -eq 0 ] && [ -n "$PROFILE_FILE" ]; then
       log "Creating backup $PROFILE_FILE.bak"
       cp "$PROFILE_FILE" "$PROFILE_FILE.bak"
     fi
-    if ! grep -F "SHIPLOG_HOME" "$PROFILE_FILE" >/dev/null 2>&1; then
+    if ! grep -E "^[[:space:]]*export[[:space:]]+SHIPLOG_HOME=" "$PROFILE_FILE" >/dev/null 2>&1; then
       log "Updating $PROFILE_FILE"
       printf '\n# Shiplog\nexport SHIPLOG_HOME="%s"\nexport PATH="%s/bin:$PATH"\n' "$INSTALL_DIR" "$INSTALL_DIR" >> "$PROFILE_FILE"
       PROFILE_UPDATED=1

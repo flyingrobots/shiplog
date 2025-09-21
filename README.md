@@ -7,8 +7,7 @@ Record deployment events inside a Git repository. Entries are stored under hidde
 - Bash 3.2+
 - `git` with commit signing configured (GPG or SSH allowed signers)
 - [`gum`](https://github.com/charmbracelet/gum) for interactive prompts (`--boring`/`SHIPLOG_BORING=1` skips it)
-- [`jq`](https://stedolan.github.io/jq/) for JSON exports
-- [`yq`](https://github.com/mikefarah/yq) for policy parsing (YAML)
+- [`jq`](https://stedolan.github.io/jq/) for policy parsing and JSON exports
 
 ## Features
 
@@ -22,7 +21,7 @@ Record deployment events inside a Git repository. Entries are stored under hidde
 
 ## Architecture
 
-```mermaid
+mermaid
 flowchart TD
   dev[Team Member]
   gum[Gum Prompts]
@@ -83,7 +82,7 @@ Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`).
    export PATH="$SHIPLOG_HOME/bin:$PATH"
    ```
    Reload your shell (or `source` the file) and run `shiplog --help` to verify.
-3. Optional but recommended: run the dependency installer once to ensure `gum`, `jq`, and `yq` are available:
+3. Optional but recommended: run the dependency installer once to ensure `gum` and `jq` are available:
    ```bash
    "$SHIPLOG_HOME/install-shiplog-deps.sh"
    ```
@@ -99,18 +98,18 @@ Those variables are no longer required at runtime—the CLI discovers its `lib/`
 
 ## Tooling Helpers
 
-- Dependency installer: `install-shiplog-deps.sh` installs `gum`, `jq`, and `yq` with `--dry-run` and `--silent` flags.
+- Dependency installer: `install-shiplog-deps.sh` installs `gum` and `jq` with `--dry-run` and `--silent` flags.
   ```bash
   chmod +x install-shiplog-deps.sh
   ./install-shiplog-deps.sh
   ```
-- Docker sandbox: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted (git, gum, jq, yq, bats).
+- Docker sandbox: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted (git, gum, jq, bats).
   ```bash
   ./shiplog-sandbox.sh            # build + interactive shell
   ./shiplog-sandbox.sh ./bin/shiplog ls prod 5
   ```
   Override the image tag with `SHIPLOG_SANDBOX_IMAGE`, and SSH agent forwarding is wired in when `SSH_AUTH_SOCK` is set.
-- VS Code Dev Container: open the repository in VS Code and run “Dev Containers: Reopen in Container” to get a ready-to-go environment (`.devcontainer/` provisions gum, jq, yq, bats, etc.).
+- VS Code Dev Container: open the repository in VS Code and run “Dev Containers: Reopen in Container” to get a ready-to-go environment (`.devcontainer/` provisions gum, jq, bats, etc.).
 
 ## Install Layout
 
@@ -120,9 +119,9 @@ The binary lives in `bin/shiplog` and dynamically resolves `lib/` relative to th
 
 Short answer: keep policy in Git, in a signed ref, and mirror it into the working tree so humans can review it.
 
-- **Canonical policy ref** – store the enforced policy under `refs/_shiplog/policy/current`. The ref points at a signed commit whose tree contains `.shiplog/policy.yaml`.
-- **Working copy mirror** – keep the same file (`./.shiplog/policy.yaml`) on your main branch so policy edits go through normal PR review.
-- **Starter template** – copy `examples/policy.yaml` into `.shiplog/policy.yaml` when bootstrapping a repo.
+- **Canonical policy ref** – store the enforced policy under `refs/_shiplog/policy/current`. The ref points at a signed commit whose tree contains `.shiplog/policy.json`.
+- **Working copy mirror** – keep the same file (`./.shiplog/policy.json`) on your main branch so policy edits go through normal PR review.
+- **Starter template** – copy `examples/policy.json` into `.shiplog/policy.json` when bootstrapping a repo.
 - **CI publisher** – after merge, run `scripts/shiplog-sync-policy.sh` to publish the reviewed file to the policy ref (fast-forward only, signed by the bot key).
 - **Local overrides** – developers can customise via Git config while iterating:
   ```bash
@@ -132,44 +131,57 @@ Short answer: keep policy in Git, in a signed ref, and mirror it into the workin
   ```
 - **Resolution order (CLI + hooks)**
   1. `refs/_shiplog/policy/current` if present.
-  2. `.shiplog/policy.yaml` in the working tree (warn: not enforced server-side).
+  2. `.shiplog/policy.json` in the working tree (warn: not enforced server-side).
   3. `git config shiplog.policy.*` fallback.
   4. `SHIPLOG_*` environment variables for sandboxes/tests.
 
 ### Example policy file
 
-`.shiplog/policy.yaml` (mirrored exactly into `refs/_shiplog/policy/current`):
+`.shiplog/policy.json` (mirrored exactly into `refs/_shiplog/policy/current`):
 
-```yaml
-version: 1
-require_signed: true
-allow_ssh_signers_file: ".git/allowed_signers"
-authors:
-  default_allowlist:
-    - deploy-bot@ci
-    - james@flyingrobots.dev
-  env_overrides:
-    prod:
-      - deploy-bot@ci
-      - james@flyingrobots.dev
-wwwwwh_requirements:
-  prod:
-    require_ticket: true
-    require_service: true
-    require_where: [cluster, region, namespace]
-  default:
-    require_ticket: false
-ff_only: true
-notes_ref: "refs/_shiplog/notes"
-journals_ref_prefix: "refs/_shiplog/journal/"
-anchors_ref_prefix:  "refs/_shiplog/anchors/"
+```json
+{
+  "version": 1,
+  "require_signed": true,
+  "allow_ssh_signers_file": ".git/allowed_signers",
+  "authors": {
+    "default_allowlist": [
+      "deploy-bot@ci",
+      "james@flyingrobots.dev"
+    ],
+    "env_overrides": {
+      "prod": [
+        "deploy-bot@ci",
+        "james@flyingrobots.dev"
+      ]
+    }
+  },
+  "deployment_requirements": {
+    "prod": {
+      "require_ticket": true,
+      "require_service": true,
+      "require_where": [
+        "cluster",
+        "region",
+        "namespace"
+      ]
+    },
+    "default": {
+      "require_ticket": false
+    }
+  },
+  "ff_only": true,
+  "notes_ref": "refs/_shiplog/notes",
+  "journals_ref_prefix": "refs/_shiplog/journal/",
+  "anchors_ref_prefix": "refs/_shiplog/anchors/"
+}
 ```
 
 Roles and bindings can extend this schema later if you want to model release managers or staged access.
 
 ### Server-side enforcement
 
-- Teach the pre-receive hook to read the policy ref directly. A sample implementation lives in `contrib/hooks/pre-receive.shiplog` (documented in `contrib/README.md`) – it parses the YAML, checks authors, and verifies signatures for `refs/_shiplog/journal/*` (and anchors).
+- Teach the pre-receive hook to read the policy ref directly. A sample implementation lives in `contrib/hooks/pre-receive.shiplog` (documented in `contrib/README.md`) – it parses the JSON policy, checks authors, and verifies signatures for `refs/_shiplog/journal/*` (and anchors).
 - Keep reflogs enabled server-side (`core.logAllRefUpdates=true`) so policy moves and journal updates are traceable.
 - Protect the policy ref with fast-forward only updates (`git update-ref` with optimistic old SHA) and signed commits.
 
@@ -247,7 +259,7 @@ stateDiagram-v2
 - `install-shiplog-deps.sh` – cross-platform helper for installing gum, jq, yq.
 - `shiplog-sandbox.sh` – Docker sandbox launcher (builds `Dockerfile`).
 - `Dockerfile` – Debian-based sandbox with git, gum, jq, yq, bats preinstalled.
-- `examples/policy.yaml` – starter policy file for `.shiplog/policy.yaml`.
+- `examples/policy.json` – starter policy file for `.shiplog/policy.json`.
 - `contrib/README.md` – notes on hooks and CI helpers (`hooks/pre-receive.shiplog`).
 - `.gitignore` – excludes local-only artifacts.
 

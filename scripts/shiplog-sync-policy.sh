@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-POLICY_FILE=${1:-.shiplog/policy.yaml}
+POLICY_FILE=${1:-.shiplog/policy.json}
 POLICY_REF=${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}
 MESSAGE=${SHIPLOG_POLICY_MESSAGE:-"shiplog: update policy"}
 SIGN_MODE=${SHIPLOG_POLICY_SIGN:-1}
@@ -12,7 +12,7 @@ if [ ! -f "$POLICY_FILE" ]; then
 fi
 
 blob=$(git hash-object -w "$POLICY_FILE")
-entry=$(printf '100644 blob %s\t.shiplog/policy.yaml\n' "$blob")
+entry=$(printf '100644 blob %s\t.shiplog/policy.json\n' "$blob")
 tree=$(printf "%s" "$entry" | git mktree)
 parent=$(git rev-parse -q --verify "$POLICY_REF" 2>/dev/null || echo "")
 

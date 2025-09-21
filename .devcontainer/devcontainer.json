@@ -2,7 +2,7 @@
   "name": "Shiplog",
   "build": {
     "dockerfile": "dev.Dockerfile",
-    "context": "..",
+    "context": ".",
     "args": {
       "GUM_VERSION": "0.13.0",
       "YQ_VERSION": "4.44.3"
@@ -25,5 +25,5 @@
       }
     }
   },
-  "postCreateCommand": "bin/shiplog --help >/dev/null || true"
+  "postCreateCommand": "if [ -x bin/shiplog ]; then bin/shiplog --help >/dev/null; fi"
 }

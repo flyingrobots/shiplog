@@ -1,52 +1,49 @@
-# Policy resolution helpers (yq-powered)
+# Policy resolution helpers (jq-powered, JSON policy files)
 
-parse_policy_yaml() {
+parse_policy_json() {
   local env="$1"
   local src="$2"
-  local expr
-
   local require_signed
-  require_signed=$(yq eval -r '.require_signed // ""' "$src" 2>/dev/null || echo "")
   local signers_file
-  signers_file=$(yq eval -r '.allow_ssh_signers_file // ""' "$src" 2>/dev/null || echo "")
   local notes_ref
-  notes_ref=$(yq eval -r '.notes_ref // ""' "$src" 2>/dev/null || echo "")
   local journals_prefix
-  journals_prefix=$(yq eval -r '.journals_ref_prefix // ""' "$src" 2>/dev/null || echo "")
   local anchors_prefix
-  anchors_prefix=$(yq eval -r '.anchors_ref_prefix // ""' "$src" 2>/dev/null || echo "")
+  local authors
 
-  declare -A seen_authors=()
-  local authors=()
-  while IFS= read -r addr; do
-    [ -z "$addr" ] && continue
-    [ "$addr" = "null" ] && continue
-    if [ -z "${seen_authors[$addr]:-}" ]; then
-      seen_authors[$addr]=1
-      authors+=("$addr")
-    fi
-  done < <( { \
-      yq eval -r '.authors.default_allowlist[]?' "$src"; \
-      yq eval -r '.authors.env_overrides.default[]?' "$src"; \
-      yq eval -r ".authors.env_overrides.\"$env\"[]?" "$src"; \
-    } 2>/dev/null )
+  require_signed=$(jq -r '.require_signed // empty' "$src" 2>/dev/null || echo "")
+  signers_file=$(jq -r '.allow_ssh_signers_file // empty' "$src" 2>/dev/null || echo "")
+  notes_ref=$(jq -r '.notes_ref // empty' "$src" 2>/dev/null || echo "")
+  journals_prefix=$(jq -r '.journals_ref_prefix // empty' "$src" 2>/dev/null || echo "")
+  anchors_prefix=$(jq -r '.anchors_ref_prefix // empty' "$src" 2>/dev/null || echo "")
 
-  if [ -n "$require_signed" ] && [ "$require_signed" != "null" ]; then
+  authors=$(jq -r --arg env "$env" '
+      [
+        (.authors.default_allowlist // []),
+        (.authors.env_overrides.default // []),
+        (.authors.env_overrides[$env] // [])
+      ]
+      | flatten
+      | map(select(. != null and . != ""))
+      | unique
+      | join(" ")
+    ' "$src" 2>/dev/null || echo "")
+
+  if [ -n "$require_signed" ]; then
     echo "require_signed=$require_signed"
   fi
-  if [ -n "$signers_file" ] && [ "$signers_file" != "null" ]; then
+  if [ -n "$signers_file" ]; then
     echo "allowed_signers_file=$signers_file"
   fi
-  if [ ${#authors[@]} -gt 0 ]; then
-    printf 'authors=%s\n' "${authors[*]}"
+  if [ -n "$authors" ]; then
+    printf 'authors=%s\n' "$authors"
   fi
-  if [ -n "$notes_ref" ] && [ "$notes_ref" != "null" ]; then
+  if [ -n "$notes_ref" ]; then
     echo "notes_ref=$notes_ref"
   fi
-  if [ -n "$journals_prefix" ] && [ "$journals_prefix" != "null" ]; then
+  if [ -n "$journals_prefix" ]; then
     echo "journals_prefix=$journals_prefix"
   fi
-  if [ -n "$anchors_prefix" ] && [ "$anchors_prefix" != "null" ]; then
+  if [ -n "$anchors_prefix" ]; then
     echo "anchors_prefix=$anchors_prefix"
   fi
 }
@@ -79,8 +76,8 @@ load_policy_content() {
   if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
     local tmp
     tmp=$(mktemp)
-    if git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null > "$tmp"; then
-      if parsed=$(parse_policy_yaml "$env" "$tmp"); then
+    if git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null > "$tmp"; then
+      if parsed=$(parse_policy_json "$env" "$tmp"); then
         apply_policy_pairs <<<"$parsed"
         POLICY_SOURCE="policy-ref:$POLICY_REF"
         from_ref=1
@@ -91,10 +88,10 @@ load_policy_content() {
     rm -f "$tmp"
   fi
 
-  if [ -f ".shiplog/policy.yaml" ]; then
-    if parsed=$(parse_policy_yaml "$env" ".shiplog/policy.yaml"); then
+  if [ -f ".shiplog/policy.json" ]; then
+    if parsed=$(parse_policy_json "$env" ".shiplog/policy.json"); then
       apply_policy_pairs <<<"$parsed"
-      POLICY_SOURCE="policy-file:.shiplog/policy.yaml"
+      POLICY_SOURCE="policy-file:.shiplog/policy.json"
       return 0
     fi
   fi

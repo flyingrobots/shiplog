@@ -51,7 +51,7 @@ need git
 if ! is_boring; then
   need "$GUM"
 fi
-need yq
+need jq
 
 export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 
