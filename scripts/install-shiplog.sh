@@ -87,8 +87,8 @@ else
   log "Would run dependency installer"
 fi
 
-BIN_LINE="export PATH=\\\"$INSTALL_DIR/bin:\\\$PATH\\\""
-HOME_LINE="export SHIPLOG_HOME=\\\"$INSTALL_DIR\\\""
+BIN_LINE="export PATH=\"$INSTALL_DIR/bin:\$PATH\""
+HOME_LINE="export SHIPLOG_HOME=\"$INSTALL_DIR\""
 PROFILE_UPDATED=0
 
 if [ "$SKIP_PROFILE" -eq 0 ] && [ -n "$PROFILE_FILE" ]; then
@@ -100,7 +100,7 @@ if [ "$SKIP_PROFILE" -eq 0 ] && [ -n "$PROFILE_FILE" ]; then
     fi
     if ! grep -F "SHIPLOG_HOME" "$PROFILE_FILE" >/dev/null 2>&1; then
       log "Updating $PROFILE_FILE"
-      printf '\n# Shiplog\n%s\n%s\n' "$HOME_LINE" "$BIN_LINE" >> "$PROFILE_FILE"
+      printf '\n# Shiplog\nexport SHIPLOG_HOME="%s"\nexport PATH="%s/bin:$PATH"\n' "$INSTALL_DIR" "$INSTALL_DIR" >> "$PROFILE_FILE"
       PROFILE_UPDATED=1
     else
       log "$PROFILE_FILE already references SHIPLOG_HOME; skipping"

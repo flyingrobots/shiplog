@@ -14,10 +14,12 @@ ff_update() {
 
 compose_message() {
   local env="$1" service="$2" status="$3" reason="$4" ticket="$5" region="$6" cluster="$7" ns="$8" start_ts="$9" end_ts="${10}" dur_s="${11}" repo_head="${12}" artifact="${13}" run_url="${14}"
+  local status_upper
+  status_upper=$(printf '%s' "${status:-}" | tr '[:lower:]' '[:upper:]')
   cat <<EOF
 Deploy: $service $artifact → $env/${region:-?}/${cluster:-?}/${ns:-?}
 Reason: ${reason:-"—"} ${ticket:+($ticket)}
-Status: ${status^^} (${dur_s}s) @ $(fmt_ts)
+Status: ${status_upper:-?} (${dur_s}s) @ $(fmt_ts)
 Author: ${GIT_AUTHOR_EMAIL:-$(git config user.email || echo 'unknown')}
 Repo:   ${repo_head}
 
