@@ -31,8 +31,10 @@ draw_box() {
   local title="$1"; shift
   local text="$*"
   local width="${BOSUN_WIDTH:-80}"
+  local inner=$((width-4))
   local border_top="─" corner_tl="┌" corner_tr="┐"
   local border_side="│" corner_bl="└" corner_br="┘"
+  [ "$inner" -lt 1 ] && inner=1
   if [ -n "$title" ]; then
     local barlen=$(( width - 2 - ${#title} - 1 ))
     (( barlen < 0 )) && barlen=0
@@ -42,12 +44,12 @@ draw_box() {
   fi
   local line chunk
   while IFS= read -r line; do
-    while [ "${#line}" -gt $((width-4)) ]; do
-      chunk="${line:0:$((width-4))}"
-      printf "%s %s %s\n" "${border_side}" "$chunk" "${border_side}"
-      line="${line:$((width-4))}"
+    while [ "${#line}" -gt "$inner" ]; do
+      chunk="${line:0:$inner}"
+      printf "%s %-*s %s\n" "${border_side}" "$inner" "$chunk" "${border_side}"
+      line="${line:$inner}"
     done
-    printf "%s %-${((width-4))}s %s\n" "${border_side}" "$line" "${border_side}"
+    printf "%s %-*s %s\n" "${border_side}" "$inner" "$line" "${border_side}"
   done <<< "$text"
   printf "%s%s%s\n" "${corner_bl}" "$(printf '%*s' $((width-2)) '' | tr ' ' "$border_top")" "${corner_br}"
 }
