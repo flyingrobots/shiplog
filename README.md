@@ -256,9 +256,9 @@ stateDiagram-v2
 - `lib/` – bash modules (`common`, `git`, `policy`, `commands`).
 - `scripts/` – plumbing helpers (e.g. `shiplog-sync-policy.sh`).
 - `tests/` – Bats suite (interactive + boring modes) and fixtures.
-- `install-shiplog-deps.sh` – cross-platform helper for installing gum, jq, yq.
+- `install-shiplog-deps.sh` – cross-platform helper for installing gum and jq.
 - `shiplog-sandbox.sh` – Docker sandbox launcher (builds `Dockerfile`).
-- `Dockerfile` – Debian-based sandbox with git, gum, jq, yq, bats preinstalled.
+- `Dockerfile` – Debian-based sandbox with git, gum, jq, bats preinstalled.
 - `examples/policy.json` – starter policy file for `.shiplog/policy.json`.
 - `contrib/README.md` – notes on hooks and CI helpers (`hooks/pre-receive.shiplog`).
 - `.gitignore` – excludes local-only artifacts.

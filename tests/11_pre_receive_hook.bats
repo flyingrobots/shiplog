@@ -76,11 +76,15 @@ teardown() {
 
 @test "pre-receive allows push for authorized author" {
   publish_policy "$(cat <<'POL'
-version: 1
-require_signed: false
-authors:
-  default_allowlist:
-    - shiplog-test@example.local
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {
+    "default_allowlist": [
+      "shiplog-test@example.local"
+    ]
+  }
+}
 POL
 )"
   make_entry
@@ -94,11 +98,15 @@ POL
 
 @test "pre-receive rejects unauthorized author" {
   publish_policy "$(cat <<'POL'
-version: 1
-require_signed: false
-authors:
-  default_allowlist:
-    - someoneelse@example.com
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {
+    "default_allowlist": [
+      "someoneelse@example.com"
+    ]
+  }
+}
 POL
 )"
   make_entry
@@ -113,11 +121,15 @@ POL
 
 @test "pre-receive enforces signatures when required" {
   publish_policy "$(cat <<'POL'
-version: 1
-require_signed: true
-authors:
-  default_allowlist:
-    - shiplog-test@example.local
+{
+  "version": 1,
+  "require_signed": true,
+  "authors": {
+    "default_allowlist": [
+      "shiplog-test@example.local"
+    ]
+  }
+}
 POL
 )"
   make_entry

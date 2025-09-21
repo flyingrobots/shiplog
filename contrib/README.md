@@ -16,11 +16,11 @@ cp contrib/hooks/pre-receive.shiplog /path/to/bare.git/hooks/pre-receive
 chmod +x /path/to/bare.git/hooks/pre-receive
 ```
 
-The hook expects the policy file to be available under `refs/_shiplog/policy/current` and will fall back to `.shiplog/policy.yaml` if the ref is absent.
+The hook expects the policy file to be available under `refs/_shiplog/policy/current` and will fall back to `.shiplog/policy.json` if the ref is absent.
 
 ## CI Helpers
 
-- `../scripts/shiplog-sync-policy.sh` – publishes `.shiplog/policy.yaml` to the policy ref as a fast-forward signed commit. Run this from CI after merging the policy change branch:
+- `../scripts/shiplog-sync-policy.sh` – publishes `.shiplog/policy.json` to the policy ref as a fast-forward signed commit. Run this from CI after merging the policy change branch:
 
 ```bash
 scripts/shiplog-sync-policy.sh
@@ -29,11 +29,11 @@ git push origin refs/_shiplog/policy/current
 
 ## Policy Templates
 
-- `../examples/policy.yaml` – starter policy you can copy into `.shiplog/policy.yaml` before publishing with the sync script.
+- `../examples/policy.json` – starter policy you can copy into `.shiplog/policy.json` before publishing with the sync script.
 
 ## Suggested Workflow
 
-1. Update `.shiplog/policy.yaml` in a branch.
+1. Update `.shiplog/policy.json` in a branch.
 2. Run `scripts/shiplog-sync-policy.sh` (in CI or locally) after merge to bump `refs/_shiplog/policy/current`.
 3. The pre-receive hook validates writes to the Shiplog refs using that policy.
 

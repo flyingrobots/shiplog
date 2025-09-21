@@ -13,7 +13,6 @@
     ./install-shiplog-deps.sh --silent
     gum --version >/dev/null
     jq --version >/dev/null
-    yq --version >/dev/null
     mkdir smoke && cd smoke
     git init -q
     git config user.name Smoke

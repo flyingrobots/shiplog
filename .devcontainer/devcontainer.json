@@ -4,8 +4,7 @@
     "dockerfile": "dev.Dockerfile",
     "context": ".",
     "args": {
-      "GUM_VERSION": "0.13.0",
-      "YQ_VERSION": "4.44.3"
+      "GUM_VERSION": "0.13.0"
     }
   },
   "workspaceFolder": "/workspaces/shiplog",

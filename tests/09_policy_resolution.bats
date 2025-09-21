@@ -11,26 +11,34 @@ setup() {
 }
 
 @test "policy show reports file source" {
-  cat <<POLICY > .shiplog/policy.yaml
-version: 1
-require_signed: false
-authors:
-  default_allowlist:
-    - shiplog-policy@example.com
+  cat <<POLICY > .shiplog/policy.json
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {
+    "default_allowlist": [
+      "shiplog-policy@example.com"
+    ]
+  }
+}
 POLICY
   run shiplog policy --boring show
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Source: policy-file:.shiplog/policy.yaml"* ]]
+  [[ "$output" == *"Source: policy-file:.shiplog/policy.json"* ]]
   [[ "$output" == *"Allowed Authors"* ]]
 }
 
 @test "policy allowlist permits write" {
-  cat <<POLICY > .shiplog/policy.yaml
-version: 1
-require_signed: false
-authors:
-  default_allowlist:
-    - shiplog-policy@example.com
+  cat <<POLICY > .shiplog/policy.json
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {
+    "default_allowlist": [
+      "shiplog-policy@example.com"
+    ]
+  }
+}
 POLICY
   run bash -lc 'yes | shiplog write'
   [ "$status" -eq 0 ]
