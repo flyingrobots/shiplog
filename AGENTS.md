@@ -1,11 +1,13 @@
 # Git Workflow Guidelines
 
 ## Quick Reminders
+
 - Never push directly to main; create a branch and open a PR instead.
 - Never amend commits or force-push to shared branches without explicit user approval; amending local commits is encouraged.
 - If a task appears to require a force push, stop and ask the user before proceeding.
 
 ## Branch Management
+
 - Never push directly to `main`. Create a feature branch from `main` and open a pull request for review.
 - Use descriptive branch names with prefixes (e.g., `feature/`, `bugfix/`, `hotfix/`)
 - Delete feature branches after successful merge to keep the repository clean
@@ -13,6 +15,7 @@
 - Keep feature branches focused and short-lived when possible
 
 ## Commit History
+
 - Never amend commits or force-push to shared branches without explicit user approval.
 - For local branches, prefer `git commit --amend` for fixing recent commits.
 - For shared branches, add new commits and use merge commits to preserve history.
@@ -21,11 +24,13 @@
 - Avoid "WIP" or "fix typo" commits in the final PR history
 
 ## Force Push Policy
+
 - If a task requires force-pushing to a shared branch, stop and request explicit user approval before proceeding.
 - Always use `git push --force-with-lease` instead of `git push --force` to prevent overwriting others' work.
   (This keeps teammates' commits safe: `--force-with-lease` aborts if the remote moved, so you never clobber unseen changes.)
 
 ## Worklog
+
 - [ ] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [ ] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [ ] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with Python guard.
@@ -50,10 +55,12 @@
 - [ ] Add JSON schema (`examples/policy.schema.json`) and link in docs/CI.
 
 ## Testing
+
 - Always run the full test suite before pushing to shared branches
 - Use project-defined test commands (e.g., `make test`) rather than running tests directly
 - Ensure tests pass in the same environment they'll run in CI/CD
 
 ### Project-Specific Notes
+
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
 
