@@ -29,14 +29,14 @@ RUN ARCH=$(uname -m) \
     && chmod +x /usr/local/bin/gum \
     && gum --version
 
-RUN arch="$(dpkg --print-architecture)" \
-    && case "$arch" in \
-         amd64)  yq_bin=yq_linux_amd64 ;; \
-         arm64)  yq_bin=yq_linux_arm64 ;; \
-         armhf)  yq_bin=yq_linux_arm ;; \
-         *) echo "Unsupported arch for yq: $arch" >&2 && exit 1 ;; \
+RUN ARCH=$(uname -m) \
+    && case "$ARCH" in \
+         x86_64)  YQ_BIN=yq_linux_amd64 ;; \
+         aarch64) YQ_BIN=yq_linux_arm64 ;; \
+         armv7l|armv6l) YQ_BIN=yq_linux_arm ;; \
+         *) echo "Unsupported architecture for yq: $ARCH" >&2 && exit 1 ;; \
        esac \
-    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${yq_bin}" \
+    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${YQ_BIN}" \
          -o /usr/local/bin/yq \
     && chmod +x /usr/local/bin/yq \
     && yq --version

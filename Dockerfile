@@ -199,7 +199,12 @@ case "$subcmd" in
     fi
     ;;
   log)
-    exit 0
+    # Non-interactive: print message to stdout
+    if [ $# -gt 0 ]; then
+      printf "%s\n" "$*"
+    else
+      cat
+    fi
     ;;
   table)
     header=""

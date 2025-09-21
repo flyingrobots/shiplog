@@ -25,5 +25,5 @@
       }
     }
   },
-  "postCreateCommand": "bin/shiplog --help >/dev/null || true"
+  "postCreateCommand": "bin/shiplog --help >/dev/null 2>&1 || echo 'WARNING: bin/shiplog --help failed during container initialization'"
 }
