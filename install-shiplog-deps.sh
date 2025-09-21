@@ -16,13 +16,15 @@ log() { [ "$SILENT" -eq 1 ] || echo -e "$*"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$*"; fi; }
 
 need_sudo() {
-  if [ "$(id -u)" -eq 0 ]; then
-    echo ""
-  elif command -v sudo >/dev/null 2>&1; then
-    echo "sudo"
-  else
-    die "Require root privileges; rerun as root or install sudo"
-  fi
+die() { echo "❌ $*" >&2; exit 1; }
+
+if [ "$(id -u)" -eq 0 ]; then
+  echo ""
+elif command -v sudo >/dev/null 2>&1; then
+  echo "sudo"
+else
+  die "Require root privileges; rerun as root or install sudo"
+fi
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }

@@ -451,4 +451,3 @@ MIT © YourOrg
 ---
 
 If you want, I can also format this as a **GitHub-README template** (placeholders for org name, version badge, sponsor badges, etc.) so it looks polished from day one.
-```

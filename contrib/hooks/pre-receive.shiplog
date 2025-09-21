@@ -4,10 +4,9 @@ set -euo pipefail
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
 
 if ! command -v yq >/dev/null 2>&1; then
-  echo "shiplog pre-receive: yq not found" >&2
+  echo "shiplog pre-receive: yq not found. Install yq (e.g., apt install yq / brew install yq) or run ./install-shiplog-deps.sh." >&2
   exit 1
 fi
-
 read_policy() {
   git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null || return 1
 }

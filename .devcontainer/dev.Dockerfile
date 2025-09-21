@@ -12,6 +12,7 @@ RUN apt-get update \
        bats \
        gnupg \
        curl \
+       ca-certificates \
        shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,3 +44,6 @@ RUN ARCH=$(uname -m) \
 
 USER vscode
 WORKDIR /workspaces/shiplog
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD sh -c 'gum --version >/dev/null 2>&1 && yq --version >/dev/null 2>&1 || exit 1'

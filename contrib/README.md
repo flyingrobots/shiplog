@@ -4,7 +4,7 @@ Supporting assets that help you wire Shiplog into a larger deployment workflow.
 
 ## Hooks
 
-- `hooks/pre-receive.shiplog` – sample server-side guard that enforces:
+- `hooks/pre-receive.shiplog` – sample server-side guard that enforces (requires: git ≥2.35, jq ≥1.6, yq v4.x by mikefarah, bash):
   - fast-forward pushes to `refs/_shiplog/journal/*` and `refs/_shiplog/anchors/*`
   - commit signatures (GPG or SSH allowed signers)
   - author allowlists pulled from the active policy
@@ -16,16 +16,10 @@ cp contrib/hooks/pre-receive.shiplog /path/to/bare.git/hooks/pre-receive
 chmod +x /path/to/bare.git/hooks/pre-receive
 ```
 
-The hook expects the policy file to be available under `refs/_shiplog/policy/current` and will fall back to `.shiplog/policy.yaml` if the ref is absent.
-
+The hook expects the policy file under `refs/_shiplog/policy/current`. The `.shiplog/policy.yaml` fallback is for local/dev only; do NOT rely on it in production repositories.
 ## CI Helpers
 
-- `../scripts/shiplog-sync-policy.sh` – publishes `.shiplog/policy.yaml` to the policy ref as a fast-forward signed commit. Run this from CI after merging the policy change branch:
-
-```bash
-scripts/shiplog-sync-policy.sh
-git push origin refs/_shiplog/policy/current
-```
+- `../scripts/shiplog-sync-policy.sh` – creates a fast-forward signed commit for the policy ref (does not push). Run this from CI after merging the policy change branch, then push:
 
 ## Policy Templates
 
