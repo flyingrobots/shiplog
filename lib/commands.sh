@@ -2,9 +2,20 @@
 
 cmd_init() {
   ensure_in_repo
-  git config --add remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*" || true
-  git config --add remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"  || true
-  git config core.logAllRefUpdates true
+  ensure_config_value() {
+    local key="$1" value="$2"
+    if git config --get-all "$key" 2>/dev/null | grep -Fxq "$value"; then
+      return 0
+    fi
+    git config --add "$key" "$value"
+  }
+
+  ensure_config_value remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*"
+  ensure_config_value remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"
+
+  if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then
+    git config core.logAllRefUpdates true
+  fi
   if is_boring; then
     printf 'Configured refspecs for %s/* and enabled reflogs.\n' "$REF_ROOT"
   else

@@ -22,6 +22,24 @@ setup() {
   [ "$output" = "true" ]
 }
 
+@test "git shiplog init is idempotent" {
+  expected="+${REF_ROOT}/*:${REF_ROOT}/*"
+  run git shiplog init
+  [ "$status" -eq 0 ]
+  run git shiplog init
+  [ "$status" -eq 0 ]
+
+  run git config --get-all remote.origin.fetch
+  [ "$status" -eq 0 ]
+  fetch_count=$(printf '%s\n' "$output" | grep -Fx "$expected" | wc -l | tr -d '[:space:]')
+  [ "$fetch_count" -eq 1 ] || fail "expected single fetch refspec, got $fetch_count"
+
+  run git config --get-all remote.origin.push
+  [ "$status" -eq 0 ]
+  push_count=$(printf '%s\n' "$output" | grep -Fx "${REF_ROOT}/*:${REF_ROOT}/*" | wc -l | tr -d '[:space:]')
+  [ "$push_count" -eq 1 ] || fail "expected single push refspec, got $push_count"
+}
+
 @test "ls on empty journal errors cleanly" {
   run git shiplog ls
   [ "$status" -ne 0 ]
