@@ -157,6 +157,7 @@ gitGraph
 - **Pretty `ls`, `show`, and `verify` flows** powered by `gum`
 - **`--boring` / `SHIPLOG_BORING=1` mode** for CI automation (no prompts, plain-text output)
 - **`--yes` / `--auto-accept` / `SHIPLOG_ASSUME_YES=1`** to auto-confirm prompts in non-interactive pipelines
+- **Auto-push** of updated `_shiplog/*` refs (and notes) to `origin` by default; override with `--no-push` or `SHIPLOG_AUTO_PUSH=0`
 
 ## Real Deployment Entry
 
@@ -295,6 +296,19 @@ curl -fsSL https://raw.githubusercontent.com/flyingrobots/shiplog/main/scripts/i
    \"$SHIPLOG_HOME/install-shiplog-deps.sh\"
    ```
 
+If you reinstall into an existing repository, the installer issues `git fetch origin "refs/_shiplog/*:refs/_shiplog/*"` so your local journal history stays in sync.
+
+### Uninstall
+
+Run the bundled helper to remove Shiplog and restore your Git/Git config:
+
+```bash
+$SHIPLOG_HOME/scripts/uninstall-shiplog.sh
+```
+
+Use `--dry-run` to preview changes or `--profile` to target a specific shell profile. The uninstaller removes Shiplog's `_shiplog/*` refspecs, PATH/profile entries, and any `git-shiplog` / `shiplog` shims.
+Remote refs under `refs/_shiplog/*` are left untouched so history remains auditable—prune them manually only if you truly intend to delete records.
+
 ## Requirements
 
 - **Git 2.x+**
@@ -314,6 +328,7 @@ curl -fsSL https://raw.githubusercontent.com/flyingrobots/shiplog/main/scripts/i
 - `SHIPLOG_SIGN` – set to `0`/`false` to skip commit signing (used in CI when no keys exist)
 - `SHIPLOG_BORING` – set to `1` to disable gum UI globally (same as `--boring`)
 - `SHIPLOG_ASSUME_YES` – set to `1` to auto-confirm prompts even when gum is available (same as passing `--yes` / `--auto-accept`)
+- `SHIPLOG_AUTO_PUSH` – set to `0` to skip automatic `git push` of updated `_shiplog/*` refs (use `--no-push` on the CLI for one-off runs)
 
 Use `SHIPLOG_ENV` to target a specific environment (defaults to `prod`).
 
@@ -355,6 +370,7 @@ stateDiagram-v2
 - **Dependency installer**: `install-shiplog-deps.sh` installs `gum` and `jq` with `--dry-run` and `--silent` flags
 - **Docker sandbox**: `shiplog-sandbox.sh` builds the local Dockerfile and drops you into `/workspace` with the repo mounted (git, gum, jq, bats)
 - **VS Code Dev Container**: open the repository in VS Code and run \"Dev Containers: Reopen in Container\" to get a ready-to-go environment
+- **Uninstaller**: `scripts/uninstall-shiplog.sh` removes PATH/profile entries, `_shiplog/*` refspecs, and CLI shims (supports `--dry-run` and `--profile`)
 
 ## Project Layout
 

@@ -14,6 +14,7 @@ AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
 ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.git/allowed_signers}"
 GUM=${GUM:-gum}
 SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
+SHIPLOG_AUTO_PUSH="${SHIPLOG_AUTO_PUSH:-1}"
 
 for arg in "$@"; do
   if [ "$arg" = "--boring" ]; then
@@ -81,6 +82,16 @@ run_with_global_flags() {
         export SHIPLOG_ENV
         shift
         continue
+        ;;
+      --no-push)
+        SHIPLOG_AUTO_PUSH=0
+        export SHIPLOG_AUTO_PUSH
+        shift
+        ;;
+      --push)
+        SHIPLOG_AUTO_PUSH=1
+        export SHIPLOG_AUTO_PUSH
+        shift
         ;;
       --yes|--assume-yes|--auto-accept)
         SHIPLOG_ASSUME_YES=1

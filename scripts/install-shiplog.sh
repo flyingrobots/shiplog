@@ -92,6 +92,12 @@ if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$INSTALL_DIR/bin"
     ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
   fi
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    log "Fetching Shiplog refs from origin"
+    run "git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'" || log "Warning: unable to fetch refs/_shiplog/*"
+  else
+    log "(Skipping git fetch; not inside a git worktree)"
+  fi
 else
   log "Would run dependency installer"
   if [ -x "$INSTALL_DIR/scripts/bosun" ]; then

@@ -10,7 +10,7 @@ git shiplog init
 
 ## Behavior
 - Requires running inside a Git repo with at least one commit.
-- Adds fetch/push refspecs for `refs/_shiplog/*` and turns on `core.logAllRefUpdates`.
+- Adds fetch/push refspecs for `refs/_shiplog/*` and turns on `core.logAllRefUpdates`, adding a `HEAD` push refspec only when none existed to preserve default push behavior.
 - Produces a human-friendly confirmation in interactive shells and a plain message when `--boring` is supplied.
 
 ## Related Code

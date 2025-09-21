@@ -10,9 +10,12 @@ cmd_init() {
     git config --add "$key" "$value"
   }
 
+  mapfile -t existing_push < <(git config --get-all remote.origin.push 2>/dev/null || true)
   ensure_config_value remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*"
-  ensure_config_value remote.origin.push HEAD
   ensure_config_value remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"
+  if [ ${#existing_push[@]} -eq 0 ]; then
+    ensure_config_value remote.origin.push HEAD
+  fi
 
   if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then
     git config core.logAllRefUpdates true
@@ -30,6 +33,35 @@ cmd_write() {
 
   require_allowed_author
   require_allowed_signer
+
+  local journal_ref="$(ref_journal "$env")"
+  local notes_ref="$NOTES_REF"
+  local remote_url=""
+  remote_url=$(git config --get remote.origin.url 2>/dev/null || true)
+  local have_origin=0
+  [ -n "$remote_url" ] && have_origin=1
+
+  maybe_sync_shiplog_ref() {
+    local ref="$1"
+    [ "$have_origin" -eq 1 ] || return 0
+    if git ls-remote --exit-code origin "$ref" >/dev/null 2>&1; then
+      if git fetch origin "$ref:$ref" >/dev/null 2>&1; then
+        return 0
+      fi
+      if [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
+        if git push origin "$ref" >/dev/null 2>&1; then
+          git fetch origin "$ref:$ref" >/dev/null 2>&1 && return 0
+        fi
+      fi
+      die "shiplog: unable to sync $ref with origin; push or resolve divergence before continuing"
+    fi
+    return 0
+  }
+
+  maybe_sync_shiplog_ref "$journal_ref"
+  if [ -n "$notes_ref" ] && [ "$have_origin" -eq 1 ]; then
+    git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+  fi
 
   local service status reason ticket region cluster ns artifact_tag artifact_image run_url
   service="$(shiplog_prompt_input "service (e.g., web)" "SHIPLOG_SERVICE")"
@@ -78,23 +110,41 @@ cmd_write() {
     "$GUM" log --structured --time "rfc822" --level info "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}" >&2
   fi
 
-  shiplog_confirm "Sign & append this entry to $REF_ROOT/journal/$env?" || die "Aborted."
+  shiplog_confirm "Sign & append this entry to $journal_ref?" || die "Aborted."
 
   local tree; tree="$(empty_tree)"
-  local parent; parent="$(current_tip "$(ref_journal "$env")")"
+  local parent; parent="$(current_tip "$journal_ref")"
   local new
   new="$(printf "%s" "$msg" | sign_commit "$tree" ${parent:+-p "$parent"})" || die "Signing commit failed."
 
+  local note_attached=0
   if [ -n "${SHIPLOG_LOG:-}" ]; then
     attach_note_if_present "$new" "$SHIPLOG_LOG"
+    note_attached=1
   fi
 
-  ff_update "$(ref_journal "$env")" "$new" "$parent" "shiplog: append entry"
+  ff_update "$journal_ref" "$new" "$parent" "shiplog: append entry"
   if is_boring; then
     printf '✅ Appended %s to %s\n' "$(git rev-parse --short "$new")" "$(ref_journal "$env")"
   else
     "$GUM" style --border rounded -- "✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
     "$GUM" log --structured --time "rfc822" --level info "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}" >&2
+  fi
+
+  if [ "$have_origin" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
+    if ! git push origin "$journal_ref" >/dev/null 2>&1; then
+      die "shiplog: failed to push $journal_ref to origin"
+    fi
+    if [ "$note_attached" -eq 1 ]; then
+      git push origin "$notes_ref" >/dev/null 2>&1 || die "shiplog: failed to push $notes_ref to origin"
+    fi
+    if ! is_boring && command -v "$GUM" >/dev/null 2>&1; then
+      "$GUM" style --border normal -- "📤 Pushed $journal_ref to origin"
+    elif ! is_boring; then
+      printf '📤 Pushed %s to origin\n' "$journal_ref"
+    fi
+  elif [ "$have_origin" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" = "0" ] && ! is_boring; then
+    printf 'ℹ️ shiplog: auto-push disabled; remember to push %s manually.\n' "$journal_ref"
   fi
 }
 
@@ -221,19 +271,20 @@ usage() {
   cat <<EOF
 SHIPLOG-Lite
 Usage:
-  $cmd [--boring] [--yes] [--env ENV] init
-  $cmd [--boring] [--yes] [--env ENV] write [ENV]
-  $cmd [--boring] [--yes] [--env ENV] ls   [ENV] [LIMIT]
-  $cmd [--boring] [--yes] [--env ENV] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
-  $cmd [--boring] [--yes] [--env ENV] verify [ENV]
-  $cmd [--boring] [--yes] [--env ENV] export-json [ENV]
-  $cmd [--boring] [--yes] [--env ENV] policy [show]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] init
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] write [ENV]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] ls   [ENV] [LIMIT]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] verify [ENV]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] export-json [ENV]
+  $cmd [--boring] [--yes] [--no-push] [--env ENV] policy [show]
 
 Env via --env or $SHIPLOG_ENV (default: $DEFAULT_ENV). Optional vars: SHIPLOG_* (author, image, tag, run url, log).
 Flags:
-  --env ENV   Target environment when none supplied positionally.
-  --boring    Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
+  --env ENV        Target environment when none supplied positionally.
+  --boring         Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
   --yes|--auto-accept  Auto-confirm prompts (sets SHIPLOG_ASSUME_YES=1).
+  --no-push        Skip automatic `git push` of `_shiplog/*` refs (same as SHIPLOG_AUTO_PUSH=0).
 EOF
 }
 
