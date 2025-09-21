@@ -15,14 +15,14 @@ RUN apt-get update \
        shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
-RUN arch="$(dpkg --print-architecture)" \
-    && case "$arch" in \
-         amd64)  gusuf=Linux_x86_64 ;; \
-         arm64)  gusuf=Linux_arm64 ;; \
-         armhf)  gusuf=Linux_armv6 ;; \
-         *) echo "Unsupported arch: $arch" >&2 && exit 1 ;; \
+RUN ARCH=$(uname -m) \
+    && case "$ARCH" in \
+         x86_64)  GUSUF=Linux_x86_64 ;; \
+         aarch64) GUSUF=Linux_arm64 ;; \
+         armv7l|armv6l) GUSUF=Linux_armv6 ;; \
+         *) echo "Unsupported architecture: $ARCH" >&2 && exit 1 ;; \
        esac \
-    && curl -fsSL "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_${gusuf}.tar.gz" \
+    && curl -fsSL "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_${GUSUF}.tar.gz" \
          -o /tmp/gum.tgz \
     && tar -C /usr/local/bin -xzf /tmp/gum.tgz gum \
     && rm -f /tmp/gum.tgz \
