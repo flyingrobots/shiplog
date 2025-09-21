@@ -8,7 +8,7 @@ setup() {
 }
 
 @test "export-json emits compact NDJSON with commit field" {
-  run shiplog export-json
+  run git shiplog export-json
   [ "$status" -eq 0 ]
   echo "$output" | jq -c . >/dev/null
   first=$(echo "$output" | head -n1)

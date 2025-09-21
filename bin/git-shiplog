@@ -59,6 +59,34 @@ run_with_global_flags() {
   local args=()
   while [ $# -gt 0 ]; do
     case "$1" in
+      --env)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "❌ shiplog: --env requires a value" >&2
+          exit 1
+        fi
+        SHIPLOG_ENV="$1"
+        DEFAULT_ENV="$SHIPLOG_ENV"
+        export SHIPLOG_ENV
+        shift
+        continue
+        ;;
+      --env=*)
+        SHIPLOG_ENV="${1#*=}"
+        if [ -z "$SHIPLOG_ENV" ]; then
+          echo "❌ shiplog: --env requires a non-empty value" >&2
+          exit 1
+        fi
+        DEFAULT_ENV="$SHIPLOG_ENV"
+        export SHIPLOG_ENV
+        shift
+        continue
+        ;;
+      --yes|--assume-yes|--auto-accept)
+        SHIPLOG_ASSUME_YES=1
+        export SHIPLOG_ASSUME_YES
+        shift
+        ;;
       --boring)
         SHIPLOG_BORING=1
         export SHIPLOG_BORING

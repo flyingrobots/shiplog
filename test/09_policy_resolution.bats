@@ -22,7 +22,7 @@ setup() {
   }
 }
 POLICY
-  run shiplog policy --boring show
+  run git shiplog policy --boring show
   [ "$status" -eq 0 ]
   [[ "$output" == *"Source: policy-file:.shiplog/policy.json"* ]]
   [[ "$output" == *"Allowed Authors"* ]]
@@ -40,6 +40,6 @@ POLICY
   }
 }
 POLICY
-  run bash -lc 'yes | shiplog write'
+  run bash -lc 'git shiplog --yes write'
   [ "$status" -eq 0 ]
 }

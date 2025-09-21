@@ -28,9 +28,9 @@ setup() {
     unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE SHIPLOG_IMAGE SHIPLOG_TAG
   }
   trap cleanup EXIT
-  run shiplog --boring write
+  run git shiplog --boring write
   [ "$status" -eq 0 ]
-  [[ -n "$output" ]] || fail "shiplog command produced no output"
+  [[ -n "$output" ]] || fail "git shiplog command produced no output"
 
   run git show -s --format=%s refs/_shiplog/journal/prod
   [ "$status" -eq 0 ]

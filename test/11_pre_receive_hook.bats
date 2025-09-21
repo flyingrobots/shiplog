@@ -40,7 +40,7 @@ make_entry() {
   export SHIPLOG_NAMESPACE=${7:-default}
   export SHIPLOG_IMAGE=${8:-ghcr.io/example/app}
   export SHIPLOG_TAG=${9:-v0.0.1}
-  run shiplog --boring write
+  run git shiplog --boring write
   [ "$status" -eq 0 ]
 }
 

@@ -19,7 +19,7 @@ setup() {
 }
 
 @test "write creates a commit under refs/_shiplog/journal/prod" {
-  run bash -lc 'yes | shiplog write'
+  run bash -lc 'git shiplog --yes write'
   [ "$status" -eq 0 ]
   ref="${REF_ROOT}/journal/prod"
   run git show -s --format=%s "$ref"
@@ -28,7 +28,7 @@ setup() {
 }
 
 @test "ls shows a formatted table via gum" {
-  run shiplog ls
+  run git shiplog ls
   [ "$status" -eq 0 ]
   [[ "$output" == *"web"* ]]
   [[ "$output" == *"SUCCESS"* ]]
@@ -36,7 +36,7 @@ setup() {
 
 @test "show renders human header and structured trailer" {
   sha=$(git rev-parse "${REF_ROOT}/journal/prod")
-  run shiplog show "$sha"
+  run git shiplog show "$sha"
   [ "$status" -eq 0 ]
   [[ "$output" == *"SHIPLOG Entry"* ]]
   [[ "$output" == *"Structured Trailer"* ]]

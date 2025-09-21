@@ -5,4 +5,4 @@
 3. Switch portable time/duration helpers to avoid `date -d` (support macOS).
 4. Validate JSON trailer payloads (and make `jq` optional).
 5. Simplify policy parsing to a single parser (likely jq-only) and update the pre-receive hook accordingly.
-6. Remove the remaining hard gum dependency from tests/Docker stubs.
+6. Remove the remaining hard gum dependency from test/Docker stubs.

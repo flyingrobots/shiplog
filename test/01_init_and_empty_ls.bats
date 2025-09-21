@@ -9,8 +9,8 @@ setup() {
   shiplog_install_cli
 }
 
-@test "shiplog init sets refspecs and reflogs" {
-  run shiplog init
+@test "git shiplog init sets refspecs and reflogs" {
+  run git shiplog init
   [ "$status" -eq 0 ]
 
   run git config --get-all remote.origin.fetch
@@ -23,7 +23,7 @@ setup() {
 }
 
 @test "ls on empty journal errors cleanly" {
-  run shiplog ls
+  run git shiplog ls
   [ "$status" -ne 0 ]
   [[ "$output" == *"No entries at"* ]]
 }

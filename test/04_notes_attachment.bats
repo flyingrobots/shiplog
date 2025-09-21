@@ -17,7 +17,7 @@ setup() {
 }
 
 @test "write attaches note to commit and show displays it" {
-  run bash -lc 'yes | shiplog write'
+  run bash -lc 'git shiplog --yes write'
   [ "$status" -eq 0 ]
   sha=$(git rev-parse "${REF_ROOT}/journal/prod")
 
@@ -25,7 +25,7 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"hello"* ]]
 
-  run shiplog show "$sha"
+  run git shiplog show "$sha"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Attached Log (notes)"* ]]
 }

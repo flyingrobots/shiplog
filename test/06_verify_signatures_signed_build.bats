@@ -13,8 +13,8 @@ setup() {
   export SHIPLOG_SIGN=1
   export SHIPLOG_ENV="signed"
   export SHIPLOG_SERVICE="signed-web"
-  run bash -lc 'yes | shiplog write'
+  run bash -lc 'git shiplog --yes write'
   [ "$status" -eq 0 ]
-  run shiplog verify
+  run git shiplog verify
   [ "$status" -eq 0 ]
 }

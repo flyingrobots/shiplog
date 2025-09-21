@@ -202,20 +202,26 @@ cmd_policy() {
 }
 
 usage() {
+  local cmd="$(basename "$0")"
+  if [ "$cmd" = "git-shiplog" ]; then
+    cmd="git shiplog"
+  fi
   cat <<EOF
 SHIPLOG-Lite
 Usage:
-  $(basename "$0") [--boring] init
-  $(basename "$0") [--boring] write [ENV]
-  $(basename "$0") [--boring] ls   [ENV] [LIMIT]
-  $(basename "$0") [--boring] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
-  $(basename "$0") [--boring] verify [ENV]
-  $(basename "$0") [--boring] export-json [ENV]
-  $(basename "$0") [--boring] policy [show]
+  $cmd [--boring] [--yes] [--env ENV] init
+  $cmd [--boring] [--yes] [--env ENV] write [ENV]
+  $cmd [--boring] [--yes] [--env ENV] ls   [ENV] [LIMIT]
+  $cmd [--boring] [--yes] [--env ENV] show [COMMIT|default: $REF_ROOT/journal/$DEFAULT_ENV]
+  $cmd [--boring] [--yes] [--env ENV] verify [ENV]
+  $cmd [--boring] [--yes] [--env ENV] export-json [ENV]
+  $cmd [--boring] [--yes] [--env ENV] policy [show]
 
-Env via $SHIPLOG_ENV (default: $DEFAULT_ENV). Optional vars: SHIPLOG_* (author, image, tag, run url, log).
+Env via --env or $SHIPLOG_ENV (default: $DEFAULT_ENV). Optional vars: SHIPLOG_* (author, image, tag, run url, log).
 Flags:
-  --boring   Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
+  --env ENV   Target environment when none supplied positionally.
+  --boring    Disable gum UI; operate non-interactively (requires SHIPLOG_* defaults).
+  --yes|--auto-accept  Auto-confirm prompts (sets SHIPLOG_ASSUME_YES=1).
 EOF
 }
 

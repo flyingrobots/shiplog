@@ -16,3 +16,9 @@
 ## Force Push Policy
 - If a task requires force-pushing to a shared branch, stop and request explicit user approval before proceeding.
 - Always use `git push --force-with-lease` instead of `git push --force` to prevent overwriting others' work.
+
+## Testing
+- Shiplog tests must always run inside Docker (e.g., via `make test`); never run them directly on the host.
+
+## TODO
+- Replace the gum dependency with `scripts/bosun` and update the CLI/tests accordingly.

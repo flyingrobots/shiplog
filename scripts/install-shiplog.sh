@@ -133,7 +133,7 @@ Reload your shell or run:
   $HOME_LINE
   $BIN_LINE
 Then test with:
-  shiplog --help
+  git shiplog --help
 INFO
 
 if [ "$PROFILE_UPDATED" -eq 1 ]; then

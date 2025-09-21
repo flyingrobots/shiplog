@@ -13,14 +13,15 @@
     ./install-shiplog-deps.sh --silent
     gum --version >/dev/null
     jq --version >/dev/null
+    install -m 0755 /workspace/bin/git-shiplog /usr/local/bin/git-shiplog
     mkdir smoke && cd smoke
     git init -q
     git config user.name Smoke
     git config user.email smoke@example.com
     git commit --allow-empty -m init >/dev/null
-    SHIPLOG_HOME=/workspace /workspace/bin/shiplog --boring init >/dev/null
+    SHIPLOG_HOME=/workspace git shiplog --boring init >/dev/null
     echo OK
   '
   [ "$status" -eq 0 ]
-  [[ "${lines[-1]}" == "SUCCESS" ]]
+  [[ "${lines[-1]}" == "OK" ]]
 }
