@@ -11,6 +11,7 @@ cmd_init() {
   }
 
   ensure_config_value remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*"
+  ensure_config_value remote.origin.push HEAD
   ensure_config_value remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"
 
   if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then

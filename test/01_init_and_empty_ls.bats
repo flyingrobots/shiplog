@@ -36,8 +36,10 @@ setup() {
 
   run git config --get-all remote.origin.push
   [ "$status" -eq 0 ]
+  head_count=$(printf '%s\n' "$output" | grep -Fx "HEAD" | wc -l | tr -d '[:space:]')
+  [ "$head_count" -eq 1 ] || fail "expected single HEAD push refspec, got $head_count"
   push_count=$(printf '%s\n' "$output" | grep -Fx "${REF_ROOT}/*:${REF_ROOT}/*" | wc -l | tr -d '[:space:]')
-  [ "$push_count" -eq 1 ] || fail "expected single push refspec, got $push_count"
+  [ "$push_count" -eq 1 ] || fail "expected single shiplog push refspec, got $push_count"
 }
 
 @test "ls on empty journal errors cleanly" {
