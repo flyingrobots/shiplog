@@ -11,11 +11,14 @@ count_exact_matches() {
 }
 
 setup() {
-  [ -d .git ] || { echo "Run inside docker test runner" >&2; exit 1; }
-  shiplog_install_cli
+  shiplog_standard_setup
   git config --unset-all remote.origin.fetch >/dev/null 2>&1 || true
   git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
   git config --unset-all remote.origin.push >/dev/null 2>&1 || true
+}
+
+teardown() {
+  shiplog_standard_teardown
 }
 
 @test "git shiplog init sets refspecs and reflogs" {

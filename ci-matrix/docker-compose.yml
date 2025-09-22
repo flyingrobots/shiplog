@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  debian:
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Debian.Dockerfile
+    volumes:
+      - ..:/work:ro
+  ubuntu:
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Ubuntu.Dockerfile
+    volumes:
+      - ..:/work:ro
+  fedora:
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Fedora.Dockerfile
+    volumes:
+      - ..:/work:ro
+  alpine:
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Alpine.Dockerfile
+    volumes:
+      - ..:/work:ro
+  arch:
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Arch.Dockerfile
+    volumes:
+      - ..:/work:ro

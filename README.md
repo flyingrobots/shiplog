@@ -73,6 +73,8 @@ bash install-shiplog.sh
 # Initialize in your repo
 cd your-project
 git shiplog init
+git fetch origin '+refs/_shiplog/trust/*:refs/_shiplog/trust/*'
+./scripts/shiplog-trust-sync.sh
 
 # Record your first deployment
 git shiplog write
@@ -316,9 +318,18 @@ Remote refs under `refs/_shiplog/*` are left untouched so history remains audita
 
 - **Git 2.x+**
 - **Bash 3.2+** shell  
-- **`jq`** for JSON processing
+- **`jq 1.7.1`** (installed at `/usr/local/bin/jq`) for JSON processing and schema validation
 - **`gum`** for interactive prompts (skip with `--boring`/`SHIPLOG_BORING=1`)
 - **GPG or SSH signing key** (optional, for cryptographic receipts)
+
+## Trust & Policy References
+
+- [Trust bootstrap and enforcement](docs/TRUST.md) — one-time genesis procedure, jq pin, and server
+  enforcement checklist.
+- `scripts/shiplog-trust-sync.sh` — materialises the signer roster from the trust ref and configures
+  `gpg.ssh.allowedSignersFile`.
+- Pre-receive hooks enforce fast-forward updates, maintainer quorum, and journal invariants; see
+  `contrib/hooks/pre-receive.shiplog` for the authoritative checks.
 
 ## Environment Variables
 
@@ -326,6 +337,7 @@ Remote refs under `refs/_shiplog/*` are left untouched so history remains audita
 - `SHIPLOG_AUTHOR_NAME` / `SHIPLOG_AUTHOR_EMAIL` – override author identity
 - `SHIPLOG_AUTHORS` – space-delimited allowlist; restricts authors permitted to append to the journal
 - `SHIPLOG_ALLOWED_SIGNERS` – path to SSH allowed signers file used during commit verification
+- `SHIPLOG_TRUST_REF` – override trust reference (default: `refs/_shiplog/trust/root`)
 - `SHIPLOG_IMAGE` / `SHIPLOG_TAG` / `SHIPLOG_RUN_URL` / `SHIPLOG_LOG` – seed prompts for write flow and optional log attachments
 - `SHIPLOG_STATUS` – pre-select deployment status (defaults to `success` when interactive)
 - `SHIPLOG_SIGN` – set to `0`/`false` to skip commit signing (used in CI when no keys exist)

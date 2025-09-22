@@ -1,143 +1,253 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+JQ_BIN="${SHIPLOG_JQ_BIN:-/usr/local/bin/jq}"
+TRUST_REF="${SHIPLOG_TRUST_REF:-refs/_shiplog/trust/root}"
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
+REQUIRE_SEPARATE_SIGNERS="${SHIPLOG_REQUIRE_SEPARATE_SIGNERS:-1}"
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "shiplog pre-receive: jq command required for JSON policy parsing. Install jq and try again." >&2
-  exit 1
+if ! command -v "$JQ_BIN" >/dev/null 2>&1; then
+  if command -v jq >/dev/null 2>&1; then
+    JQ_BIN="$(command -v jq)"
+  else
+    echo "shiplog pre-receive: jq not found at $JQ_BIN" >&2
+    exit 1
+  fi
 fi
-read_policy() {
-  git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || return 1
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+SIGNERS_FILE=""
+CURRENT_TRUST_TIP=""
+CURRENT_TRUST_JSON=""
+CURRENT_POLICY_JSON=""
+
+error() {
+  echo "❌ shiplog: $*" >&2
+  exit 1
 }
 
-parse_policy_for_env() {
+load_trust_state() {
+  local commit="$1"
+  [ -n "$commit" ] || return 0
+  CURRENT_TRUST_TIP="$commit"
+  CURRENT_TRUST_JSON=$(git show "$commit:trust.json" 2>/dev/null || true)
+  [ -n "$CURRENT_TRUST_JSON" ] || error "trust ref $TRUST_REF is missing trust.json"
+  "$JQ_BIN" -e '
+    .version == 1 and
+    (.threshold | type == "number" and . >= 1) and
+    (.maintainers | type == "array" and length >= 1)
+  ' <<<"$CURRENT_TRUST_JSON" >/dev/null 2>&1 || error "trust.json failed validation"
+
+  local signers_blob
+  signers_blob=$(git show "$commit:allowed_signers" 2>/dev/null || true)
+  if [ "$REQUIRE_SEPARATE_SIGNERS" = "1" ]; then
+    [ -n "$signers_blob" ] || error "trust ref $TRUST_REF missing allowed_signers"
+  fi
+  if [ -n "$signers_blob" ]; then
+    SIGNERS_FILE="$TMP_ROOT/allowed_signers"
+    printf '%s' "$signers_blob" > "$SIGNERS_FILE"
+    chmod 600 "$SIGNERS_FILE"
+  else
+    SIGNERS_FILE=""
+  fi
+}
+
+load_policy_state() {
+  local commit="$1"
+  [ -n "$commit" ] || return 0
+  CURRENT_POLICY_JSON=$(git show "$commit:.shiplog/policy.json" 2>/dev/null || true)
+  [ -n "$CURRENT_POLICY_JSON" ] || error "policy ref $POLICY_REF missing .shiplog/policy.json"
+  "$JQ_BIN" -e '
+    .version == 1 and (.require_signed | type == "boolean")
+  ' <<<"$CURRENT_POLICY_JSON" >/dev/null 2>&1 || error "policy.json failed validation"
+}
+
+get_policy_require_signed() {
+  "$JQ_BIN" -r '.require_signed // false' <<<"$CURRENT_POLICY_JSON"
+}
+
+get_policy_authors() {
   local env="$1"
-  local policy_content="$2"
-  local rs="" asf="" authors=""
-
-  if [ -z "$policy_content" ]; then
-    echo "ERROR: No policy content provided" >&2
-    return 1
-  fi
-
-  if ! rs=$(jq -r '.require_signed // empty' <<<"$policy_content" 2>/dev/null); then
-    rs=""
-  fi
-  if [ -n "$rs" ]; then
-    echo "require_signed=${rs}"
-  fi
-
-  if ! asf=$(jq -r '.allow_ssh_signers_file // empty' <<<"$policy_content" 2>/dev/null); then
-    asf=""
-  fi
-  if [ -n "$asf" ]; then
-    echo "allowed_signers_file=${asf}"
-  fi
-
-  if ! authors=$(jq -r --arg env "$env" '
+  "$JQ_BIN" -r --arg env "$env" '
+    if (.authors.default_allowlist? != null or .authors.env_overrides?) then
       [
         (.authors.default_allowlist // []),
         (.authors.env_overrides.default // []),
         (.authors.env_overrides[$env] // [])
       ]
-      | flatten
-      | map(select(. != null and . != ""))
-      | unique
-      | join(" ")
-    ' <<<"$policy_content" 2>/dev/null); then
-    authors=""
+    else
+      [
+        (.authors.default // []),
+        (.authors[$env] // []),
+        (.authors.env_overrides.default // []),
+        (.authors.env_overrides[$env] // [])
+      ]
+    end
+    | flatten
+    | map(select(. != null and . != ""))
+    | unique
+    | join(" ")
+  ' <<<"$CURRENT_POLICY_JSON"
+}
+
+ensure_fast_forward() {
+  local old="$1" new="$2" ref="$3"
+  if [ "$old" = "0000000000000000000000000000000000000000" ]; then
+    return 0
   fi
-  if [ -n "$authors" ]; then
-    echo "authors=${authors}"
+  git merge-base --is-ancestor "$old" "$new" >/dev/null 2>&1 || error "$ref is not a fast-forward update"
+}
+
+validate_trust_update() {
+  local old="$1" new="$2"
+  ensure_fast_forward "$old" "$new" "$TRUST_REF"
+  load_trust_state "$new"
+}
+
+validate_policy_update() {
+  local old="$1" new="$2"
+  ensure_fast_forward "$old" "$new" "$POLICY_REF"
+  load_policy_state "$new"
+}
+
+read_commit_json() {
+  local commit="$1"
+  git show -s --format=%B "$commit" | awk '/^---/{flag=1;next}flag'
+}
+
+get_commit_seq() {
+  local commit="$1"
+  local json
+  json=$(read_commit_json "$commit") || return 1
+  [ -n "$json" ] || return 1
+  "$JQ_BIN" -r '.seq' <<<"$json"
+}
+
+ensure_author_allowed() {
+  local author="$1" allowlist="$2"
+  [ -z "$allowlist" ] && return 0
+  for entry in $allowlist; do
+    [ "$entry" = "$author" ] && return 0
+  done
+  error "author <$author> not allowed for journal"
+}
+
+ensure_commit_signed_if_required() {
+  local commit="$1" require_signed="$2"
+  if [ "$require_signed" != "true" ] && [ "$require_signed" != "1" ]; then
+    return 0
+  fi
+  if ! git cat-file commit "$commit" | grep -q '^gpgsig ' ; then
+    error "commit $commit missing required signature"
+  fi
+  if [ -n "$SIGNERS_FILE" ]; then
+    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1 || error "signature for $commit not accepted"
+  else
+    git verify-commit "$commit" >/dev/null 2>&1 || error "signature verification failed for $commit"
   fi
 }
 
-policy_content=$(read_policy || true)
-if [ -z "$policy_content" ]; then
-  echo "shiplog pre-receive: policy ref $POLICY_REF not found" >&2
-  exit 1
+validate_journal_commit() {
+  local env="$1" commit="$2" require_signed="$3" allowlist="$4"
+  local json
+  json=$(read_commit_json "$commit")
+  [ -n "$json" ] || error "commit $commit missing structured trailer"
+
+  local declared_env declared_parent seq trust_oid status
+  declared_env=$("$JQ_BIN" -r '.env // empty' <<<"$json")
+  seq=$("$JQ_BIN" -r '.seq' <<<"$json")
+  trust_oid=$("$JQ_BIN" -r '.trust_oid // empty' <<<"$json")
+  declared_parent=$("$JQ_BIN" -r '.journal_parent // ""' <<<"$json")
+  status=$("$JQ_BIN" -r '.status // empty' <<<"$json")
+
+  [ "$declared_env" = "$env" ] || error "commit $commit declares env $declared_env but ref is $env"
+  [ "$trust_oid" = "$CURRENT_TRUST_TIP" ] || error "commit $commit trust_oid $trust_oid does not match current trust $CURRENT_TRUST_TIP"
+  [[ "$seq" =~ ^[0-9]+$ ]] || error "commit $commit has invalid seq"
+  [ -n "$status" ] || error "commit $commit missing status"
+
+  local actual_parent
+  actual_parent=$(git show -s --format='%P' "$commit")
+  if [ -z "$actual_parent" ]; then
+    actual_parent=""
+  fi
+  if [[ "$actual_parent" =~ \  ]]; then
+    error "commit $commit is a merge; journal entries must be linear"
+  fi
+
+  if [ -z "$actual_parent" ]; then
+    [ "$declared_parent" = "" ] || error "commit $commit declared parent $declared_parent but has none"
+    [ "$seq" -eq 0 ] || error "commit $commit must have seq 0 for initial entry"
+  else
+    [ "$declared_parent" = "$actual_parent" ] || error "commit $commit parent mismatch (declared $declared_parent vs actual $actual_parent)"
+    local prev_seq
+    prev_seq=$(get_commit_seq "$actual_parent") || error "parent commit $actual_parent missing seq"
+    [[ "$prev_seq" =~ ^[0-9]+$ ]] || error "parent commit $actual_parent has invalid seq"
+    local expected
+    expected=$((prev_seq + 1))
+    [ "$seq" -eq "$expected" ] || error "commit $commit seq $seq expected $expected"
+  fi
+
+  local author
+  author=$(git show -s --format='%ae' "$commit")
+  ensure_author_allowed "$author" "$allowlist"
+  ensure_commit_signed_if_required "$commit" "$require_signed"
+}
+
+validate_journal_updates() {
+  local env="$1" old="$2" new="$3"
+  [ -n "$CURRENT_TRUST_TIP" ] || error "trust ref $TRUST_REF missing"
+  [ -n "$CURRENT_POLICY_JSON" ] || error "policy ref $POLICY_REF missing"
+  ensure_fast_forward "$old" "$new" "refs/_shiplog/journal/$env"
+  local require_signed allowlist
+  require_signed=$(get_policy_require_signed)
+  allowlist=$(get_policy_authors "$env")
+
+  local range
+  if [ "$old" = "0000000000000000000000000000000000000000" ]; then
+    range="$new"
+  else
+    range="$new"" ""^$old"
+  fi
+
+  git rev-list --reverse $range | while read -r commit; do
+    [ -n "$commit" ] || continue
+    validate_journal_commit "$env" "$commit" "$require_signed" "$allowlist"
+  done
+}
+
+CURRENT_TRUST_TIP=$(git rev-parse -q --verify "$TRUST_REF" 2>/dev/null || true)
+if [ -n "$CURRENT_TRUST_TIP" ]; then
+  load_trust_state "$CURRENT_TRUST_TIP"
+else
+  CURRENT_TRUST_JSON=""
+  SIGNERS_FILE=""
 fi
 
-check_commits() {
-  local env="$1" old="$2" new="$3"
-  local parsed
-  parsed=$(printf "%s" "$policy_content" | parse_policy_for_env "$env") || parsed=""
-  local require_signed=""
-  local allowed_signers=""
-  local allowed_authors=""
-  while IFS='=' read -r key value; do
-    case "$key" in
-      require_signed)
-        case "${value,,}" in
-          1|true|yes|y|on) require_signed=1 ;;
-          0|false|no|n|off) require_signed=0 ;;
-          *) 
-            echo "❌ shiplog: Invalid require_signed value: '$value'. Valid values: 1/0, true/false, yes/no, y/n, on/off" >&2
-            exit 1
-            ;;
-        esac
-        ;;
-      allowed_signers_file) allowed_signers="$value" ;;
-      authors) allowed_authors="$value" ;;
-    esac
-  done <<<"$parsed"
-
-  local range_args=()
-  if [ "$old" = "0000000000000000000000000000000000000000" ]; then
-    range_args=("$new")
-  else
-    range_args=("$new" "^$old")
-  fi
-
-  local commit
-  while read -r commit; do
-    [ -n "$commit" ] || continue
-    author=$(git show -s --format='%ae' "$commit")
-    if [ -n "$allowed_authors" ]; then
-      allowed=0
-      for a in $allowed_authors; do
-        if [ "$a" = "$author" ]; then
-          allowed=1
-          break
-        fi
-      done
-      if [ "$allowed" -ne 1 ]; then
-        echo "❌ shiplog: author <$author> not allowed for $env" >&2
-        exit 1
-      fi
-    fi
-
-    if [ "$require_signed" = "1" ]; then
-      if ! git cat-file commit "$commit" | grep -q '^gpgsig '; then
-        echo "❌ shiplog: commit $commit missing signature" >&2
-        exit 1
-      fi
-      if [ -n "$allowed_signers" ] && [ -f "$allowed_signers" ]; then
-        if ! GIT_SSH_ALLOWED_SIGNERS="$allowed_signers" git verify-commit "$commit" >/dev/null 2>&1; then
-          echo "❌ shiplog: signature for $commit not accepted by $allowed_signers" >&2
-          exit 1
-        fi
-      else
-        if ! git verify-commit "$commit" >/dev/null 2>&1; then
-          echo "❌ shiplog: signature verification failed for $commit" >&2
-          exit 1
-        fi
-      fi
-    fi
-  done < <(git rev-list "${range_args[@]}")
-}
+CURRENT_POLICY_TIP=$(git rev-parse -q --verify "$POLICY_REF" 2>/dev/null || true)
+if [ -n "$CURRENT_POLICY_TIP" ]; then
+  load_policy_state "$CURRENT_POLICY_TIP"
+else
+  CURRENT_POLICY_JSON=""
+fi
 
 while read -r old_sha new_sha refname; do
-  [[ "$new_sha" = 0000000000000000000000000000000000000000 ]] && continue
+  if [ "$new_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
   case "$refname" in
+    "$TRUST_REF")
+      validate_trust_update "$old_sha" "$new_sha"
+      ;;
+    "$POLICY_REF")
+      validate_policy_update "$old_sha" "$new_sha"
+      ;;
     refs/_shiplog/journal/*)
       env="${refname#refs/_shiplog/journal/}"
-      check_commits "$env" "$old_sha" "$new_sha"
+      validate_journal_updates "$env" "$old_sha" "$new_sha"
       ;;
     refs/_shiplog/anchors/*)
-      env="${refname#refs/_shiplog/anchors/}"
-      check_commits "$env" "$old_sha" "$new_sha"
+      ensure_fast_forward "$old_sha" "$new_sha" "$refname"
       ;;
     *)
       ;;

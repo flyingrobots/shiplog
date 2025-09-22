@@ -1,20 +1,181 @@
 #!/usr/bin/env bash
 
+SHIPLOG_PROJECT_ROOT="${SHIPLOG_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+SHIPLOG_SANDBOX_REPO="${SHIPLOG_SANDBOX_REPO:-https://github.com/flyingrobots/shiplog-testing-sandbox.git}"
+SHIPLOG_SANDBOX_BRANCH="${SHIPLOG_SANDBOX_BRANCH:-main}"
+SHIPLOG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-$(pwd)}"
+
 shiplog_install_cli() {
-  SHIPLOG_HOME="${SHIPLOG_HOME:-/workspace}"
+  local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
 
-  if [[ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]]; then
-    echo "ERROR: Source file ${SHIPLOG_HOME}/bin/git-shiplog does not exist!" >&2
+  if [[ ! -f "${project_home}/bin/git-shiplog" ]]; then
+    echo "ERROR: Source file ${project_home}/bin/git-shiplog does not exist!" >&2
     return 1
   fi
 
-  if [[ ! -x "${SHIPLOG_HOME}/bin/git-shiplog" ]]; then
-    echo "ERROR: Source file ${SHIPLOG_HOME}/bin/git-shiplog is not executable!" >&2
+  if [[ ! -x "${project_home}/bin/git-shiplog" ]]; then
+    echo "ERROR: Source file ${project_home}/bin/git-shiplog is not executable!" >&2
     return 1
   fi
 
-  if ! install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog; then
+  local target_dir="/usr/local/bin"
+  if [ ! -w "$target_dir" ]; then
+    target_dir="$HOME/.local/bin"
+    mkdir -p "$target_dir"
+  fi
+
+  case ":$PATH:" in
+    *":$target_dir:"*) ;;
+    *) export PATH="$target_dir:$PATH" ;;
+  esac
+
+  if ! install -m 0755 "${project_home}/bin/git-shiplog" "$target_dir/git-shiplog"; then
     echo "ERROR: Failed to install git-shiplog binary!" >&2
     return 1
   fi
+
+  export SHIPLOG_HOME="$project_home"
+  case ":$PATH:" in
+    *":$project_home/bin:"*) ;;
+    *) export PATH="$project_home/bin:$PATH" ;;
+  esac
+}
+
+shiplog_clone_sandbox_repo() {
+  local dest="$1"
+  git clone -q "$SHIPLOG_SANDBOX_REPO" "$dest"
+  (
+    cd "$dest"
+    git fetch -q origin "$SHIPLOG_SANDBOX_BRANCH"
+    git checkout -q "$SHIPLOG_SANDBOX_BRANCH"
+    git pull -q --ff-only origin "$SHIPLOG_SANDBOX_BRANCH"
+  )
+}
+
+shiplog_use_sandbox_repo() {
+  local dest
+  dest="${1:-}"
+  if [[ -z "$dest" ]]; then
+    dest="$(mktemp -d)"
+  else
+    mkdir -p "$dest"
+  fi
+  shiplog_clone_sandbox_repo "$dest"
+  export SHIPLOG_SANDBOX_DIR="$dest"
+  cd "$dest"
+  git config user.name "Shiplog Tester"
+  git config user.email "shiplog-tester@example.com"
+}
+
+shiplog_cleanup_sandbox_repo() {
+  cd "$SHIPLOG_TEST_ROOT"
+  if [[ -n "${SHIPLOG_SANDBOX_DIR:-}" && -d "$SHIPLOG_SANDBOX_DIR" ]]; then
+    rm -rf "$SHIPLOG_SANDBOX_DIR"
+    unset SHIPLOG_SANDBOX_DIR
+  fi
+}
+
+shiplog_bootstrap_trust() {
+  local with_signers="${1:-1}"
+  mkdir -p .shiplog
+  cat > .shiplog/trust.json <<'JSON'
+{
+  "version": 1,
+  "id": "shiplog-trust-root",
+  "threshold": 1,
+  "maintainers": [
+    {
+      "name": "Shiplog Tester",
+      "email": "shiplog-tester@example.com",
+      "pgp_fpr": "TESTFINGERPRINT",
+      "role": "root",
+      "revoked": false
+    }
+  ]
+}
+JSON
+
+  if [[ "$with_signers" -eq 1 ]]; then
+    cat > .shiplog/allowed_signers <<'EOF'
+shiplog-tester@example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEYSHIPLOGTESTER
+EOF
+  else
+    rm -f .shiplog/allowed_signers
+  fi
+
+  local oid_trust tree
+  oid_trust=$(git hash-object -w .shiplog/trust.json)
+  if [[ "$with_signers" -eq 1 ]]; then
+    local oid_sigs
+    oid_sigs=$(git hash-object -w .shiplog/allowed_signers)
+    tree=$(printf "100644 blob %s\ttrust.json\n100644 blob %s\tallowed_signers\n" "$oid_trust" "$oid_sigs" | git mktree)
+  else
+    tree=$(printf "100644 blob %s\ttrust.json\n" "$oid_trust" | git mktree)
+  fi
+
+  local commit
+  commit=$(echo "shiplog: trust root v1 (GENESIS)" |
+    GIT_AUTHOR_NAME="Trust Init" \
+    GIT_AUTHOR_EMAIL="trust@local" \
+    git commit-tree "$tree")
+
+  git update-ref refs/_shiplog/trust/root "$commit"
+}
+
+shiplog_write_local_policy() {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {
+    "default_allowlist": [
+      "shiplog-tester@example.com"
+    ]
+  }
+}
+JSON
+}
+
+shiplog_bootstrap_policy_ref() {
+  shiplog_write_local_policy
+  local policy_blob shiplog_tree tree parent commit
+  policy_blob=$(git hash-object -w .shiplog/policy.json)
+  shiplog_tree=$(printf '100644 blob %s\tpolicy.json\n' "$policy_blob" | git mktree)
+  tree=$(printf '040000 tree %s\t.shiplog\n' "$shiplog_tree" | git mktree)
+  parent=$(git rev-parse --verify refs/_shiplog/policy/current 2>/dev/null || true)
+  if [[ -n "$parent" ]]; then
+    commit=$(GIT_AUTHOR_NAME="Shiplog Policy" GIT_AUTHOR_EMAIL="policy@shiplog.test" \
+      GIT_COMMITTER_NAME="Shiplog Policy" GIT_COMMITTER_EMAIL="policy@shiplog.test" \
+      git commit-tree "$tree" -p "$parent" -m "shiplog: policy update")
+    git update-ref refs/_shiplog/policy/current "$commit" "$parent"
+  else
+    commit=$(GIT_AUTHOR_NAME="Shiplog Policy" GIT_AUTHOR_EMAIL="policy@shiplog.test" \
+      GIT_COMMITTER_NAME="Shiplog Policy" GIT_COMMITTER_EMAIL="policy@shiplog.test" \
+      git commit-tree "$tree" -m "shiplog: policy init")
+    git update-ref refs/_shiplog/policy/current "$commit"
+  fi
+}
+
+shiplog_standard_setup() {
+  shiplog_install_cli
+  shiplog_use_sandbox_repo
+  shiplog_bootstrap_trust
+  shiplog_write_local_policy
+  git config --unset-all shiplog.policy.allowedAuthors >/dev/null 2>&1 || true
+  git config --unset-all shiplog.policy.requireSigned >/dev/null 2>&1 || true
+  git config --unset-all shiplog.policy.allowedSignersFile >/dev/null 2>&1 || true
+  git config --unset-all shiplog.policy.allowedAuthors >/dev/null 2>&1 || true
+  git config user.name "Shiplog Tester"
+  git config user.email "shiplog-tester@example.com"
+  export SHIPLOG_HOME="$SHIPLOG_PROJECT_ROOT"
+  case ":$PATH:" in
+    *":$SHIPLOG_PROJECT_ROOT/bin:"*) ;;
+    *) export PATH="$SHIPLOG_PROJECT_ROOT/bin:$PATH" ;;
+  esac
+  git shiplog trust sync >/dev/null
+}
+
+shiplog_standard_teardown() {
+  shiplog_cleanup_sandbox_repo
 }

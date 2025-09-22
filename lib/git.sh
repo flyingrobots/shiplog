@@ -22,19 +22,129 @@ ff_update() {
   git update-ref -m "$msg" "$ref" "$new" "${old:-0000000000000000000000000000000000000000}"
 }
 
+read_trailer_json() {
+  local commit="$1"
+  git show -s --format=%B "$commit" | awk '/^---/{flag=1;next}flag'
+}
+
+trailer_value() {
+  local commit="$1" filter="$2"
+  local json
+  json=$(read_trailer_json "$commit") || return 1
+  [ -n "$json" ] || return 1
+  printf '%s' "$json" | jq -r "$filter" 2>/dev/null
+}
+
 compose_message() {
-  local env="$1" service="$2" status="$3" reason="$4" ticket="$5" region="$6" cluster="$7" ns="$8" start_ts="$9" end_ts="${10}" dur_s="${11}" repo_head="${12}" artifact="${13}" run_url="${14}"
-  local status_upper
+  local env="$1" service="$2" status="$3" reason="$4" ticket="$5" region="$6" cluster="$7" ns="$8" start_ts="$9"
+  local end_ts="${10}" dur_s="${11}" repo_head="${12}" artifact="${13}" run_url="${14}" seq="${15}"
+  local journal_parent="${16}" trust_oid="${17}" previous_anchor="${18}" write_ts="${19}"
+  local author_name="${20}" author_email="${21}"
+
+  need jq
+
+  local status_upper artifact_display parent_short trust_short anchor_short json
   status_upper=$(printf '%s' "${status:-}" | tr '[:lower:]' '[:upper:]')
+
+  if [ -n "$artifact" ]; then
+    artifact_display="$artifact"
+  else
+    artifact_display="<none>"
+  fi
+
+  if [ -n "$journal_parent" ]; then
+    parent_short=$(git rev-parse --short "$journal_parent" 2>/dev/null || printf '%.7s' "$journal_parent")
+  else
+    parent_short="(genesis)"
+  fi
+
+  if [ -n "$trust_oid" ]; then
+    trust_short=$(git rev-parse --short "$trust_oid" 2>/dev/null || printf '%.7s' "$trust_oid")
+  else
+    trust_short="(unset)"
+  fi
+
+  if [ -n "$previous_anchor" ]; then
+    anchor_short=$(git rev-parse --short "$previous_anchor" 2>/dev/null || printf '%.7s' "$previous_anchor")
+  else
+    anchor_short="(none)"
+  fi
+
+  local jq_filter
+  read -r -d '' jq_filter <<'JQ' || true
+{
+  version: 1,
+  env: $env,
+  ts: $ts,
+  who: { name: $name, email: $email },
+  what: {
+    service: $service,
+    artifact: (if $artifact == "" then null else $artifact end),
+    repo_head: $repo_head
+  },
+  where: {
+    env: $env,
+    region: (if $region == "" then null else $region end),
+    cluster: (if $cluster == "" then null else $cluster end),
+    namespace: (if $ns == "" then null else $ns end)
+  },
+  why: {
+    reason: (if $reason == "" then null else $reason end),
+    ticket: (if $ticket == "" then null else $ticket end)
+  },
+  how: {
+    pipeline: null,
+    run_url: (if $run_url == "" then null else $run_url end)
+  },
+  status: $status,
+  when: {
+    start_ts: $start,
+    end_ts: $end,
+    dur_s: $dur
+  },
+  seq: $seq,
+  journal_parent: (if $parent == "" then null else $parent end),
+  trust_oid: $trust,
+  previous_anchor: (if $anchor == "" then null else $anchor end),
+  repo_head: $repo
+}
+JQ
+
+  json=$(jq -n \
+    --arg env "$env" \
+    --arg ts "$write_ts" \
+    --arg name "$author_name" \
+    --arg email "$author_email" \
+    --arg service "$service" \
+    --arg artifact "$artifact" \
+    --arg repo_head "$repo_head" \
+    --arg region "$region" \
+    --arg cluster "$cluster" \
+    --arg ns "$ns" \
+    --arg reason "$reason" \
+    --arg ticket "$ticket" \
+    --arg run_url "$run_url" \
+    --arg status "$status" \
+    --arg start "$start_ts" \
+    --arg end "$end_ts" \
+    --arg trust "$trust_oid" \
+    --arg parent "$journal_parent" \
+    --arg anchor "$previous_anchor" \
+    --arg repo "$repo_head" \
+    --argjson dur "$dur_s" \
+    --argjson seq "$seq" \
+    "$jq_filter")
+
   cat <<EOF
-Deploy: $service $artifact → $env/${region:-?}/${cluster:-?}/${ns:-?}
+Deploy: $service $artifact_display → $env/${region:-?}/${cluster:-?}/${ns:-?}
 Reason: ${reason:-"—"} ${ticket:+($ticket)}
-Status: ${status_upper:-?} (${dur_s}s) @ $(fmt_ts)
-Author: ${GIT_AUTHOR_EMAIL:-$(git config user.email || echo 'unknown')}
+Status: ${status_upper:-?} (${dur_s}s) @ $write_ts
+Seq:    $seq (parent $parent_short, trust $trust_short, anchor $anchor_short)
+Author: ${author_email:-unknown}
 Repo:   ${repo_head}
 
----  # optional structured trailer for machines
-{"env":"$env","ts":"$(fmt_ts)","who":{"email":"${GIT_AUTHOR_EMAIL:-}","name":"${GIT_AUTHOR_NAME:-}"},"what":{"service":"$service","repo_head":"$repo_head","artifact":"$artifact"},"where":{"region":"$region","cluster":"$cluster","namespace":"$ns"},"why":{"reason":"$reason","ticket":"$ticket"},"how":{"run_url":"$run_url"},"status":"$status","when":{"start_ts":"$start_ts","end_ts":"$end_ts","dur_s":$dur_s}}
+---  # structured trailer for machines
+$json
 EOF
 }
 

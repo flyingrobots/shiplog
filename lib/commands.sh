@@ -109,13 +109,21 @@ cmd_write() {
 
   local journal_ref="$(ref_journal "$env")"
   local notes_ref="$NOTES_REF"
+  local trust_ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
   local origin_available=0
   if has_remote_origin; then
     origin_available=1
+    maybe_sync_shiplog_ref "$trust_ref"
     maybe_sync_shiplog_ref "$journal_ref"
     if [ -n "$notes_ref" ]; then
       git fetch origin "$notes_ref" >/dev/null 2>&1 || true
     fi
+  fi
+
+  local trust_oid
+  trust_oid=$(git rev-parse -q --verify "$trust_ref" 2>/dev/null || true)
+  if [ -z "$trust_oid" ]; then
+    die "shiplog: trust ref $trust_ref not found. Fetch it (git fetch origin '+refs/_shiplog/trust/*:refs/_shiplog/trust/*') and run ./scripts/shiplog-trust-sync.sh"
   fi
 
   local service status reason ticket region cluster ns artifact_tag artifact_image run_url
@@ -158,7 +166,30 @@ cmd_write() {
     artifact="$artifact_tag"
   fi
 
-  local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url")"
+  local parent seq=0
+  parent="$(current_tip "$journal_ref")"
+  if [ -n "$parent" ]; then
+    local prev_seq
+    prev_seq=$(trailer_value "$parent" '.seq') || die "shiplog: unable to read seq from previous journal entry $parent"
+    if [ "$prev_seq" = "null" ] || ! printf '%s' "$prev_seq" | grep -Eq '^[0-9]+$'; then
+      die "shiplog: previous journal entry $parent missing numeric seq"
+    fi
+    seq=$((prev_seq + 1))
+  fi
+
+  local anchor_ref="$(ref_anchor "$env")"
+  local previous_anchor
+  previous_anchor="$(current_tip "$anchor_ref")"
+
+  local author_name author_email
+  author_name="${GIT_AUTHOR_NAME:-${SHIPLOG_AUTHOR_NAME:-$(git config user.name || echo '')}}"
+  author_email="${GIT_AUTHOR_EMAIL:-${SHIPLOG_AUTHOR_EMAIL:-$(git config user.email || echo '')}}"
+  [ -n "$author_email" ] || die "shiplog: unable to determine author email"
+
+  local write_ts
+  write_ts="$(fmt_ts)"
+
+  local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url" "$seq" "$parent" "$trust_oid" "$previous_anchor" "$write_ts" "$author_name" "$author_email")"
 
   if is_boring; then
     printf '%s\n' "$msg"
@@ -170,7 +201,6 @@ cmd_write() {
   shiplog_confirm "Sign & append this entry to $journal_ref?" || die "Aborted."
 
   local tree; tree="$(empty_tree)"
-  local parent; parent="$(current_tip "$journal_ref")"
   local new
   new="$(printf "%s" "$msg" | sign_commit "$tree" ${parent:+-p "$parent"})" || die "Signing commit failed."
 
@@ -323,6 +353,23 @@ cmd_policy() {
   esac
 }
 
+cmd_trust() {
+  ensure_in_repo
+  local action="${1:-sync}"
+  shift || true
+  case "$action" in
+    sync)
+      local ref="${1:-${TRUST_REF:-$TRUST_REF_DEFAULT}}"
+      local dest="${2:-.shiplog/allowed_signers}"
+      [ -x "$SHIPLOG_HOME/scripts/shiplog-trust-sync.sh" ] || die "shiplog: trust sync helper missing at $SHIPLOG_HOME/scripts/shiplog-trust-sync.sh"
+      "$SHIPLOG_HOME"/scripts/shiplog-trust-sync.sh "$ref" "$dest"
+      ;;
+    *)
+      die "Unknown trust subcommand: $action"
+      ;;
+  esac
+}
+
 usage() {
   local cmd="$(basename "$0")"
   if [ "$cmd" = "git-shiplog" ]; then
@@ -342,6 +389,7 @@ Commands:
   show [COMMIT]        Show detailed deployment entry
   verify [ENV]         Verify signatures and authorization of entries
   export-json [ENV]    Export entries as JSON lines
+  trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
   policy [show]        Show current policy configuration
 
 Global Options:
@@ -377,6 +425,7 @@ run_command() {
     show)          cmd_show "$@";;
     verify)        cmd_verify "$@";;
     export-json)   cmd_export_json "$@";;
+    trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
     *)             usage; exit 1;;
   esac

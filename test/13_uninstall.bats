@@ -4,6 +4,8 @@ load helpers/common
 
 setup() {
   shiplog_install_cli
+  shiplog_use_sandbox_repo
+  git shiplog init >/dev/null
   mkdir -p "$HOME/.shiplog/bin" "$HOME/.shiplog/scripts"
   cat <<'SCRIPT' > "$HOME/.shiplog/bin/git-shiplog"
 #!/usr/bin/env bash
@@ -46,6 +48,7 @@ PROFILE
 }
 
 teardown() {
+  shiplog_cleanup_sandbox_repo
   rm -rf "$HOME/.shiplog" "$HOME/.test_profile" "$HOME/.test_profile.shiplog.bak" 2>/dev/null || true
 
   if [[ -w /usr/local/bin ]]; then

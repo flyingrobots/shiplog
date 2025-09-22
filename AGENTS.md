@@ -37,8 +37,126 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 ## Worklog
 
 ```
-██████████████████████▓░░░░░░░░░░░░░░░░░ 67%
-41/61 complete (20 remaining)
+███████████████████████▓░░░░░░░░░░░░░░ 82%
+41/50 complete (9 remaining)
+```
+
+- [ ] Add cross-distro Docker matrix for CI
+```yaml
+priority: P1
+impact: verifies shiplog works across mainstream distros and ensures modern Git defaults
+steps:
+  - add ci-matrix/dockerfiles for Debian, Ubuntu, Fedora, Alpine, Arch with consistent run-tests entrypoint
+  - provide docker-compose.yml and run-all.sh wrapper to build/run each image mounting repo at /work
+  - add repo-root test.sh that run-tests can invoke (wrapper around bats -r test or chosen suite)
+blocked_by: []
+notes:
+  - images must install bash/git/coreutils and set init.defaultBranch main to avoid legacy warnings
+```
+
+- [ ] Migrate CLI interactions from Gum to Bosun
+```yaml
+priority: P0
+impact: removes legacy dependency and unifies interactive UX
+steps:
+  - wire git-shiplog prompts (input/confirm/choose/table) to scripts/bosun
+  - replace gum references in installers, README, Docker image, and environment docs
+  - delete gum shim code and extend tests to cover bosun help output
+blocked_by: []
+notes:
+  - cleanup includes updating release packaging and CI images
+```
+
+- [ ] Harden scripts/bosun runtime safety
+```yaml
+priority: P1
+impact: prevents malformed docs paths and ANSI/TSV parsing bugs
+steps:
+  - validate BOSUN_DOC_ROOT and fail fast on invalid/unsafe paths
+  - replace ANSI stripping/parsing with single robust implementation
+  - implement safe CSV/TSV parsing without fragile IFS/globbing
+blocked_by: []
+notes:
+  - ensure shellcheck passes after refactor
+```
+
+- [ ] Enforce trust workflow in hooks and tests
+```yaml
+priority: P0
+impact: guarantees signed trust/policy refs and reliable journal enforcement
+steps:
+  - refactor contrib/hooks/pre-receive.shiplog to fail-fast on missing trust blobs and validate seq/trust_oid
+  - build a local non-SSH hook harness and re-enable skipped pre-receive tests
+  - ensure test harness mirrors new trust bootstrap and stale-trust rejection cases
+blocked_by: []
+notes:
+  - leverage shiplog-testing-sandbox repo to isolate hook scenarios
+```
+
+- [ ] Document signing workflow and add failure-path coverage
+```yaml
+priority: P1
+impact: clarifies operations and prevents silent misconfigurations
+steps:
+  - extend README/docs/features with end-to-end signing workflow (install, trust sync, journal push)
+  - add tests for missing/invalid allowed signers and loopback signing paths
+  - capture known failure messages for audit friendliness
+blocked_by: []
+notes:
+  - coordinate with hook enforcement changes to keep messaging consistent
+```
+
+- [ ] Complete policy and sync tooling hardening
+```yaml
+priority: P1
+impact: stabilizes policy resolution and schema validation
+steps:
+  - finish lib/policy.sh refactor (default signing behaviour, author aggregation)
+  - update scripts/shiplog-sync-policy.sh to detect jq --schema cleanly
+  - ensure resolve_signers_path and policy parsing align with new trust model
+blocked_by: []
+notes:
+  - cross-validate against docs/TRUST.md examples
+```
+
+- [ ] Refactor installers and uninstallers for path safety
+```yaml
+priority: P1
+impact: avoids destructive rm/git operations on unsafe paths
+steps:
+  - replace install script path resolution with pure-shell realpath/readlink logic
+  - remove embedded Python from uninstall script or move it into a standalone helper with validation
+  - add regression tests covering FORCE/DATA dir edge cases
+blocked_by: []
+notes:
+  - align logging with README security guidance
+```
+
+- [ ] Finish sandboxed test migration and isolation
+```yaml
+priority: P0
+impact: prevents mutations to real remotes and exercises new trust flow
+steps:
+  - convert remaining tests (02,09,11,13,helpers) to use shiplog-testing-sandbox clone helpers
+  - add jq-aware trailer helpers and ensure failures surface clearly
+  - guarantee tests create throw-away remotes/repos and restore git config state
+blocked_by: []
+notes:
+  - include coverage for stale trust_oid and anchor sequencing
+```
+
+- [ ] Align shellcheck coverage and suppressions
+```yaml
+priority: P2
+impact: keeps scripts maintainable and CI-friendly
+steps:
+  - run shellcheck across bin/ and scripts/ ensuring warnings addressed or documented
+  - update Makefile/CI to run lint and capture expected suppressions
+  - document lint requirements in README or CONTRIBUTING
+blocked_by: []
+notes:
+  - depends on Bosun/installer refactors to settle
+```
 
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
@@ -62,18 +180,9 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [x] Adjust README feature table (evidence links or drop Finished column) and policy example (env overrides, schema, semantic version).
 - [x] Update scripts to support canonical `--yes`/`SHIPLOG_ASSUME_YES` naming and remove redundant `--boring` pre-scan.
 - [x] Add JSON schema (`examples/policy.schema.json`) and link in docs/CI.
-- [ ] Replace the `gum` dependency with `scripts/bosun`.
 - [x] Investigate and fix the failing Dockerized test suite after the CLI/runtime changes.
-- [ ] Re-enable pre-receive hook tests once we can exercise the Git server path without SSH.
 - [x] Restore the signing test when reliable GPG automation exists in CI.
-- [ ] Wire `git shiplog` subcommands to `scripts/bosun` instead of `gum`, and delete the gum stub.
-- [ ] Swap installer/uninstaller/README references from gum to bosun and drop gum from the Docker image.
-- [ ] Harden `scripts/bosun` (ANSI stripping, quoting) until ShellCheck passes and the CI parser error disappears.
-- [ ] Build a non-SSH hook harness (e.g., local exec transport) and unskip the three pre-receive tests.
-- [ ] Document the signing workflow (loopback wrapper, allowed signers) in README + docs/features, and add failing-path tests.
-- [ ] Align ShellCheck across scripts (bin/git-shiplog globals, install script printf) so the lint run is warning-free or explicitly suppressed.
 - [x] Update Docker test harness to work on a copied repo snapshot (no bind mount) and ensure tests create isolated git remotes.
-- [ ] Prevent tests from mutating real remotes (introduce throw-away test repos instead of in-place git config edits).
 - [x] docs/bosun/choose.md — add an interactive example showing menu prompt, user input, and output.
 - [x] docs/bosun/confirm.md — normalize examples (consistent comments, JSON formatting, decline scenario + exit codes).
 - [x] docs/bosun/input.md — add edge-case examples (empty stdin, non-tty behaviour, placeholder+default) with outputs/exit codes.
@@ -88,17 +197,6 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [x] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
 - [x] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
 - [x] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
-- [ ] lib/policy.sh — restore default sign behaviour, refactor parsing helpers, improve authors jq aggregation, resolve signers path robustly.
-- [ ] scripts/bosun — validate BOSUN_DOC_ROOT, unify ANSI stripping implementation, replace naive CSV/TSV parsing with robust parser.
-- [ ] scripts/install-shiplog.sh — replace embedded Python path resolver with shell realpath/readlink logic.
-- [ ] scripts/uninstall-shiplog.sh — extract Python cleanup to standalone script or shell alternative per review comments.
-- [ ] scripts/shiplog-sync-policy.sh — replace fragile grep-based schema detection per review feedback.
-- [ ] test/01_init_and_empty_ls.bats — add backup/restore of git config before mutation.
-- [ ] test/02_write_and_ls_show.bats — add trailer/jq helper functions and remove manual parsing; fail when jq missing.
-- [ ] test/09_policy_resolution.bats — dedupe policy setup helper and add edge-case tests for invalid policy scenarios.
-- [ ] test/11_pre_receive_hook.bats — stabilize error messages, handle REMOTE_DIR safely, unskip/cleanup tests properly.
-- [ ] test/13_uninstall.bats — switch to temp bin dir, guard git config assertions, restore remote configs reliably.
-- [ ] test/helpers/common.bash — simplify shiplog_install_cli checks or provide actionable guidance per review.
 - [x] .devcontainer/scripts/verified-download.sh — capture Python resolver output, fail on errors.
 - [x] contrib/README.md — format install script as fenced bash block without diff artefacts.
 

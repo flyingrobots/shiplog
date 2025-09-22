@@ -5,7 +5,8 @@ load helpers/common
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 
 setup() {
-  shiplog_install_cli
+  shiplog_standard_setup
+  git shiplog init >/dev/null
   export SHIPLOG_SIGN=0
   export SHIPLOG_AUTO_PUSH=0
   export SHIPLOG_SERVICE="web"
@@ -23,6 +24,7 @@ teardown() {
   unset SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON SHIPLOG_TICKET
   unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE SHIPLOG_IMAGE SHIPLOG_TAG
   unset SHIPLOG_AUTO_PUSH SHIPLOG_SIGN
+  shiplog_standard_teardown
 }
 
 @test "write creates a commit under refs/_shiplog/journal/prod" {
@@ -35,18 +37,22 @@ teardown() {
 }
 
 @test "ls shows a formatted table via gum" {
+  run git shiplog --yes write
+  [ "$status" -eq 0 ]
   run git shiplog ls
   [ "$status" -eq 0 ]
   [[ "$output" == *"web"* ]]
   [[ "$output" == *"SUCCESS"* ]]
 }
 
-@test "show renders human header and structured trailer" {
+@test "show renders human header and seq" {
+  run git shiplog --yes write
+  [ "$status" -eq 0 ]
   sha=$(git rev-parse "${REF_ROOT}/journal/prod")
   run git shiplog show "$sha"
   [ "$status" -eq 0 ]
   [[ "$output" == *"SHIPLOG Entry"* ]]
-  [[ "$output" == *"Structured Trailer"* ]]
+  [[ "$output" == *"Seq:"* ]]
   [[ "$output" == *"OPS-0000"* ]]
 }
 
@@ -78,12 +84,10 @@ teardown() {
     return 1
   fi
 
-  run git show "${REF_ROOT}/journal/prod"
-  [ "$status" -eq 0 ]
-
   command -v jq >/dev/null 2>&1 || skip "jq required for JSON assertions"
-  local json
-  json=$(printf '%s\n' "$output" | awk '/^[[:space:]]*---/{flag=1;next}flag')
+  local raw json
+  raw=$(git cat-file commit "${REF_ROOT}/journal/prod" | sed '1,/^$/d')
+  json=$(printf '%s\n' "$raw" | awk '/^[[:space:]]*---/{flag=1;next}flag')
   if [ -z "$json" ]; then
     printf 'Journal output:\n%s\n' "$output" >&2
     echo "Structured trailer missing from journal entry" >&2

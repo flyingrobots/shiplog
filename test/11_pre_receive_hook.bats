@@ -3,172 +3,138 @@
 load helpers/common
 
 REMOTE_DIR=""
-publish_policy() {
-  local content="$1"
-  [ -z "$content" ] && { echo "Error: content cannot be empty" >&2; return 1; }
-  [ -d "$REMOTE_DIR" ] || { echo "Error: remote directory does not exist" >&2; return 1; }
-  # Validate JSON content
-  echo "$content" | jq -e '.' >/dev/null 2>&1 || { echo "Error: invalid JSON content" >&2; return 1; }
-  local tmp
-  local tmp
-  tmp=$(mktemp) || { echo "Error: failed to create temp file" >&2; return 1; }
-  # Ensure cleanup on exit
-  trap "rm -f '$tmp'" EXIT
-  printf '%s\n' "$content" > "$tmp"
-  local blob tree shiplog_tree parent commit
-  blob=$(git --git-dir="$REMOTE_DIR" hash-object -w "$tmp") || { echo "Error: failed to create blob" >&2; return 1; }
-  shiplog_tree=$(printf '100644 blob %s\tpolicy.json\n' "$blob" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create shiplog tree" >&2; return 1; }
-  tree=$(printf '040000 tree %s\t.shiplog\n' "$shiplog_tree" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create tree" >&2; return 1; }
-  parent=$(git --git-dir="$REMOTE_DIR" rev-parse --verify refs/_shiplog/policy/current 2>/dev/null || true)
-  if [ -n "$parent" ]; then
-    commit=$(GIT_AUTHOR_NAME="Test Policy" GIT_AUTHOR_EMAIL="test-policy@shiplog.test" \
-      GIT_COMMITTER_NAME="Test Policy" GIT_COMMITTER_EMAIL="test-policy@shiplog.test" \
-      git --git-dir="$REMOTE_DIR" commit-tree "$tree" -p "$parent" -m "policy update")
-    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" "$parent" || return 1
-  else
-    commit=$(GIT_AUTHOR_NAME="Test Policy" GIT_AUTHOR_EMAIL="test-policy@shiplog.test" \
-      GIT_COMMITTER_NAME="Test Policy" GIT_COMMITTER_EMAIL="test-policy@shiplog.test" \
-      git --git-dir="$REMOTE_DIR" commit-tree "$tree" -m "policy init") || return 1
-    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" || return 1
-  fi
-  trap - EXIT  # Clear the trap
-  rm -f "$tmp"
-}
+REMOTE_NAME="shiplog-test"
 
 make_entry() {
-  local service=${1:-hook-test}
-  local entry_status=${2:-success}
-  local reason=${3:-"policy exercise"}
-  local ticket=${4:-HOOK-1}
-  local region=${5:-us-west-2}
-  local cluster=${6:-prod-1}
-  local namespace=${7:-default}
-  local image=${8:-ghcr.io/example/app}
-  local tag=${9:-v0.0.1}
+  SHIPLOG_SERVICE="hook-test" \
+  SHIPLOG_STATUS="success" \
+  SHIPLOG_REASON="hook validation" \
+  SHIPLOG_TICKET="HOOK-1" \
+  SHIPLOG_REGION="us-west-2" \
+  SHIPLOG_CLUSTER="prod-1" \
+  SHIPLOG_NAMESPACE="default" \
+  SHIPLOG_IMAGE="ghcr.io/example/app" \
+  SHIPLOG_TAG="v0.0.1" \
+  SHIPLOG_RUN_URL="https://ci.example.local/run/123" \
+  git shiplog --boring --yes write >/dev/null
+}
 
-  # --boring keeps the command non-interactive so tests never block waiting for input.
-  SHIPLOG_SERVICE="$service" \
-  SHIPLOG_STATUS="$entry_status" \
-  SHIPLOG_REASON="$reason" \
-  SHIPLOG_TICKET="$ticket" \
-  SHIPLOG_REGION="$region" \
-  SHIPLOG_CLUSTER="$cluster" \
-  SHIPLOG_NAMESPACE="$namespace" \
-  SHIPLOG_IMAGE="$image" \
-  SHIPLOG_TAG="$tag" \
-  run git shiplog --boring --yes write
-  if [ "$status" -ne 0 ]; then
-    echo "make_entry output: $output" >&2
+install_hook_remote() {
+  local hook_source="${SHIPLOG_HOOK_PATH:-$SHIPLOG_PROJECT_ROOT/contrib/hooks/pre-receive.shiplog}"
+  install -m 0755 "$hook_source" "$REMOTE_DIR/hooks/pre-receive"
+}
+
+push_trust_ref() {
+  git push -q "$REMOTE_NAME" refs/_shiplog/trust/root
+}
+
+push_policy_ref() {
+  git push -q "$REMOTE_NAME" refs/_shiplog/policy/current
+}
+
+rotate_remote_trust() {
+  local tmp_trust tmp_signers parent trust_blob signers_blob trust_tree commit_hash
+  tmp_trust=$(mktemp)
+  tmp_signers=$(mktemp)
+  cat > "$tmp_trust" <<'JSON_TRUST'
+{
+  "version": 1,
+  "id": "shiplog-trust-root",
+  "threshold": 1,
+  "maintainers": [
+    {
+      "name": "Rotated",
+      "email": "rotated@example.com",
+      "pgp_fpr": "ROTATEDFINGERPRINT",
+      "role": "root",
+      "revoked": false
+    }
+  ]
+}
+JSON_TRUST
+  cat > "$tmp_signers" <<'SIGNERS_TRUST'
+rotated@example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIROTATEDKEY
+SIGNERS_TRUST
+  parent=$(git --git-dir="$REMOTE_DIR" rev-parse --verify refs/_shiplog/trust/root 2>/dev/null || printf '')
+  trust_blob=$(git --git-dir="$REMOTE_DIR" hash-object -w "$tmp_trust")
+  signers_blob=$(git --git-dir="$REMOTE_DIR" hash-object -w "$tmp_signers")
+  trust_tree=$(printf '100644 blob %s\ttrust.json\n100644 blob %s\tallowed_signers\n' "$trust_blob" "$signers_blob" | git --git-dir="$REMOTE_DIR" mktree)
+  if [ -n "$parent" ]; then
+    commit_hash=$(GIT_AUTHOR_NAME="Rotated Trust" GIT_AUTHOR_EMAIL="trust@shiplog.test" \
+      GIT_COMMITTER_NAME="Rotated Trust" GIT_COMMITTER_EMAIL="trust@shiplog.test" \
+      git --git-dir="$REMOTE_DIR" commit-tree "$trust_tree" -p "$parent" -m "shiplog: trust rotation")
+    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/trust/root "$commit_hash" "$parent"
+  else
+    commit_hash=$(GIT_AUTHOR_NAME="Rotated Trust" GIT_AUTHOR_EMAIL="trust@shiplog.test" \
+      GIT_COMMITTER_NAME="Rotated Trust" GIT_COMMITTER_EMAIL="trust@shiplog.test" \
+      git --git-dir="$REMOTE_DIR" commit-tree "$trust_tree" -m "shiplog: trust rotation")
+    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/trust/root "$commit_hash"
   fi
-  [ "$status" -eq 0 ]
+  rm -f "$tmp_trust" "$tmp_signers"
 }
 
 setup() {
-  shiplog_install_cli || { echo "Error: failed to install shiplog CLI" >&2; return 1; }
+  shiplog_install_cli
+  shiplog_use_sandbox_repo
+  shiplog_bootstrap_trust
+  shiplog_bootstrap_policy_ref
+  shiplog_write_local_policy
+  export SHIPLOG_HOME="$SHIPLOG_PROJECT_ROOT"
+  case ":$PATH:" in
+    *":$SHIPLOG_PROJECT_ROOT/bin:"*) ;;
+    *) export PATH="$SHIPLOG_PROJECT_ROOT/bin:$PATH" ;;
+  esac
+  git shiplog trust sync >/dev/null
+  git config user.name "Shiplog Tester"
+  git config user.email "shiplog-tester@example.com"
   export SHIPLOG_SIGN=0
-  export SHIPLOG_ENV=prod
   export SHIPLOG_AUTO_PUSH=0
-  git config user.name "Shiplog Test" || { echo "Error: failed to set git user.name" >&2; return 1; }
-  git config user.email "shiplog-test@example.local" || { echo "Error: failed to set git user.email" >&2; return 1; }
-  [ -f .shiplog/policy.json ] && rm -f .shiplog/policy.json
-  git config --unset-all shiplog.policy.allowedAuthors >/dev/null 2>&1 || true
-  git config --unset-all shiplog.policy.requireSigned >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/journal/stage >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/anchors/prod >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/anchors/stage >/dev/null 2>&1 || true
-  REMOTE_DIR=$(mktemp -d) || { echo "Error: failed to create temp directory" >&2; return 1; }
-  git init --bare "$REMOTE_DIR" || { echo "Error: failed to init bare repo" >&2; return 1; }
-  
-  # Allow override via environment variable for portability
-  local hook_source="${SHIPLOG_HOOK_PATH:-/workspace/contrib/hooks/pre-receive.shiplog}"
-  [ -f "$hook_source" ] || { echo "Error: pre-receive hook not found at $hook_source" >&2; return 1; }
-  install -m 0755 "$hook_source" "$REMOTE_DIR/hooks/pre-receive" || { echo "Error: failed to install hook" >&2; return 1; }
-  git remote remove shiplog >/dev/null 2>&1 || true
-  git remote add shiplog "$REMOTE_DIR" || { echo "Error: failed to add remote" >&2; return 1; }
-  git shiplog --boring init >/dev/null || { echo "Error: failed to run git shiplog init" >&2; return 1; }
+  export SHIPLOG_ENV=prod
+
+  REMOTE_DIR=$(mktemp -d)
+  git init --bare "$REMOTE_DIR"
+  install_hook_remote
+  git remote remove "$REMOTE_NAME" >/dev/null 2>&1 || true
+  git remote add "$REMOTE_NAME" "$REMOTE_DIR"
 }
 
 teardown() {
-  git remote remove shiplog >/dev/null 2>&1 || true
+  git remote remove "$REMOTE_NAME" >/dev/null 2>&1 || true
   if [ -n "$REMOTE_DIR" ]; then
-    rm -rf "$REMOTE_DIR" || echo "Warning: failed to remove $REMOTE_DIR" >&2
+    rm -rf "$REMOTE_DIR"
   fi
+  shiplog_cleanup_sandbox_repo
 }
 
-@test "pre-receive allows push for authorized author" {
-  skip "pre-receive hook integration pending"
-  publish_policy "$(cat <<'POL'
-{
-  "version": 1,
-  "require_signed": false,
-  "authors": {
-    "default_allowlist": [
-      "shiplog-test@example.local"
-    ]
-  }
-}
-POL
-)"
+@test "push fails when trust ref missing" {
+  git shiplog init >/dev/null
   make_entry
-  run git push shiplog refs/_shiplog/journal/prod
+  run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"trust ref"* ]]
+}
+
+@test "push succeeds with valid trust and policy" {
+  git shiplog init >/dev/null
+  push_trust_ref
+  push_policy_ref
+  make_entry
+  run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -eq 0 ]
-  # Verify the push actually worked
   run git --git-dir="$REMOTE_DIR" rev-parse refs/_shiplog/journal/prod
   [ "$status" -eq 0 ]
-  # Verify output is a valid Git SHA (40 hex characters)
-  [[ "$output" =~ ^[a-f0-9]{40}$ ]]
 }
 
-@test "pre-receive rejects unauthorized author" {
-  skip "pre-receive hook integration pending"
-  publish_policy "$(cat <<'POL'
-{
-  "version": 1,
-  "require_signed": false,
-  "authors": {
-    "default_allowlist": [
-      "someoneelse@example.com"
-    ]
-  }
-}
-POL
-)"
+@test "push rejects stale trust oid" {
+  git shiplog init >/dev/null
+  push_trust_ref
+  push_policy_ref
   make_entry
-  run git push shiplog refs/_shiplog/journal/prod
-  [ "$status" -ne 0 ]
-  # Be more specific about what we're checking
-  # Check for specific authorization failure message from the hook
-  [[ "$output" == *"shiplog-test@example.local"*"not"*"allowed"* ]] || \
-  [[ "$output" == *"unauthorized author"* ]] || \
-  [[ "$output" == *"author not in allowlist"* ]]
-  # Verify the ref was NOT created
-  run git --git-dir="$REMOTE_DIR" rev-parse refs/_shiplog/journal/prod
-  [ "$status" -ne 0 ]
-}
-
-@test "pre-receive enforces signatures when required" {
-  skip "pre-receive hook integration pending"
-  publish_policy "$(cat <<'POL'
-{
-  "version": 1,
-  "require_signed": true,
-  "authors": {
-    "default_allowlist": [
-      "shiplog-test@example.local"
-    ]
-  }
-}
-POL
-)"
+  run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
+  [ "$status" -eq 0 ]
+  rotate_remote_trust
   make_entry
-  run git push shiplog refs/_shiplog/journal/prod
+  run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
-  # Check for specific signature requirement failure from the hook
-  [[ "$output" == *"commit signature required"* ]] || \
-  [[ "$output" == *"signed commit required"* ]] || \
-  [[ "$output" == *"missing required signature"* ]]
-  # Verify the ref was NOT created due to signature issue
-  run git --git-dir="$REMOTE_DIR" rev-parse refs/_shiplog/journal/prod
-  [ "$status" -ne 0 ]
+  [[ "$output" == *"trust_oid"* || "$output" == *"trust"* ]]
 }
