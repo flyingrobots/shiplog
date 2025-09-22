@@ -38,7 +38,20 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 
 ```
 █████████████████████████▓░░░░░░░░░░░░ 84%
-42/50 complete (8 remaining)
+42/51 complete (9 remaining)
+```
+
+- [ ] Add GitHub Actions bash matrix workflow
+```yaml
+priority: P1
+impact: ensures ./test.sh runs across Debian/Ubuntu/Fedora/Alpine/Arch on every push/PR
+steps:
+  - add .github/workflows/bash-matrix.yml using provided template (Buildx cache, logs artifact)
+  - verify ci-matrix dockerfiles + repo test.sh meet workflow expectations
+  - adjust volume mount permissions if test suite needs write access
+blocked_by: []
+notes:
+  - workflow uploads per-distro logs; requires Docker on GitHub-hosted runner
 ```
 
 - [x] Add cross-distro Docker matrix for CI
