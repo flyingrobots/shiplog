@@ -37,11 +37,11 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 ## Worklog
 
 ```
-███████████████████████▓░░░░░░░░░░░░░░ 82%
-41/50 complete (9 remaining)
+█████████████████████████▓░░░░░░░░░░░░ 84%
+42/50 complete (8 remaining)
 ```
 
-- [ ] Add cross-distro Docker matrix for CI
+- [x] Add cross-distro Docker matrix for CI
 ```yaml
 priority: P1
 impact: verifies shiplog works across mainstream distros and ensures modern Git defaults
