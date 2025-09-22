@@ -1,21 +1,93 @@
 # shellcheck shell=bash
 # shiplog command implementations
 
+has_remote_origin() {
+  git config --get remote.origin.url >/dev/null 2>&1
+}
+
+get_remote_oid() {
+  local ref="$1" output
+  if ! output=$(git ls-remote origin "$ref" 2>&1); then
+    printf '⚠️ shiplog: unable to query origin for %s (%s)\n' "$ref" "$output" >&2
+    return 1
+  fi
+  printf '%s' "$(printf '%s\n' "$output" | awk 'NF{print $1; exit}')"
+}
+
+fast_forward_ref() {
+  local ref="$1" context="${2:-fast-forward}"
+  local fetch_output
+  if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
+    die "shiplog: failed to ${context} $ref from origin: $fetch_output"
+  fi
+}
+
+check_divergence() {
+  local local_oid="$1" remote_oid="$2"
+  if [ -z "$remote_oid" ]; then
+    printf 'remote-missing'
+    return 0
+  fi
+  if [ "$local_oid" = "$remote_oid" ]; then
+    printf 'in-sync'
+    return 0
+  fi
+  if git merge-base --is-ancestor "$local_oid" "$remote_oid" >/dev/null 2>&1; then
+    printf 'remote-ahead'
+    return 0
+  fi
+  if git merge-base --is-ancestor "$remote_oid" "$local_oid" >/dev/null 2>&1; then
+    printf 'local-ahead'
+    return 0
+  fi
+  printf 'diverged'
+}
+
+maybe_sync_shiplog_ref() {
+  local ref="$1"
+  has_remote_origin || return 0
+
+  local remote_oid
+  if ! remote_oid=$(get_remote_oid "$ref"); then
+    return 0
+  fi
+  [ -n "$remote_oid" ] || return 0
+
+  local local_oid
+  local_oid=$(git rev-parse "$ref" 2>/dev/null || true)
+  if [ -z "$local_oid" ]; then
+    fast_forward_ref "$ref" "fetch"
+    return 0
+  fi
+
+  local state
+  state=$(check_divergence "$local_oid" "$remote_oid")
+  case "$state" in
+    in-sync|local-ahead|remote-missing)
+      return 0
+      ;;
+    remote-ahead)
+      fast_forward_ref "$ref"
+      ;;
+    diverged)
+      die "shiplog: $ref has diverged between local and origin; reconcile before writing"
+      ;;
+  esac
+}
+
 cmd_init() {
   ensure_in_repo
-  ensure_config_value() {
-    local key="$1" value="$2"
-    if git config --get-all "$key" 2>/dev/null | grep -Fxq "$value"; then
-      return 0
-    fi
-    git config --add "$key" "$value"
-  }
+  local fetch_value="+$REF_ROOT/*:$REF_ROOT/*"
+  if ! git config --get-all remote.origin.fetch 2>/dev/null | grep -Fxq "$fetch_value"; then
+    git config --add remote.origin.fetch "$fetch_value"
+  fi
 
   mapfile -t existing_push < <(git config --get-all remote.origin.push 2>/dev/null || true)
-  ensure_config_value remote.origin.fetch "+$REF_ROOT/*:$REF_ROOT/*"
-  ensure_config_value remote.origin.push  "$REF_ROOT/*:$REF_ROOT/*"
-  if [ ${#existing_push[@]} -eq 0 ]; then
-    ensure_config_value remote.origin.push HEAD
+  if ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "$REF_ROOT/*:$REF_ROOT/*"; then
+    git config --add remote.origin.push "$REF_ROOT/*:$REF_ROOT/*"
+  fi
+  if [ ${#existing_push[@]} -eq 0 ] && ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "HEAD"; then
+    git config --add remote.origin.push HEAD
   fi
 
   if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then
@@ -37,55 +109,13 @@ cmd_write() {
 
   local journal_ref="$(ref_journal "$env")"
   local notes_ref="$NOTES_REF"
-  local remote_url=""
-  remote_url=$(git config --get remote.origin.url 2>/dev/null || true)
-  local have_origin=0
-  [ -n "$remote_url" ] && have_origin=1
-
-  maybe_sync_shiplog_ref() {
-    local ref="$1"
-    [ "$have_origin" -eq 1 ] || return 0
-
-    local ls_output="" remote_oid="" local_oid="" fetch_output=""
-    if ! ls_output=$(git ls-remote origin "$ref" 2>&1); then
-      printf '⚠️ shiplog: unable to query origin for %s (%s)\n' "$ref" "$ls_output" >&2
-      return 0
+  local origin_available=0
+  if has_remote_origin; then
+    origin_available=1
+    maybe_sync_shiplog_ref "$journal_ref"
+    if [ -n "$notes_ref" ]; then
+      git fetch origin "$notes_ref" >/dev/null 2>&1 || true
     fi
-
-    remote_oid=$(printf '%s\n' "$ls_output" | awk 'NF{print $1; exit}')
-    [ -n "$remote_oid" ] || return 0
-
-    local_oid=$(git rev-parse "$ref" 2>/dev/null || echo "")
-
-    if [ -z "$local_oid" ]; then
-      if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
-        die "shiplog: failed to fetch $ref from origin: $fetch_output"
-      fi
-      return 0
-    fi
-
-    if [ "$local_oid" = "$remote_oid" ]; then
-      return 0
-    fi
-
-    if git merge-base --is-ancestor "$local_oid" "$remote_oid" >/dev/null 2>&1; then
-      if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
-        die "shiplog: failed to fast-forward $ref from origin: $fetch_output"
-      fi
-      return 0
-    fi
-
-    if git merge-base --is-ancestor "$remote_oid" "$local_oid" >/dev/null 2>&1; then
-      # Local is ahead; defer to post-write push logic
-      return 0
-    fi
-
-    die "shiplog: $ref has diverged between local and origin; reconcile before writing"
-  }
-
-  maybe_sync_shiplog_ref "$journal_ref"
-  if [ -n "$notes_ref" ] && [ "$have_origin" -eq 1 ]; then
-    git fetch origin "$notes_ref" >/dev/null 2>&1 || true
   fi
 
   local service status reason ticket region cluster ns artifact_tag artifact_image run_url
@@ -122,14 +152,10 @@ cmd_write() {
   dur_s=$(( $(date -u -d "$end_ts" +%s 2>/dev/null || gdate -u -d "$end_ts" +%s) - $(date -u -d "$start_ts" +%s 2>/dev/null || gdate -u -d "$start_ts" +%s) ))
 
   local artifact=""
-  if [ -n "$artifact_image" ] || [ -n "$artifact_tag" ]; then
-    if [ -n "$artifact_image" ] && [ -n "$artifact_tag" ]; then
-      artifact="${artifact_image}:${artifact_tag}"
-    elif [ -n "$artifact_image" ]; then
-      artifact="$artifact_image"
-    else
-      artifact="$artifact_tag"
-    fi
+  if [ -n "$artifact_image" ]; then
+    artifact="${artifact_image}${artifact_tag:+:$artifact_tag}"
+  else
+    artifact="$artifact_tag"
   fi
 
   local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url")"
@@ -162,7 +188,7 @@ cmd_write() {
     "$GUM" log --structured --time "rfc822" --level info "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}" >&2
   fi
 
-  if [ "$have_origin" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
+  if [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
     local push_output
     if ! push_output=$(git push origin "$journal_ref" 2>&1); then
       die "shiplog: failed to push $journal_ref to origin: $push_output"
@@ -177,7 +203,7 @@ cmd_write() {
     elif ! is_boring; then
       printf '📤 Pushed %s to origin\n' "$journal_ref"
     fi
-  elif [ "$have_origin" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" = "0" ] && ! is_boring; then
+  elif [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" = "0" ] && ! is_boring; then
     printf 'ℹ️ shiplog: auto-push disabled; remember to push %s manually.\n' "$journal_ref"
   fi
 }

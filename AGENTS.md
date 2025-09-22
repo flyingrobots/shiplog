@@ -81,7 +81,7 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [x] docs/policy.md — correct validation guidance, provide full authors JSON example, note schema/override usage.
 - [x] examples/policy.json — resolve signers file path deterministically (absolute/homedir) and adjust docs.
 - [x] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
-- [ ] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
+- [x] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
 - [ ] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
 - [ ] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
 - [ ] lib/policy.sh — restore default sign behaviour, refactor parsing helpers, improve authors jq aggregation, resolve signers path robustly.
