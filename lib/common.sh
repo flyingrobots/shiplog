@@ -23,17 +23,33 @@ fmt_ts() {
 
 escape_json_string() {
   local input="$1"
+  command -v jq >/dev/null 2>&1 || die "shiplog: jq is required for structured logging"
+  jq -Rn --arg value "$input" '$value'
+}
 
-  if command -v jq >/dev/null 2>&1; then
-    # jq handles full JSON string escaping when run in raw input -> string mode
-    jq -Rn --arg value "$input" '$value' || return 1
-    return 0
+_validate_env_var_name() {
+  local name="$1"
+  [ -n "$name" ] || die "Environment variable name cannot be empty"
+  if [[ ! "$name" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
+    die "Invalid environment variable name: $name (use uppercase letters, digits, underscores)"
   fi
+  case "$name" in
+    PATH|IFS|HOME|LANG|TZ|PWD|SHELL|USER|LOGNAME)
+      die "Refusing to override reserved environment variable: $name"
+      ;;
+  esac
+}
 
-  # Fallback: minimal escaping when jq is unavailable (should not happen in CI)
-  local fallback
-  fallback=$(printf '%s' "$input" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\r/\\r/g; s/\t/\\t/g; s/\f/\\f/g; s/\b/\\b/g; s/\n/\\n/g')
-  printf '"%s"' "$fallback"
+_log_prompt_interaction() {
+  local field="$1" prompt="$2" result="$3" mode="${4:-string}"
+  local escaped_prompt escaped_result
+  escaped_prompt=$(escape_json_string "$prompt")
+  case "$mode" in
+    raw) escaped_result="$result" ;;
+    string) escaped_result=$(escape_json_string "$result") ;;
+    *) die "Unknown log mode: $mode" ;;
+  esac
+  "$GUM" log --structured --time "rfc822" --level info "{\"$field\":$escaped_prompt,\"value\":$escaped_result}" >&2
 }
 
 shiplog_prompt_input() {
@@ -43,12 +59,9 @@ shiplog_prompt_input() {
   local placeholder="$1"
   local env_var="$2"
   local fallback="${3:-}"
-  
-  # Validate env_var is a valid variable name
-  case "$env_var" in
-    [!a-zA-Z_]*|*[!a-zA-Z0-9_]*) die "Invalid environment variable name: $env_var" ;;
-  esac
-  
+
+  _validate_env_var_name "$env_var"
+
   local value="${!env_var:-$fallback}"
   if is_boring; then
     printf '%s\n' "$value"
@@ -56,10 +69,7 @@ shiplog_prompt_input() {
     local result
     result=$("$GUM" input --placeholder "$placeholder" --value "$value")
     printf '%s\n' "$result"
-    local escaped_placeholder escaped_result
-    escaped_placeholder=$(escape_json_string "$placeholder")
-    escaped_result=$(escape_json_string "$result")
-    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":$escaped_placeholder,\"value\":$escaped_result}" >&2
+    _log_prompt_interaction prompt "$placeholder" "$result"
   fi
 }
 
@@ -73,6 +83,7 @@ shiplog_prompt_choice() {
   local options=("$@")
   [ ${#options[@]} -gt 0 ] || die "At least one option required"
   local fallback="${options[0]:-}"
+  _validate_env_var_name "$env_var"
   local value="${!env_var:-$fallback}"
   if [ -z "$value" ]; then
     value="$fallback"
@@ -87,10 +98,7 @@ shiplog_prompt_choice() {
       result=$("$GUM" choose --header "$header" "${options[@]}")
     fi
     printf '%s\n' "$result"
-    local escaped_header escaped_result
-    escaped_header=$(escape_json_string "$header")
-    escaped_result=$(escape_json_string "$result")
-    "$GUM" log --structured --time "rfc822" --level info "{\"prompt\":$escaped_header,\"value\":$escaped_result}" >&2
+    _log_prompt_interaction prompt "$header" "$result"
   fi
 }
 
@@ -102,13 +110,11 @@ shiplog_confirm() {
   if is_boring || [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     return 0
   fi
-  local escaped_prompt
-  escaped_prompt=$(escape_json_string "$prompt")
-  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":null}" >&2
+  _log_prompt_interaction confirmation "$prompt" null raw
   if "$GUM" confirm "$prompt"; then
-    "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":true}" >&2
+    _log_prompt_interaction confirmation "$prompt" true raw
     return 0
   fi
-  "$GUM" log --structured --time "rfc822" --level info "{\"confirmation\":$escaped_prompt,\"value\":false}" >&2
+  _log_prompt_interaction confirmation "$prompt" false raw
   return 1
 }
