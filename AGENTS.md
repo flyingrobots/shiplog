@@ -75,7 +75,7 @@ notes:
   - images must install bash/git/coreutils and set init.defaultBranch main to avoid legacy warnings
 ```
 
-- [ ] Migrate CLI interactions to Bosun
+- [x] Migrate CLI interactions to Bosun
 ```yaml
 priority: P0
 impact: removes legacy dependency and unifies interactive UX
