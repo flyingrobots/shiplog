@@ -68,7 +68,7 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [ ] Build a non-SSH hook harness (e.g., local exec transport) and unskip the three pre-receive tests.
 - [ ] Document the signing workflow (loopback wrapper, allowed signers) in README + docs/features, and add failing-path tests.
 - [ ] Align ShellCheck across scripts (bin/git-shiplog globals, install script printf) so the lint run is warning-free or explicitly suppressed.
-- [ ] Update Docker test harness to work on a copied repo snapshot (no bind mount) and ensure tests create isolated git remotes.
+- [x] Update Docker test harness to work on a copied repo snapshot (no bind mount) and ensure tests create isolated git remotes.
 - [ ] Prevent tests from mutating real remotes (introduce throw-away test repos instead of in-place git config edits).
 - [ ] docs/bosun/choose.md — add an interactive example showing menu prompt, user input, and output.
 - [ ] docs/bosun/confirm.md — normalize examples (consistent comments, JSON formatting, decline scenario + exit codes).
