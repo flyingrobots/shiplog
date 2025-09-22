@@ -1,8 +1,12 @@
 # shellcheck shell=bash
-# Git-interaction helpers
+set -euo pipefail
 
-if ! declare -F is_boring >/dev/null 2>&1; then
-  echo "❌ shiplog: missing required helper is_boring (common.sh not sourced)" >&2
+LIB_DIR="${SHIPLOG_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [ -f "$LIB_DIR/common.sh" ]; then
+  # shellcheck source=lib/common.sh
+  source "$LIB_DIR/common.sh"
+else
+  echo "❌ shiplog: unable to locate common helpers at $LIB_DIR/common.sh" >&2
   exit 1
 fi
 
@@ -145,9 +149,13 @@ pretty_ls() {
   local header_line
   local gum_bin="${GUM:-gum}"
   local gum_available=0
+  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
 
   if command -v "$gum_bin" >/dev/null 2>&1; then
     gum_available=1
+  fi
+  if [ "$gum_available" -ne 1 ]; then
+    printf "$gum_missing_message" "$gum_bin" >&2
   fi
 
   header_line=$(printf '%s\t' "${header_cols[@]}")
@@ -165,9 +173,6 @@ pretty_ls() {
   done < <(git rev-list --max-count="$limit" "$ref")
 
   if is_boring || [ "$gum_available" -ne 1 ]; then
-    if [ "$gum_available" -ne 1 ] && ! is_boring; then
-      printf 'shiplog: %s not found; falling back to plain output\n' "$gum_bin" >&2
-    fi
     printf '%s\n' "$header_line"
     printf '%s' "$rows"
   else
@@ -184,14 +189,15 @@ show_entry() {
 
   local gum_bin="${GUM:-gum}"
   local gum_available=0
+  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
   if command -v "$gum_bin" >/dev/null 2>&1; then
     gum_available=1
   fi
+  if [ "$gum_available" -ne 1 ]; then
+    printf "$gum_missing_message" "$gum_bin" >&2
+  fi
 
   if is_boring || [ "$gum_available" -ne 1 ]; then
-    if [ "$gum_available" -ne 1 ] && ! is_boring; then
-      printf 'shiplog: %s not found; falling back to plain output\n' "$gum_bin" >&2
-    fi
     printf '%s\n' "$human"
     if [ -n "$json" ]; then
       if command -v jq >/dev/null 2>&1; then

@@ -83,7 +83,7 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [x] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
 - [x] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
 - [x] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
-- [ ] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
+- [x] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
 - [ ] lib/policy.sh — restore default sign behaviour, refactor parsing helpers, improve authors jq aggregation, resolve signers path robustly.
 - [ ] scripts/bosun — validate BOSUN_DOC_ROOT, unify ANSI stripping implementation, replace naive CSV/TSV parsing with robust parser.
 - [ ] scripts/install-shiplog.sh — replace embedded Python path resolver with shell realpath/readlink logic.
