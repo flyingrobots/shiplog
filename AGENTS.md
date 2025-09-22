@@ -68,6 +68,33 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [ ] Build a non-SSH hook harness (e.g., local exec transport) and unskip the three pre-receive tests.
 - [ ] Document the signing workflow (loopback wrapper, allowed signers) in README + docs/features, and add failing-path tests.
 - [ ] Align ShellCheck across scripts (bin/git-shiplog globals, install script printf) so the lint run is warning-free or explicitly suppressed.
+- [ ] Update Docker test harness to work on a copied repo snapshot (no bind mount) and ensure tests create isolated git remotes.
+- [ ] Prevent tests from mutating real remotes (introduce throw-away test repos instead of in-place git config edits).
+- [ ] docs/bosun/choose.md — add an interactive example showing menu prompt, user input, and output.
+- [ ] docs/bosun/confirm.md — normalize examples (consistent comments, JSON formatting, decline scenario + exit codes).
+- [ ] docs/bosun/input.md — add edge-case examples (empty stdin, non-tty behaviour, placeholder+default) with outputs/exit codes.
+- [ ] docs/bosun/overview.md — expand each command description with purpose, flags, defaults, and a concise example.
+- [ ] docs/features/init.md — clarify the `core.logAllRefUpdates` explanation with concrete behaviour and implications.
+- [ ] docs/features/ls.md — document ENV parameter and add multiple usage examples.
+- [ ] docs/features/policy.md — replace buzzwords with explicit precedence rules, add minimal + full policy examples, schema reference, override mapping.
+- [ ] docs/features/write.md — enumerate all supported `SHIPLOG_*` env vars (purpose, type, defaults, examples).
+- [ ] docs/policy.md — correct validation guidance, provide full authors JSON example, note schema/override usage.
+- [ ] examples/policy.json — resolve signers file path deterministically (absolute/homedir) and adjust docs.
+- [ ] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
+- [ ] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
+- [ ] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
+- [ ] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
+- [ ] lib/policy.sh — restore default sign behaviour, refactor parsing helpers, improve authors jq aggregation, resolve signers path robustly.
+- [ ] scripts/bosun — validate BOSUN_DOC_ROOT, unify ANSI stripping implementation, replace naive CSV/TSV parsing with robust parser.
+- [ ] scripts/install-shiplog.sh — replace embedded Python path resolver with shell realpath/readlink logic.
+- [ ] scripts/uninstall-shiplog.sh — extract Python cleanup to standalone script or shell alternative per review comments.
+- [ ] scripts/shiplog-sync-policy.sh — replace fragile grep-based schema detection per review feedback.
+- [ ] test/01_init_and_empty_ls.bats — add backup/restore of git config before mutation.
+- [ ] test/02_write_and_ls_show.bats — add trailer/jq helper functions and remove manual parsing; fail when jq missing.
+- [ ] test/09_policy_resolution.bats — dedupe policy setup helper and add edge-case tests for invalid policy scenarios.
+- [ ] test/11_pre_receive_hook.bats — stabilize error messages, handle REMOTE_DIR safely, unskip/cleanup tests properly.
+- [ ] test/13_uninstall.bats — switch to temp bin dir, guard git config assertions, restore remote configs reliably.
+- [ ] test/helpers/common.bash — simplify shiplog_install_cli checks or provide actionable guidance per review.
 
 ## Testing
 

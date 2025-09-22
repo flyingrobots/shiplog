@@ -42,8 +42,12 @@ export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 : "${TEST_ENV:=prod}"
 : "${TEST_AUTHOR_NAME:=Shiplog Test}"
 : "${TEST_AUTHOR_EMAIL:=shiplog-test@example.local}"
-export SHIPLOG_HOME=${SHIPLOG_HOME:-/workspace}
-export SHIPLOG_LIB_DIR=${SHIPLOG_LIB_DIR:-/workspace/lib}
+SRC_WORKSPACE=${SHIPLOG_HOME:-/workspace}
+TEST_ROOT=$(mktemp -d)
+cp -a "$SRC_WORKSPACE/." "$TEST_ROOT/shiplog"
+export SHIPLOG_HOME="$TEST_ROOT/shiplog"
+export SHIPLOG_LIB_DIR="$SHIPLOG_HOME/lib"
+cd "$SHIPLOG_HOME"
 export SHIPLOG_REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 export SHIPLOG_NOTES_REF=${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}
 
@@ -249,10 +253,10 @@ git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/
 git config core.logAllRefUpdates true
 
 echo "Running bats tests"
-if compgen -G "/workspace/test/*.bats" > /dev/null; then
-  bats -r /workspace/test
+if compgen -G "$SHIPLOG_HOME/test/*.bats" > /dev/null; then
+  bats -r "$SHIPLOG_HOME/test"
 else
-  echo "No tests found at /workspace/test/*.bats"
+  echo "No tests found at $SHIPLOG_HOME/test/*.bats"
 fi
 SCRIPT
 RUN chmod +x /usr/local/bin/run-tests
