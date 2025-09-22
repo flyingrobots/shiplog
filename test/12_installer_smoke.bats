@@ -18,6 +18,8 @@
     gum --version && jq --version
   '
   [ "$status" -eq 0 ]
+  [[ "$output" =~ "gum" ]] || { echo "Missing gum verification in output"; return 1; }
+  [[ "$output" =~ "jq" ]] || { echo "Missing jq verification in output"; return 1; }
 }
  
 @test "git-shiplog binary works in clean container" {
@@ -38,9 +40,4 @@
     SHIPLOG_HOME=/workspace git shiplog --boring init >/dev/null
   '
   [ "$status" -eq 0 ]
-}
-  [ "$status" -eq 0 ]
-  # Verify the actual output contains evidence of successful installation
-  [[ "$output" =~ "gum" ]] || { echo "Missing gum verification in output"; return 1; }
-  [[ "$output" =~ "jq" ]] || { echo "Missing jq verification in output"; return 1; }
 }

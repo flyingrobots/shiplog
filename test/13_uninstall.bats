@@ -60,7 +60,9 @@ teardown() {
 }
 
 @test "uninstall removes shiplog artifacts" {
-  run scripts/uninstall-shiplog.sh --silent
+  local script_path
+  script_path="${BATS_TEST_DIRNAME}/../scripts/uninstall-shiplog.sh"
+  run "$script_path" --silent
   [ "$status" -eq 0 ]
 
   [ ! -d "$HOME/.shiplog" ]

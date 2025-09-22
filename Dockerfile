@@ -64,9 +64,14 @@ if [ "${ENABLE_SIGNING:-false}" = "true" ]; then
     gpg --batch --pinentry-mode loopback --passphrase '' --quick-gen-key "Shiplog Test <shiplog-test@example.local>" default default never >/dev/null
   fi
   KEYID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+  cat <<'GPGWRAP' > /usr/local/bin/gpg-loopback
+#!/usr/bin/env bash
+exec gpg --batch --pinentry-mode loopback "$@"
+GPGWRAP
+  chmod +x /usr/local/bin/gpg-loopback
   git config --global user.signingkey "$KEYID"
   git config --global commit.gpgsign true
-  git config --global gpg.program gpg
+  git config --global gpg.program /usr/local/bin/gpg-loopback
 else
   export SHIPLOG_SIGN=${SHIPLOG_SIGN:-0}
 fi

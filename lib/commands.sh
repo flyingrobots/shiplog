@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # shiplog command implementations
 
 cmd_init() {
@@ -99,8 +100,11 @@ cmd_write() {
   artifact_tag="$(shiplog_prompt_input "artifact tag (e.g., 2025-09-19.3)" "SHIPLOG_TAG")"
   run_url="$(shiplog_prompt_input "pipeline/run URL (optional)" "SHIPLOG_RUN_URL")"
 
+  if [ -z "$service" ] && [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
+    service="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo default)")"
+  fi
   if [ -z "$service" ]; then
-    if is_boring; then
+    if is_boring || [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
       die "shiplog: SHIPLOG_SERVICE environment variable is required in non-interactive mode"
     else
       die "shiplog: service name is required but not provided"
@@ -293,7 +297,6 @@ cmd_policy() {
   esac
 }
 
-usage() {
 usage() {
   local cmd="$(basename "$0")"
   if [ "$cmd" = "git-shiplog" ]; then

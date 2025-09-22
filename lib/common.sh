@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Common utility functions for Shiplog CLI
 
 is_boring() {
@@ -21,26 +22,15 @@ fmt_ts() {
 }
 
 escape_json_string() {
-  local input="$1" output=""
-  if command -v python3 >/dev/null 2>&1; then
-    output=$(python3 - "$input" <<'PY' 2>/dev/null || true)
-import json, sys
-print(json.dumps(sys.argv[1]))
-PY
-  elif command -v python >/dev/null 2>&1; then
-    output=$(python - "$input" <<'PY' 2>/dev/null || true)
-import json, sys
-print(json.dumps(sys.argv[1]))
-PY
-  elif command -v jq >/dev/null 2>&1; then
-    output=$(printf '%s' "$input" | jq -Rs . 2>/dev/null || true)
-  fi
+  local input="$1"
 
-  if [ -n "$output" ]; then
-    printf '%s' "$output"
+  if command -v jq >/dev/null 2>&1; then
+    # jq handles full JSON string escaping when run in raw input -> string mode
+    jq -Rn --arg value "$input" '$value' || return 1
     return 0
   fi
 
+  # Fallback: minimal escaping when jq is unavailable (should not happen in CI)
   local fallback
   fallback=$(printf '%s' "$input" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\r/\\r/g; s/\t/\\t/g; s/\f/\\f/g; s/\b/\\b/g; s/\n/\\n/g')
   printf '"%s"' "$fallback"

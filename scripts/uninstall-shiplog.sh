@@ -73,14 +73,34 @@ if [ -z "$PROFILE_FILE" ]; then
 fi
 
 git_config_remove_refspec() {
-  local key="$1" value="$2"
-  if git config --get-all "$key" 2>/dev/null | grep -Fxq "$value"; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      echo "+ git config --unset-all $key '$value'"
-    else
-      git config --unset-all "$key" "$value"
+  local key="$1" target="$2"
+  local values=()
+  mapfile -t values < <(git config --get-all "$key" 2>/dev/null || true)
+  [ ${#values[@]} -gt 0 ] || return
+
+  local keep=()
+  for val in "${values[@]}"; do
+    if [ "$val" != "$target" ]; then
+      keep+=("$val")
     fi
+  done
+
+  if [ ${#keep[@]} -eq ${#values[@]} ]; then
+    return
   fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "+ git config --unset-all $key"
+    for val in "${keep[@]}"; do
+      echo "+ git config --add $key '$val'"
+    done
+    return
+  fi
+
+  git config --unset-all "$key" || true
+  for val in "${keep[@]}"; do
+    git config --add "$key" "$val"
+  done
 }
 
 git_config_remove_refspec remote.origin.fetch "+refs/_shiplog/*:refs/_shiplog/*"
@@ -88,8 +108,12 @@ git_config_remove_refspec remote.origin.push "refs/_shiplog/*:refs/_shiplog/*"
 
 unpublished_refs=()
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remote.origin.url >/dev/null 2>&1; then
-  if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
-    log "Warning: unable to fetch refs/_shiplog/*"
+  if command -v ssh >/dev/null 2>&1; then
+    if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
+      log "Warning: unable to fetch refs/_shiplog/*"
+    fi
+  else
+    log "Warning: ssh client not available; skipping remote refs sync"
   fi
   while IFS= read -r ref; do
     [ -n "$ref" ] || continue
@@ -125,16 +149,16 @@ fi
 GIT_SHIPLOG_TARGET="$INSTALL_DIR/bin/git-shiplog"
 BOSUN_TARGET="$INSTALL_DIR/scripts/bosun"
 
-if [ -d "$INSTALL_DIR" ]; then
-  log "Removing $INSTALL_DIR"
-  run rm -rf "$INSTALL_DIR"
-else
-  log "Install directory $INSTALL_DIR not found"
-fi
-
-if [ -L "/usr/local/bin/git-shiplog" ] && [ "$(readlink "/usr/local/bin/git-shiplog")" = "$GIT_SHIPLOG_TARGET" ]; then
-  log "Removing /usr/local/bin/git-shiplog"
-  run rm -f /usr/local/bin/git-shiplog
+if [ -e "/usr/local/bin/git-shiplog" ]; then
+  if [ -L "/usr/local/bin/git-shiplog" ] && [ "$(readlink "/usr/local/bin/git-shiplog")" = "$GIT_SHIPLOG_TARGET" ]; then
+    log "Removing /usr/local/bin/git-shiplog"
+    run rm -f /usr/local/bin/git-shiplog
+  elif cmp -s "/usr/local/bin/git-shiplog" "$GIT_SHIPLOG_TARGET" 2>/dev/null; then
+    log "Removing /usr/local/bin/git-shiplog (matching installed copy)"
+    run rm -f /usr/local/bin/git-shiplog
+  else
+    log "Skipping removal of /usr/local/bin/git-shiplog (custom install detected)"
+  fi
 fi
 
 for shim in shiplog bosun; do
@@ -145,9 +169,19 @@ for shim in shiplog bosun; do
     if [ -L "$shim_path" ] && [ "$(readlink "$shim_path")" = "$target" ]; then
       log "Removing $shim shim at $shim_path"
       run rm -f "$shim_path"
+    elif cmp -s "$shim_path" "$target" 2>/dev/null; then
+      log "Removing $shim shim at $shim_path (matching installed copy)"
+      run rm -f "$shim_path"
     fi
   fi
 done
+
+if [ -d "$INSTALL_DIR" ]; then
+  log "Removing $INSTALL_DIR"
+  run rm -rf "$INSTALL_DIR"
+else
+  log "Install directory $INSTALL_DIR not found"
+fi
 
 if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
   if [ "$DRY_RUN" -eq 0 ] && [ "$NO_BACKUP" -eq 0 ]; then
@@ -167,7 +201,14 @@ if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
       python_cmd=python
     fi
     if [ -z "$python_cmd" ]; then
-      log "Python not available; please remove SHIPLOG entries from $PROFILE_FILE manually."
+      log "Python not available; using fallback removal for Shiplog profile entries."
+      tmp_profile=$(mktemp)
+      if ! grep -v -E '(^# Shiplog$)|SHIPLOG_HOME|SHIPLOG_HOME/bin' "$PROFILE_FILE" > "$tmp_profile"; then
+        log "Failed to sanitize $PROFILE_FILE; leaving original in place."
+        rm -f "$tmp_profile"
+      else
+        mv "$tmp_profile" "$PROFILE_FILE"
+      fi
     else
       tmp_profile=$(mktemp)
       if ! "$python_cmd" - "$PROFILE_FILE" "$INSTALL_DIR" "$tmp_profile" <<'PY'; then

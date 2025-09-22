@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Policy resolution helpers (jq-powered, JSON policy files)
 
 parse_policy_json() {
@@ -158,6 +159,10 @@ resolve_policy() {
     fi
   fi
 
+  if [ -n "$SIGNERS_FILE_EFFECTIVE" ] && [ ! -f "$SIGNERS_FILE_EFFECTIVE" ]; then
+    SIGNERS_FILE_EFFECTIVE=""
+  fi
+
   local sign_mode="${SHIPLOG_SIGN:-}"
   if [ -z "$sign_mode" ]; then
     if [ -n "$POLICY_REQUIRE_SIGNED" ]; then
@@ -171,7 +176,7 @@ resolve_policy() {
   case "$sign_mode" in
     0|false|no|off) SHIPLOG_SIGN_EFFECTIVE=0 ;;
     1|true|yes|on) SHIPLOG_SIGN_EFFECTIVE=1 ;;
-    "") SHIPLOG_SIGN_EFFECTIVE=1 ;;
+    "") SHIPLOG_SIGN_EFFECTIVE=0 ;;
     *) SHIPLOG_SIGN_EFFECTIVE=1 ;;
   esac
 

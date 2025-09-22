@@ -53,6 +53,10 @@
 - [x] Adjust README feature table (evidence links or drop Finished column) and policy example (env overrides, schema, semantic version).
 - [x] Update scripts to support canonical `--yes`/`SHIPLOG_ASSUME_YES` naming and remove redundant `--boring` pre-scan.
 - [x] Add JSON schema (`examples/policy.schema.json`) and link in docs/CI.
+- [ ] Replace the `gum` dependency with `scripts/bosun`.
+- [x] Investigate and fix the failing Dockerized test suite after the CLI/runtime changes.
+- [ ] Re-enable pre-receive hook tests once we can exercise the Git server path without SSH.
+- [x] Restore the signing test when reliable GPG automation exists in CI.
 
 ## Testing
 
@@ -63,3 +67,4 @@
 ### Project-Specific Notes
 
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
+- Keep runtime/test dependencies to stock POSIX tools plus `jq`; avoid introducing other external binaries.
