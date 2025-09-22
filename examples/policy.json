@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
-  "schema": "examples/policy.schema.json",
+  "schema": "https://raw.githubusercontent.com/flyingrobots/shiplog/main/examples/policy.schema.json",
   "format_compat": ">=1.0.0 <2.0.0",
   "require_signed": true,
-  "allow_ssh_signers_file": ".shiplog/allowed_signers",
+  "allow_ssh_signers_file": "~/.shiplog/allowed_signers",
   "authors": {
     "default_allowlist": [
       "${DEPLOY_BOT_EMAIL:?DEPLOY_BOT_EMAIL must be set}",

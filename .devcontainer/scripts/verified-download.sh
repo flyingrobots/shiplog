@@ -28,7 +28,15 @@ resolve_path_join() {
   else
     echo ""; return 1
   fi
-  "$interpreter" - <<'PY' "$base" "$rel"
+  local python_output
+  python_output=$("$interpreter" - <<'PY' "$base" "$rel" 2>&1)
+  local status=$?
+  if [ $status -ne 0 ]; then
+    printf '%s\n' "$python_output" >&2
+    return $status
+  fi
+  printf '%s\n' "$python_output"
+PY
 import os, sys
 base = os.path.realpath(os.path.expanduser(sys.argv[1]))
 rel = sys.argv[2]

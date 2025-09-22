@@ -79,8 +79,8 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [x] docs/features/policy.md — replace buzzwords with explicit precedence rules, add minimal + full policy examples, schema reference, override mapping.
 - [x] docs/features/write.md — enumerate all supported `SHIPLOG_*` env vars (purpose, type, defaults, examples).
 - [x] docs/policy.md — correct validation guidance, provide full authors JSON example, note schema/override usage.
-- [ ] examples/policy.json — resolve signers file path deterministically (absolute/homedir) and adjust docs.
-- [ ] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
+- [x] examples/policy.json — resolve signers file path deterministically (absolute/homedir) and adjust docs.
+- [x] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
 - [ ] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
 - [ ] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
 - [ ] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
@@ -95,6 +95,8 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [ ] test/11_pre_receive_hook.bats — stabilize error messages, handle REMOTE_DIR safely, unskip/cleanup tests properly.
 - [ ] test/13_uninstall.bats — switch to temp bin dir, guard git config assertions, restore remote configs reliably.
 - [ ] test/helpers/common.bash — simplify shiplog_install_cli checks or provide actionable guidance per review.
+- [x] .devcontainer/scripts/verified-download.sh — capture Python resolver output, fail on errors.
+- [x] contrib/README.md — format install script as fenced bash block without diff artefacts.
 
 ## Testing
 

@@ -63,8 +63,17 @@
       }
     },
     "ff_only": { "type": "boolean" },
-    "notes_ref": { "type": "string", "pattern": "^refs/[^\s]+" },
-    "journals_ref_prefix": { "type": "string", "pattern": "^refs/[^\s]+/" },
-    "anchors_ref_prefix": { "type": "string", "pattern": "^refs/[^\s]+/" }
+    "notes_ref": {
+      "type": "string",
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*$"
+    },
+    "journals_ref_prefix": {
+      "type": "string",
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*/$"
+    },
+    "anchors_ref_prefix": {
+      "type": "string",
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*/$"
+    }
   }
 }

@@ -11,7 +11,8 @@ Supporting assets that help you wire Shiplog into a larger deployment workflow.
 
 To install on a bare repository (run from the repository root):
 
-#!/bin/bash
+```bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -24,6 +25,7 @@ fi
 cp contrib/hooks/pre-receive.shiplog /path/to/bare.git/hooks/pre-receive
 chmod +x /path/to/bare.git/hooks/pre-receive
 echo "Hook installed successfully"
+```
 
 The hook expects the policy file to be available under `refs/_shiplog/policy/current` and will fall back to `.shiplog/policy.json` if the ref is absent.
 
