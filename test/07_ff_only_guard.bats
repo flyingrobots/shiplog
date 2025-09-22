@@ -2,6 +2,17 @@
 
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 
+load helpers/common
+
+setup() {
+  shiplog_standard_setup
+  git shiplog init >/dev/null
+}
+
+teardown() {
+  shiplog_standard_teardown
+}
+
 @test "update-ref with wrong old OID fails (FF-only enforced)" {
   ref="${REF_ROOT}/journal/prod"
   tree=$(git hash-object -t tree /dev/null)

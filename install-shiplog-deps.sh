@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shiplog deps installer: gum + jq + yq
+# shiplog deps installer: gum + jq
 # - Supports: macOS (brew), Debian/Ubuntu (apt), Fedora/RHEL (dnf/yum),
 #             Arch (pacman), Alpine (apk), openSUSE (zypper), Snap, or Go fallback for gum.
 # - Idempotent: skips installs if already present.
@@ -9,13 +9,21 @@ set -euo pipefail
 
 DRY_RUN=0
 SILENT=0
-YQ_VERSION=${YQ_VERSION:-v4.44.3}
+GUM_VERSION=${GUM_VERSION:-0.13.0}
 
 log() { [ "$SILENT" -eq 1 ] || echo -e "$*"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "+ $*"; else eval "$*"; fi; }
 
+die() { echo "❌ $*" >&2; exit 1; }
+
 need_sudo() {
-  if [ "$(id -u)" -ne 0 ]; then echo "sudo"; else echo ""; fi
+  if [ "$(id -u)" -eq 0 ]; then
+    echo ""
+  elif command -v sudo >/dev/null 2>&1; then
+    echo "sudo"
+  else
+    die "Require root privileges; rerun as root or install sudo"
+  fi
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -42,8 +50,8 @@ for arg in "$@"; do
       cat <<'USAGE'
 Usage: $0 [--dry-run] [--silent]
 
-Installs gum + jq + yq using your package manager (brew/apt/dnf/yum/pacman/apk/zypper),
-with Snap/Go fallback for gum and binary fallback for yq if needed. Safe to re-run.
+Installs gum + jq using your package manager (brew/apt/dnf/yum/pacman/apk/zypper),
+with Snap/Go fallback for gum. Safe to re-run.
 USAGE
       exit 0
       ;;
@@ -129,6 +137,69 @@ install_gum_snap_or_go() {
   fi
 }
 
+install_gum_tgz() {
+  if have gum; then return 0; fi
+  local arch suffix tmp extract_dir checksums_file
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64) suffix="Linux_x86_64" ;;
+    arm64|aarch64) suffix="Linux_arm64" ;;
+    armv7l|armhf) suffix="Linux_armv7" ;;
+    *)
+      log "❌ Unsupported architecture for gum binary fallback: $arch"
+      return 1
+      ;;
+  esac
+
+  tmp=$(mktemp) || { log "❌ Failed to create temp file"; return 1; }
+  checksums_file=$(mktemp) || { rm -f "$tmp"; log "❌ Failed to create checksums file"; return 1; }
+  extract_dir=$(mktemp -d) || { rm -f "$tmp"; log "❌ Failed to create temp dir"; return 1; }
+
+  # Cleanup function
+  cleanup_gum_install() {
+    rm -f "$tmp"
+    rm -f "$checksums_file"
+    rm -rf "$extract_dir"
+  }
+  trap cleanup_gum_install EXIT
+
+  run "curl -fsSL 'https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_${suffix}.tar.gz' -o '$tmp'"
+  run "curl -fsSL 'https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/checksums.txt' -o '$checksums_file'"
+
+  # Verify download succeeded and file isn't empty
+  if [ ! -s "$tmp" ] || [ ! -s "$checksums_file" ]; then
+    log "❌ Download failed or empty file"
+    return 1
+  fi
+
+  # Verify checksum
+  if command -v sha256sum >/dev/null 2>&1; then
+    expected_checksum=$(grep "gum_${GUM_VERSION}_${suffix}.tar.gz" "$checksums_file" | cut -d' ' -f1)
+    actual_checksum=$(sha256sum "$tmp" | cut -d' ' -f1)
+    if [ "$expected_checksum" != "$actual_checksum" ]; then
+      log "❌ Checksum verification failed"
+      return 1
+    fi
+  else
+    log "⚠️  Warning: sha256sum not available, skipping checksum verification"
+  fi
+
+  run "tar -C '$extract_dir' -xzf '$tmp' gum"
+
+  # Verify extracted binary
+  if [ ! -x "$extract_dir/gum" ]; then
+    log "❌ Failed to extract gum binary"
+    return 1
+  fi
+
+  # Verify target directory exists
+  if [ ! -d "/usr/local/bin" ]; then
+    run "$(need_sudo) mkdir -p /usr/local/bin"
+  fi
+
+  run "$(need_sudo) mv '$extract_dir/gum' /usr/local/bin/gum"
+  run "$(need_sudo) chmod +x /usr/local/bin/gum"
+}
 install_gum() {
   if have gum; then log "✅ gum already installed ($(gum --version 2>/dev/null || echo gum))"; return; fi
 
@@ -141,6 +212,10 @@ install_gum() {
     install_gum_snap_or_go
   fi
 
+  if ! have gum; then
+    install_gum_tgz || true
+  fi
+
   if have gum; then
     log "✅ gum installed ($(gum --version 2>/dev/null || echo gum))"
   else
@@ -148,92 +223,9 @@ install_gum() {
 Try one of:
   - Homebrew (macOS/Linux): brew tap charmbracelet/tap && brew install gum
   - Snap (Linux): sudo snap install gum
+  - Binary: curl -fsSL https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin gum
   - Go: go install github.com/charmbracelet/gum@latest && sudo cp \$(go env GOPATH)/bin/gum /usr/local/bin/
 "
-    exit 1
-  fi
-}
-
-install_yq_pkgmgr() {
-  case "$PM" in
-    brew)
-      run "brew install yq"
-      ;;
-    apt)
-      run "$(need_sudo) apt-get update"
-      run "$(need_sudo) apt-get install -y yq" || return 1
-      ;;
-    dnf)
-      run "$(need_sudo) dnf install -y yq" || return 1
-      ;;
-    yum)
-      run "$(need_sudo) yum install -y yq" || return 1
-      ;;
-    pacman)
-      run "$(need_sudo) pacman -Sy --noconfirm yq" || return 1
-      ;;
-    apk)
-      run "$(need_sudo) apk add --no-cache yq" || return 1
-      ;;
-    zypper)
-      run "$(need_sudo) zypper --non-interactive install yq" || return 1
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-  return 0
-}
-
-install_yq_fallback() {
-  if have yq; then return 0; fi
-  local uname_s uname_m target tmp dest
-  uname_s="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  uname_m="$(uname -m)"
-  case "$uname_s" in
-    linux) target="linux" ;;
-    darwin) target="darwin" ;;
-    *)
-      log "❌ Unsupported OS for yq fallback: $uname_s"
-      return 1
-      ;;
-  esac
-
-  case "$uname_m" in
-    x86_64|amd64) target="${target}_amd64" ;;
-    arm64|aarch64) target="${target}_arm64" ;;
-    armv7l) target="${target}_arm" ;;
-    *)
-      log "❌ Unsupported architecture for yq fallback: $uname_m"
-      return 1
-      ;;
-  esac
-
-  tmp=$(mktemp)
-  dest="/usr/local/bin/yq"
-  run "curl -fsSL 'https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_${target}' -o '$tmp'"
-  run "chmod +x '$tmp'"
-  run "$(need_sudo) mv '$tmp' '$dest'"
-  return 0
-}
-
-install_yq() {
-  if have yq; then
-    log "✅ yq already installed ($(yq --version 2>/dev/null || echo yq))"
-    return
-  fi
-
-  if ! install_yq_pkgmgr; then
-    install_yq_fallback || {
-      log "❌ Could not install yq automatically."
-      exit 1
-    }
-  fi
-
-  if have yq; then
-    log "✅ yq installed ($(yq --version 2>/dev/null || echo yq))"
-  else
-    log "❌ yq installation reported success but binary not found"
     exit 1
   fi
 }
@@ -241,10 +233,8 @@ install_yq() {
 log "🔎 Detected OS: $OS, Package manager: $PM"
 install_jq
 install_gum
-install_yq
 
 log ""
 log "🎉 Done. Versions:"
 log "  - $(jq --version 2>/dev/null || echo 'jq not found')"
 log "  - $(gum --version 2>/dev/null || echo 'gum not found')"
-log "  - $(yq --version 2>/dev/null || echo 'yq not found')"

@@ -1,0 +1,48 @@
+version: "3.8"
+
+x-service-defaults: &service-defaults
+  volumes:
+    - ..:/work:ro
+  networks:
+    - matrix
+
+services:
+  debian:
+    <<: *service-defaults
+    image: shiplog-ci-debian
+    container_name: shiplog-ci-debian
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Debian.Dockerfile
+  ubuntu:
+    <<: *service-defaults
+    image: shiplog-ci-ubuntu
+    container_name: shiplog-ci-ubuntu
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Ubuntu.Dockerfile
+  fedora:
+    <<: *service-defaults
+    image: shiplog-ci-fedora
+    container_name: shiplog-ci-fedora
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Fedora.Dockerfile
+  alpine:
+    <<: *service-defaults
+    image: shiplog-ci-alpine
+    container_name: shiplog-ci-alpine
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Alpine.Dockerfile
+  arch:
+    <<: *service-defaults
+    image: shiplog-ci-arch
+    container_name: shiplog-ci-arch
+    build:
+      context: ..
+      dockerfile: ci-matrix/dockerfiles/Arch.Dockerfile
+
+networks:
+  matrix:
+    name: shiplog-ci-matrix

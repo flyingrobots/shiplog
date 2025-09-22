@@ -4,7 +4,6 @@ FROM debian:bookworm-slim
 ARG ENABLE_SIGNING=false
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GUM_VERSION=0.13.0
-ARG YQ_VERSION=4.44.3
 
 # Base dependencies for shiplog tests
 RUN apt-get update \
@@ -32,18 +31,6 @@ RUN arch="$(dpkg --print-architecture)" \
     && chmod +x /usr/local/bin/gum \
     && gum --version
 
-RUN arch="$(dpkg --print-architecture)" \
-    && case "$arch" in \
-         amd64)  yq_bin=yq_linux_amd64 ;; \
-         arm64)  yq_bin=yq_linux_arm64 ;; \
-         armhf)  yq_bin=yq_linux_arm ;; \
-         *) echo "Unsupported arch for yq: $arch" >&2 && exit 1 ;; \
-       esac \
-    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${yq_bin}" \
-         -o /usr/local/bin/yq \
-    && chmod +x /usr/local/bin/yq \
-    && yq --version
-
 WORKDIR /workspace
 
 # Test runner script (sets up throw-away repo, installs gum stub, executes bats)
@@ -55,8 +42,12 @@ export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 : "${TEST_ENV:=prod}"
 : "${TEST_AUTHOR_NAME:=Shiplog Test}"
 : "${TEST_AUTHOR_EMAIL:=shiplog-test@example.local}"
-export SHIPLOG_HOME=${SHIPLOG_HOME:-/workspace}
-export SHIPLOG_LIB_DIR=${SHIPLOG_LIB_DIR:-/workspace/lib}
+SRC_WORKSPACE=${SHIPLOG_HOME:-/workspace}
+TEST_ROOT=$(mktemp -d)
+cp -a "$SRC_WORKSPACE/." "$TEST_ROOT/shiplog"
+export SHIPLOG_HOME="$TEST_ROOT/shiplog"
+export SHIPLOG_LIB_DIR="$SHIPLOG_HOME/lib"
+cd "$SHIPLOG_HOME"
 export SHIPLOG_REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 export SHIPLOG_NOTES_REF=${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}
 
@@ -77,9 +68,14 @@ if [ "${ENABLE_SIGNING:-false}" = "true" ]; then
     gpg --batch --pinentry-mode loopback --passphrase '' --quick-gen-key "Shiplog Test <shiplog-test@example.local>" default default never >/dev/null
   fi
   KEYID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+  cat <<'GPGWRAP' > /usr/local/bin/gpg-loopback
+#!/usr/bin/env bash
+exec gpg --batch --pinentry-mode loopback "$@"
+GPGWRAP
+  chmod +x /usr/local/bin/gpg-loopback
   git config --global user.signingkey "$KEYID"
   git config --global commit.gpgsign true
-  git config --global gpg.program gpg
+  git config --global gpg.program /usr/local/bin/gpg-loopback
 else
   export SHIPLOG_SIGN=${SHIPLOG_SIGN:-0}
 fi
@@ -98,11 +94,11 @@ git config user.email "$TEST_AUTHOR_EMAIL"
 git commit --allow-empty -m init >/dev/null
 
 # Bring in shiplog script from mounted workspace
-if [ ! -f /workspace/shiplog-lite.sh ]; then
-  echo "Missing /workspace/shiplog-lite.sh. Mount your project into /workspace." >&2
+if [ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]; then
+  echo "Missing ${SHIPLOG_HOME}/bin/git-shiplog. Mount your project into ${SHIPLOG_HOME}." >&2
   exit 1
 fi
-install -m 0755 /workspace/shiplog-lite.sh /usr/local/bin/shiplog
+install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 
 # Create a non-interactive gum stub for CI runs
 cat <<'GUM' > /tmp/gum-ci
@@ -198,6 +194,14 @@ case "$subcmd" in
       cat
     fi
     ;;
+  log)
+    # Non-interactive: print message to stdout
+    if [ $# -gt 0 ]; then
+      printf "%s\n" "$*"
+    else
+      cat
+    fi
+    ;;
   table)
     header=""
     while [ $# -gt 0 ]; do
@@ -249,10 +253,10 @@ git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/
 git config core.logAllRefUpdates true
 
 echo "Running bats tests"
-if compgen -G "/workspace/tests/*.bats" > /dev/null; then
-  bats -r /workspace/tests
+if compgen -G "$SHIPLOG_HOME/test/*.bats" > /dev/null; then
+  bats -r "$SHIPLOG_HOME/test"
 else
-  echo "No tests found at /workspace/tests/*.bats"
+  echo "No tests found at $SHIPLOG_HOME/test/*.bats"
 fi
 SCRIPT
 RUN chmod +x /usr/local/bin/run-tests

@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
+SHIPLOG_HOME="${SHIPLOG_HOME:-$DEFAULT_HOME}"
+LIB_DIR="${SHIPLOG_LIB_DIR:-$SHIPLOG_HOME/lib}"
+
+# -------- Config Defaults --------
+REF_ROOT="${SHIPLOG_REF_ROOT:-refs/_shiplog}"
+NOTES_REF="${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}"
+DEFAULT_ENV="${SHIPLOG_ENV:-prod}"
+AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
+ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.shiplog/allowed_signers}"
+GUM=${GUM:-gum}
+SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
+SHIPLOG_AUTO_PUSH="${SHIPLOG_AUTO_PUSH:-1}"
+export SHIPLOG_BORING
+export SHIPLOG_AUTO_PUSH
+
+POLICY_REF_DEFAULT="refs/_shiplog/policy/current"
+POLICY_REF="${SHIPLOG_POLICY_REF:-$POLICY_REF_DEFAULT}"
+TRUST_REF_DEFAULT="refs/_shiplog/trust/root"
+TRUST_REF="${SHIPLOG_TRUST_REF:-$TRUST_REF_DEFAULT}"
+
+SHIPLOG_POLICY_INITIALIZED=0
+POLICY_SOURCE=""
+POLICY_REQUIRE_SIGNED=""
+POLICY_ALLOWED_SIGNERS_FILE=""
+POLICY_ALLOWED_AUTHORS=""
+POLICY_NOTES_REF=""
+POLICY_JOURNALS_PREFIX=""
+POLICY_ANCHORS_PREFIX=""
+
+SHIPLOG_SIGN_EFFECTIVE=""
+ALLOWED_AUTHORS_EFFECTIVE=""
+SIGNERS_FILE_EFFECTIVE=""
+
+# -------- Source Library Functions --------
+[ -d "$LIB_DIR" ] || { echo "❌ shiplog: unable to locate lib dir ($LIB_DIR)" >&2; exit 1; }
+
+for lib in common.sh policy.sh git.sh commands.sh; do
+  if [[ ! -f "$LIB_DIR/$lib" ]]; then
+    echo "❌ shiplog: missing required library: $LIB_DIR/$lib" >&2
+    exit 1
+  fi
+  source "$LIB_DIR/$lib" || {
+    echo "❌ shiplog: failed to source $lib" >&2
+    exit 1
+  }
+done
+
+need git
+if ! is_boring; then
+  need "$GUM"
+fi
+need jq
+
+export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
+
+run_with_global_flags() {
+  local args=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift
+        if [ $# -eq 0 ]; then
+          echo "❌ shiplog: --env requires a value" >&2
+          exit 1
+        fi
+        SHIPLOG_ENV="$1"
+        DEFAULT_ENV="$SHIPLOG_ENV"
+        export SHIPLOG_ENV
+        shift
+        continue
+        ;;
+      --env=*)
+        SHIPLOG_ENV="${1#*=}"
+        if [ -z "$SHIPLOG_ENV" ]; then
+          echo "❌ shiplog: --env requires a non-empty value" >&2
+          exit 1
+        fi
+        DEFAULT_ENV="$SHIPLOG_ENV"
+        export SHIPLOG_ENV
+        shift
+        continue
+        ;;
+      --no-push)
+        SHIPLOG_AUTO_PUSH=0
+        export SHIPLOG_AUTO_PUSH
+        shift
+        ;;
+      --push)
+        SHIPLOG_AUTO_PUSH=1
+        export SHIPLOG_AUTO_PUSH
+        shift
+        ;;
+      --yes)
+        SHIPLOG_ASSUME_YES=1
+        export SHIPLOG_ASSUME_YES
+        shift
+        ;;
+     --boring)
+        SHIPLOG_BORING=1
+        export SHIPLOG_BORING
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        args+=("$@")
+        break
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+  if [ ${#args[@]} -eq 0 ]; then
+    run_command
+  else
+    run_command "${args[@]}"
+  fi
+}
+
+run_with_global_flags "$@"

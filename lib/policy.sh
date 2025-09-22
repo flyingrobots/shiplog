@@ -1,53 +1,94 @@
-# Policy resolution helpers (yq-powered)
+# shellcheck shell=bash
+# Policy resolution helpers (jq-powered, JSON policy files)
 
-parse_policy_yaml() {
-  local env="$1"
-  local src="$2"
-  local expr
+validate_jq_and_file() {
+  local src="$1"
+  command -v jq >/dev/null 2>&1 || { echo "ERROR: jq command not found" >&2; return 1; }
+  [ -r "$src" ] || { echo "ERROR: Cannot read policy file: $src" >&2; return 1; }
+}
 
-  local require_signed
-  require_signed=$(yq eval -r '.require_signed // ""' "$src" 2>/dev/null || echo "")
-  local signers_file
-  signers_file=$(yq eval -r '.allow_ssh_signers_file // ""' "$src" 2>/dev/null || echo "")
-  local notes_ref
-  notes_ref=$(yq eval -r '.notes_ref // ""' "$src" 2>/dev/null || echo "")
-  local journals_prefix
-  journals_prefix=$(yq eval -r '.journals_ref_prefix // ""' "$src" 2>/dev/null || echo "")
-  local anchors_prefix
-  anchors_prefix=$(yq eval -r '.anchors_ref_prefix // ""' "$src" 2>/dev/null || echo "")
+extract_policy_fields() {
+  local src="$1"
+  jq -r '
+    {
+      require_signed: .require_signed,
+      allowed_signers_file: .allow_ssh_signers_file,
+      notes_ref: .notes_ref,
+      journals_prefix: .journals_ref_prefix,
+      anchors_prefix: .anchors_ref_prefix
+    }
+    | to_entries
+    | map(select(.value != null and .value != ""))
+    | .[]
+    | "\(.key)=\(.value)"
+  ' "$src" 2>/dev/null
+}
 
-  declare -A seen_authors=()
-  local authors=()
-  while IFS= read -r addr; do
-    [ -z "$addr" ] && continue
-    [ "$addr" = "null" ] && continue
-    if [ -z "${seen_authors[$addr]:-}" ]; then
-      seen_authors[$addr]=1
-      authors+=("$addr")
-    fi
-  done < <( { \
-      yq eval -r '.authors.default_allowlist[]?' "$src"; \
-      yq eval -r '.authors.env_overrides.default[]?' "$src"; \
-      yq eval -r ".authors.env_overrides.\"$env\"[]?" "$src"; \
-    } 2>/dev/null )
+build_authors_list() {
+  local env="$1" src="$2"
+  jq -r --arg env "$env" '
+    [
+      (.authors.default_allowlist // []),
+      (.authors.env_overrides.default // []),
+      (.authors.env_overrides[$env] // [])
+    ]
+    | flatten
+    | map(select(. != null and . != ""))
+    | unique
+    | join(" ")
+  ' "$src" 2>/dev/null
+}
 
-  if [ -n "$require_signed" ] && [ "$require_signed" != "null" ]; then
-    echo "require_signed=$require_signed"
+resolve_signers_path() {
+  local raw="$1" candidate="$1"
+  local git_resolved
+  git_resolved=$(git config --path gpg.ssh.allowedSignersFile 2>/dev/null || true)
+  if [ -n "$git_resolved" ]; then
+    candidate="$git_resolved"
   fi
-  if [ -n "$signers_file" ] && [ "$signers_file" != "null" ]; then
-    echo "allowed_signers_file=$signers_file"
+  case "$candidate" in
+    ~/*)
+      candidate="$HOME/${candidate#~/}"
+      ;;
+  esac
+  case "$candidate" in
+    /*|[A-Za-z]:[\\/]*|\\\\\\\\*) ;;
+    *)
+      if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local repo_root
+        repo_root=$(git rev-parse --show-toplevel)
+        candidate="$repo_root/$candidate"
+      fi
+      ;;
+  esac
+  if command -v realpath >/dev/null 2>&1; then
+    candidate=$(realpath "$candidate" 2>/dev/null || true)
+  elif command -v readlink >/dev/null 2>&1; then
+    candidate=$(readlink -f "$candidate" 2>/dev/null || true)
   fi
-  if [ ${#authors[@]} -gt 0 ]; then
-    printf 'authors=%s\n' "${authors[*]}"
+  [ -n "$candidate" ] || return 1
+  printf '%s' "$candidate"
+}
+
+parse_policy_json() {
+  local env="$1" src="$2"
+  validate_jq_and_file "$src" || return 1
+
+  local fields authors
+  if ! fields=$(extract_policy_fields "$src"); then
+    echo "ERROR: failed to parse policy fields from $src" >&2
+    return 1
   fi
-  if [ -n "$notes_ref" ] && [ "$notes_ref" != "null" ]; then
-    echo "notes_ref=$notes_ref"
+  if [ -n "$fields" ]; then
+    printf '%s\n' "$fields"
   fi
-  if [ -n "$journals_prefix" ] && [ "$journals_prefix" != "null" ]; then
-    echo "journals_prefix=$journals_prefix"
+
+  if ! authors=$(build_authors_list "$env" "$src"); then
+    echo "ERROR: failed to assemble authors list from $src" >&2
+    return 1
   fi
-  if [ -n "$anchors_prefix" ] && [ "$anchors_prefix" != "null" ]; then
-    echo "anchors_prefix=$anchors_prefix"
+  if [ -n "$authors" ]; then
+    printf 'authors=%s\n' "$authors"
   fi
 }
 
@@ -79,8 +120,8 @@ load_policy_content() {
   if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
     local tmp
     tmp=$(mktemp)
-    if git show "$POLICY_REF:.shiplog/policy.yaml" 2>/dev/null > "$tmp"; then
-      if parsed=$(parse_policy_yaml "$env" "$tmp"); then
+    if git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null > "$tmp"; then
+      if parsed=$(parse_policy_json "$env" "$tmp"); then
         apply_policy_pairs <<<"$parsed"
         POLICY_SOURCE="policy-ref:$POLICY_REF"
         from_ref=1
@@ -91,10 +132,10 @@ load_policy_content() {
     rm -f "$tmp"
   fi
 
-  if [ -f ".shiplog/policy.yaml" ]; then
-    if parsed=$(parse_policy_yaml "$env" ".shiplog/policy.yaml"); then
+  if [ -f ".shiplog/policy.json" ]; then
+    if parsed=$(parse_policy_json "$env" ".shiplog/policy.json"); then
       apply_policy_pairs <<<"$parsed"
-      POLICY_SOURCE="policy-file:.shiplog/policy.yaml"
+      POLICY_SOURCE="policy-file:.shiplog/policy.json"
       return 0
     fi
   fi
@@ -112,7 +153,7 @@ resolve_policy() {
   SHIPLOG_POLICY_INITIALIZED=1
 
   ALLOWED_AUTHORS_EFFECTIVE="${SHIPLOG_AUTHORS:-}"
-  SIGNERS_FILE_EFFECTIVE="${SHIPLOG_ALLOWED_SIGNERS:-$ALLOWED_SIGNERS_FILE}"
+  SIGNERS_FILE_EFFECTIVE="${SHIPLOG_ALLOWED_SIGNERS:-}"
   SHIPLOG_SIGN_EFFECTIVE="${SHIPLOG_SIGN:-}"
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -124,22 +165,26 @@ resolve_policy() {
     :
   fi
 
-  if [ -n "$POLICY_ALLOWED_AUTHORS" ]; then
+  if [ -n "$POLICY_ALLOWED_AUTHORS" ] && [ -z "${SHIPLOG_AUTHORS:-}" ]; then
     ALLOWED_AUTHORS_EFFECTIVE="$POLICY_ALLOWED_AUTHORS"
   elif authors_cfg=$(git config --get shiplog.policy.allowedAuthors 2>/dev/null); then
     ALLOWED_AUTHORS_EFFECTIVE="$authors_cfg"
     [ -z "$POLICY_SOURCE" ] && POLICY_SOURCE="git-config:shiplog.policy.allowedAuthors"
   fi
 
-  if [ -n "$POLICY_ALLOWED_SIGNERS_FILE" ]; then
+  if [ -n "$POLICY_ALLOWED_SIGNERS_FILE" ] && [ -z "${SHIPLOG_ALLOWED_SIGNERS:-}" ]; then
     SIGNERS_FILE_EFFECTIVE="$POLICY_ALLOWED_SIGNERS_FILE"
   elif signers_cfg=$(git config --get shiplog.policy.allowedSignersFile 2>/dev/null); then
     SIGNERS_FILE_EFFECTIVE="$signers_cfg"
     [ -z "$POLICY_SOURCE" ] && POLICY_SOURCE="git-config:shiplog.policy.allowedSignersFile"
+  elif [ -z "$SIGNERS_FILE_EFFECTIVE" ]; then
+    SIGNERS_FILE_EFFECTIVE="$ALLOWED_SIGNERS_FILE"
   fi
 
-  if [ -z "$SIGNERS_FILE_EFFECTIVE" ]; then
-    SIGNERS_FILE_EFFECTIVE="$ALLOWED_SIGNERS_FILE"
+  if [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
+    if ! SIGNERS_FILE_EFFECTIVE=$(resolve_signers_path "$SIGNERS_FILE_EFFECTIVE"); then
+      die "shiplog: unable to resolve allowed signers path from '$SIGNERS_FILE_EFFECTIVE'"
+    fi
   fi
 
   local sign_mode="${SHIPLOG_SIGN:-}"
@@ -158,6 +203,15 @@ resolve_policy() {
     "") SHIPLOG_SIGN_EFFECTIVE=1 ;;
     *) SHIPLOG_SIGN_EFFECTIVE=1 ;;
   esac
+
+  if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" != "0" ]; then
+    if [ -z "$SIGNERS_FILE_EFFECTIVE" ]; then
+      die "shiplog: signing is required but no allowed signers file is configured"
+    fi
+    if [ ! -r "$SIGNERS_FILE_EFFECTIVE" ]; then
+      die "shiplog: allowed signers file '$SIGNERS_FILE_EFFECTIVE' not found or unreadable"
+    fi
+  fi
 
   if [ -n "$POLICY_NOTES_REF" ]; then
     NOTES_REF="$POLICY_NOTES_REF"

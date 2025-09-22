@@ -1,4 +1,14 @@
-# Git-interaction helpers
+# shellcheck shell=bash
+set -euo pipefail
+
+LIB_DIR="${SHIPLOG_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [ -f "$LIB_DIR/common.sh" ]; then
+  # shellcheck source=lib/common.sh
+  source "$LIB_DIR/common.sh"
+else
+  echo "❌ shiplog: unable to locate common helpers at $LIB_DIR/common.sh" >&2
+  exit 1
+fi
 
 ref_journal() { echo "$REF_ROOT/journal/$1"; }
 ref_anchor()  { echo "$REF_ROOT/anchors/$1"; }
@@ -12,17 +22,129 @@ ff_update() {
   git update-ref -m "$msg" "$ref" "$new" "${old:-0000000000000000000000000000000000000000}"
 }
 
+read_trailer_json() {
+  local commit="$1"
+  git show -s --format=%B "$commit" | awk '/^---/{flag=1;next}flag'
+}
+
+trailer_value() {
+  local commit="$1" filter="$2"
+  local json
+  json=$(read_trailer_json "$commit") || return 1
+  [ -n "$json" ] || return 1
+  printf '%s' "$json" | jq -r "$filter" 2>/dev/null
+}
+
 compose_message() {
-  local env="$1" service="$2" status="$3" reason="$4" ticket="$5" region="$6" cluster="$7" ns="$8" start_ts="$9" end_ts="${10}" dur_s="${11}" repo_head="${12}" artifact="${13}" run_url="${14}"
+  local env="$1" service="$2" status="$3" reason="$4" ticket="$5" region="$6" cluster="$7" ns="$8" start_ts="$9"
+  local end_ts="${10}" dur_s="${11}" repo_head="${12}" artifact="${13}" run_url="${14}" seq="${15}"
+  local journal_parent="${16}" trust_oid="${17}" previous_anchor="${18}" write_ts="${19}"
+  local author_name="${20}" author_email="${21}"
+
+  need jq
+
+  local status_upper artifact_display parent_short trust_short anchor_short json
+  status_upper=$(printf '%s' "${status:-}" | tr '[:lower:]' '[:upper:]')
+
+  if [ -n "$artifact" ]; then
+    artifact_display="$artifact"
+  else
+    artifact_display="<none>"
+  fi
+
+  if [ -n "$journal_parent" ]; then
+    parent_short=$(git rev-parse --short "$journal_parent" 2>/dev/null || printf '%.7s' "$journal_parent")
+  else
+    parent_short="(genesis)"
+  fi
+
+  if [ -n "$trust_oid" ]; then
+    trust_short=$(git rev-parse --short "$trust_oid" 2>/dev/null || printf '%.7s' "$trust_oid")
+  else
+    trust_short="(unset)"
+  fi
+
+  if [ -n "$previous_anchor" ]; then
+    anchor_short=$(git rev-parse --short "$previous_anchor" 2>/dev/null || printf '%.7s' "$previous_anchor")
+  else
+    anchor_short="(none)"
+  fi
+
+  local jq_filter
+  read -r -d '' jq_filter <<'JQ' || true
+{
+  version: 1,
+  env: $env,
+  ts: $ts,
+  who: { name: $name, email: $email },
+  what: {
+    service: $service,
+    artifact: (if $artifact == "" then null else $artifact end),
+    repo_head: $repo_head
+  },
+  where: {
+    env: $env,
+    region: (if $region == "" then null else $region end),
+    cluster: (if $cluster == "" then null else $cluster end),
+    namespace: (if $ns == "" then null else $ns end)
+  },
+  why: {
+    reason: (if $reason == "" then null else $reason end),
+    ticket: (if $ticket == "" then null else $ticket end)
+  },
+  how: {
+    pipeline: null,
+    run_url: (if $run_url == "" then null else $run_url end)
+  },
+  status: $status,
+  when: {
+    start_ts: $start_ts,
+    end_ts: $end_ts,
+    dur_s: $dur
+  },
+  seq: $seq,
+  journal_parent: (if $parent == "" then null else $parent end),
+  trust_oid: $trust,
+  previous_anchor: (if $anchor == "" then null else $anchor end),
+  repo_head: $repo
+}
+JQ
+
+  json=$(jq -n \
+    --arg env "$env" \
+    --arg ts "$write_ts" \
+    --arg name "$author_name" \
+    --arg email "$author_email" \
+    --arg service "$service" \
+    --arg artifact "$artifact" \
+    --arg repo_head "$repo_head" \
+    --arg region "$region" \
+    --arg cluster "$cluster" \
+    --arg ns "$ns" \
+    --arg reason "$reason" \
+    --arg ticket "$ticket" \
+    --arg run_url "$run_url" \
+    --arg status "$status" \
+    --arg start_ts "$start_ts" \
+    --arg end_ts "$end_ts" \
+    --arg trust "$trust_oid" \
+    --arg parent "$journal_parent" \
+    --arg anchor "$previous_anchor" \
+    --arg repo "$repo_head" \
+    --argjson dur "$dur_s" \
+    --argjson seq "$seq" \
+    "$jq_filter")
+
   cat <<EOF
-Deploy: $service $artifact → $env/${region:-?}/${cluster:-?}/${ns:-?}
+Deploy: $service $artifact_display → $env/${region:-?}/${cluster:-?}/${ns:-?}
 Reason: ${reason:-"—"} ${ticket:+($ticket)}
-Status: ${status^^} (${dur_s}s) @ $(fmt_ts)
-Author: ${GIT_AUTHOR_EMAIL:-$(git config user.email || echo 'unknown')}
+Status: ${status_upper:-?} (${dur_s}s) @ $write_ts
+Seq:    $seq (parent $parent_short, trust $trust_short, anchor $anchor_short)
+Author: ${author_email:-unknown}
 Repo:   ${repo_head}
 
----  # optional structured trailer for machines
-{"env":"$env","ts":"$(fmt_ts)","who":{"email":"${GIT_AUTHOR_EMAIL:-}","name":"${GIT_AUTHOR_NAME:-}"},"what":{"service":"$service","repo_head":"$repo_head","artifact":"$artifact"},"where":{"region":"$region","cluster":"$cluster","namespace":"$ns"},"why":{"reason":"$reason","ticket":"$ticket"},"how":{"run_url":"$run_url"},"status":"$status","when":{"start_ts":"$start_ts","end_ts":"$end_ts","dur_s":$dur_s}}
+---  # structured trailer for machines
+$json
 EOF
 }
 
@@ -133,6 +255,22 @@ require_allowed_signer() {
 pretty_ls() {
   local ref="$1" limit="$2"
   local rows=""
+  local header_cols=(Commit Status Service Env Author Date)
+  local header_line
+  local gum_bin="${GUM:-gum}"
+  local gum_available=0
+  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
+
+  if command -v "$gum_bin" >/dev/null 2>&1; then
+    gum_available=1
+  fi
+  if [ "$gum_available" -ne 1 ]; then
+    printf "$gum_missing_message" "$gum_bin" >&2
+  fi
+
+  header_line=$(printf '%s\t' "${header_cols[@]}")
+  header_line=${header_line%$'\t'}
+
   while IFS= read -r c; do
     local subj author date status service env
     author="$(git show -s --format='%ae' "$c")"
@@ -143,29 +281,59 @@ pretty_ls() {
     env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
     rows+="$c\t${status:-?}\t${service:-?}\t${env:-?}\t$author\t$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
-  printf "%s" "$rows" | $GUM table --separator $'\t' --columns "Commit" "Status" "Service" "Env" "Author" "Date"
+
+  if is_boring || [ "$gum_available" -ne 1 ]; then
+    printf '%s\n' "$header_line"
+    printf '%s' "$rows"
+  else
+    "$gum_bin" table --separator $'\t' --columns "${header_cols[@]}" <<< "$rows"
+  fi
 }
 
 show_entry() {
   local target="$1"
-  local body
+  local body human json
   body="$(git show -s --format=%B "$target")"
-  local human json
   human="$(awk '/^---/{exit} {print}' <<< "$body")"
   json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
 
-  $GUM style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
+  local gum_bin="${GUM:-gum}"
+  local gum_available=0
+  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
+  if command -v "$gum_bin" >/dev/null 2>&1; then
+    gum_available=1
+  fi
+  if [ "$gum_available" -ne 1 ]; then
+    printf "$gum_missing_message" "$gum_bin" >&2
+  fi
+
+  if is_boring || [ "$gum_available" -ne 1 ]; then
+    printf '%s\n' "$human"
+    if [ -n "$json" ]; then
+      if command -v jq >/dev/null 2>&1; then
+        echo "$json" | jq .
+      else
+        printf '%s\n' "$json"
+      fi
+    fi
+    if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
+      git notes --ref="$NOTES_REF" show "$target"
+    fi
+    return 0
+  fi
+
+  "$gum_bin" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
 
   if [ -n "$json" ]; then
     if command -v jq >/dev/null 2>&1; then
-      echo "$json" | jq . | $GUM style --border rounded --title "Structured Trailer (JSON)"
+      echo "$json" | jq . | "$gum_bin" style --border rounded --title "Structured Trailer (JSON)"
     else
-      echo "$json" | $GUM style --border rounded --title "Structured Trailer (raw)"
+      echo "$json" | "$gum_bin" style --border rounded --title "Structured Trailer (raw)"
     fi
   fi
 
   if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
-    git notes --ref="$NOTES_REF" show "$target" | $GUM style --border rounded --title "Attached Log (notes)"
+    git notes --ref="$NOTES_REF" show "$target" | "$gum_bin" style --border rounded --title "Attached Log (notes)"
   fi
 }
 
