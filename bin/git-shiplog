@@ -12,11 +12,19 @@ NOTES_REF="${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}"
 DEFAULT_ENV="${SHIPLOG_ENV:-prod}"
 AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
 ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.shiplog/allowed_signers}"
-GUM=${GUM:-gum}
 SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
 SHIPLOG_AUTO_PUSH="${SHIPLOG_AUTO_PUSH:-1}"
 export SHIPLOG_BORING
 export SHIPLOG_AUTO_PUSH
+
+if [ -z "${SHIPLOG_BOSUN_BIN:-}" ]; then
+  if [ -x "$SHIPLOG_HOME/scripts/bosun" ]; then
+    SHIPLOG_BOSUN_BIN="$SHIPLOG_HOME/scripts/bosun"
+  else
+    SHIPLOG_BOSUN_BIN="$(command -v bosun 2>/dev/null || echo bosun)"
+  fi
+fi
+export SHIPLOG_BOSUN_BIN
 
 POLICY_REF_DEFAULT="refs/_shiplog/policy/current"
 POLICY_REF="${SHIPLOG_POLICY_REF:-$POLICY_REF_DEFAULT}"
@@ -51,9 +59,6 @@ for lib in common.sh policy.sh git.sh commands.sh; do
 done
 
 need git
-if ! is_boring; then
-  need "$GUM"
-fi
 need jq
 
 export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1

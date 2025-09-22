@@ -1,7 +1,7 @@
 # git shiplog ls - List Journal Entries
 
 ## Summary
-`git shiplog ls` displays recent journal entries for an environment. In interactive shells, it renders entries in a formatted table using the gum CLI tool. When gum is unavailable or when running in non-interactive mode, it outputs tab-separated values instead.
+`git shiplog ls` displays recent journal entries for an environment. In interactive shells, it renders entries in a formatted table via the built-in Bosun helper. When Bosun is unavailable or when running in non-interactive mode, it outputs tab-separated values instead.
 
 ## Usage
 ```bash

@@ -11,10 +11,9 @@
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq && apt-get install -y git curl ca-certificates
     cd /workspace && ./install-shiplog-deps.sh --silent
-    gum --version && jq --version
+    jq --version
   '
   [ "$status" -eq 0 ]
-  [[ "$output" =~ "gum" ]] || { echo "Missing gum verification in output"; return 1; }
   [[ "$output" =~ "jq" ]] || { echo "Missing jq verification in output"; return 1; }
 }
  

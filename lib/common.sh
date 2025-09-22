@@ -17,6 +17,29 @@ need() {
   command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
 }
 
+shiplog_bosun_bin() {
+  printf '%s' "${SHIPLOG_BOSUN_BIN:-bosun}"
+}
+
+shiplog_have_bosun() {
+  command -v "$(shiplog_bosun_bin)" >/dev/null 2>&1
+}
+
+shiplog_require_bosun() {
+  shiplog_have_bosun || die "Missing dependency: $(shiplog_bosun_bin)"
+}
+
+shiplog_can_use_bosun() {
+  if is_boring; then
+    return 1
+  fi
+  shiplog_have_bosun
+}
+
+shiplog_log_structured() {
+  printf '%s\n' "$1" >&2
+}
+
 fmt_ts() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
@@ -49,13 +72,11 @@ _log_prompt_interaction() {
     string) escaped_result=$(escape_json_string "$result") ;;
     *) die "Unknown log mode: $mode" ;;
   esac
-  "$GUM" log --structured --time "rfc822" --level info "{\"$field\":$escaped_prompt,\"value\":$escaped_result}" >&2
+  printf '{"%s":%s,"value":%s}\n' "$field" "$escaped_prompt" "$escaped_result" >&2
 }
 
 shiplog_prompt_input() {
   [ $# -ge 2 ] || die "shiplog_prompt_input requires at least 2 arguments"
-  [ -n "${GUM:-}" ] || die "GUM variable not set"
-  need gum
   local placeholder="$1"
   local env_var="$2"
   local fallback="${3:-}"
@@ -66,8 +87,11 @@ shiplog_prompt_input() {
   if is_boring; then
     printf '%s\n' "$value"
   else
+    shiplog_require_bosun
     local result
-    result=$("$GUM" input --placeholder "$placeholder" --value "$value")
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    result=$("$bosun" input --placeholder "$placeholder" --value "$value")
     printf '%s\n' "$result"
     _log_prompt_interaction prompt "$placeholder" "$result"
   fi
@@ -75,8 +99,6 @@ shiplog_prompt_input() {
 
 shiplog_prompt_choice() {
   [ $# -ge 3 ] || die "shiplog_prompt_choice requires header, env_var, and at least one option"
-  [ -n "${GUM:-}" ] || die "GUM variable not set"
-  need gum
   local header="$1"
   local env_var="$2"
   shift 2
@@ -91,11 +113,14 @@ shiplog_prompt_choice() {
   if is_boring; then
     printf '%s\n' "$value"
   else
+    shiplog_require_bosun
     local result
+    local bosun
+    bosun=$(shiplog_bosun_bin)
     if [ -n "$value" ]; then
-      result=$(GUM_CHOICE="$value" "$GUM" choose --header "$header" "${options[@]}")
+      result=$("$bosun" choose --header "$header" --default "$value" "${options[@]}")
     else
-      result=$("$GUM" choose --header "$header" "${options[@]}")
+      result=$("$bosun" choose --header "$header" "${options[@]}")
     fi
     printf '%s\n' "$result"
     _log_prompt_interaction prompt "$header" "$result"
@@ -104,14 +129,15 @@ shiplog_prompt_choice() {
 
 shiplog_confirm() {
   [ $# -ge 1 ] || die "shiplog_confirm requires a prompt argument"
-  [ -n "${GUM:-}" ] || die "GUM variable not set"
-  need gum
   local prompt="$1"
   if is_boring || [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     return 0
   fi
   _log_prompt_interaction confirmation "$prompt" null raw
-  if "$GUM" confirm "$prompt"; then
+  shiplog_require_bosun
+  local bosun
+  bosun=$(shiplog_bosun_bin)
+  if "$bosun" confirm "$prompt"; then
     _log_prompt_interaction confirmation "$prompt" true raw
     return 0
   fi

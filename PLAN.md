@@ -2,9 +2,9 @@
 
 ## Priority 1 (Critical)
 
-1. **Replace gum integration** with bundled `scripts/bosun` helper
+1. **Adopt Bosun integration** with bundled `scripts/bosun` helper
    - Add Bash fallbacks for all interactive components
-   - Acceptance: All gum calls replaced, zero external UI dependencies
+   - Acceptance: All interactive calls use Bosun, zero external UI dependencies
 
 2. **Add non-interactive mode support**
    - Implement `--non-interactive` and `--assume-yes` flags
@@ -30,5 +30,5 @@
 ## Priority 3 (Medium)
 
 6. **Clean up test dependencies**
-   - Remove remaining hard gum dependencies from test/Docker stubs
-   - Acceptance: Tests run without gum installed
+   - Remove remaining hard UI dependencies from test/Docker stubs
+   - Acceptance: Tests run without external prompt tooling installed

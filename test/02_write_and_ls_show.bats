@@ -36,7 +36,7 @@ teardown() {
   [[ "$output" == "Deploy: web"* ]]
 }
 
-@test "ls shows a formatted table via gum" {
+@test "ls shows a formatted table via bosun" {
   run git shiplog --yes write
   [ "$status" -eq 0 ]
   run git shiplog ls

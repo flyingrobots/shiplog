@@ -6,12 +6,9 @@ This document summarizes the fields accepted by `.shiplog/policy.json`. A formal
 # Syntax check
 jq '.' .shiplog/policy.json >/dev/null
 
-# Schema validation (choose one)
+# Schema validation
 npm install -g ajv-cli
 ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shiplog/policy.json
-
-pip install jsonschema
-python -m jsonschema -i .shiplog/policy.json examples/policy.schema.json
 ```
 
 ## Top-level Fields

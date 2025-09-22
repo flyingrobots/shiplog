@@ -35,6 +35,29 @@ run() {
   "$@" || return $?
 }
 
+sanitize_profile() {
+  local profile="$1" install_dir="$2"
+  local tmp
+  tmp=$(mktemp) || return 1
+  if ! awk -v dir="$install_dir" '
+    {
+      stripped=$0
+      sub(/^[[:space:]]+/, "", stripped)
+      sub(/[[:space:]]+$/, "", stripped)
+      if (stripped == "# Shiplog") next
+      if (index($0, dir) > 0) {
+        if (stripped ~ /^export[[:space:]]+SHIPLOG_HOME=/) next
+        if (stripped ~ /^export[[:space:]]+PATH=/ && index($0, dir "/bin") > 0) next
+      }
+      print $0
+    }
+  ' "$profile" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$profile"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -194,50 +217,8 @@ if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "+ removing Shiplog entries from $PROFILE_FILE"
   else
-    python_cmd=""
-    if command -v python3 >/dev/null 2>&1; then
-      python_cmd=python3
-    elif command -v python >/dev/null 2>&1; then
-      python_cmd=python
-    fi
-    if [ -z "$python_cmd" ]; then
-      log "Python not available; using fallback removal for Shiplog profile entries."
-      tmp_profile=$(mktemp)
-      if ! grep -v -E '(^# Shiplog$)|SHIPLOG_HOME|SHIPLOG_HOME/bin' "$PROFILE_FILE" > "$tmp_profile"; then
-        log "Failed to sanitize $PROFILE_FILE; leaving original in place."
-        rm -f "$tmp_profile"
-      else
-        mv "$tmp_profile" "$PROFILE_FILE"
-      fi
-    else
-      tmp_profile=$(mktemp)
-      if ! "$python_cmd" - "$PROFILE_FILE" "$INSTALL_DIR" "$tmp_profile" <<'PY'; then
-import sys
-from pathlib import Path
-profile = Path(sys.argv[1])
-install_dir = sys.argv[2]
-output = Path(sys.argv[3])
-lines = profile.read_text().splitlines()
-
-def should_skip(stripped: str) -> bool:
-    if stripped.startswith('# Shiplog'):
-        return True
-    if stripped.startswith('export SHIPLOG_HOME=') and install_dir in stripped:
-        return True
-    if stripped.startswith('export PATH=') and install_dir in stripped:
-        needle = f"{install_dir}/bin"
-        if needle in stripped:
-            return True
-    return False
-
-filtered = [line for line in lines if not should_skip(line.strip())]
-output.write_text('\n'.join(filtered) + ('\n' if filtered else ''))
-PY
-        log "Error: failed to clean $PROFILE_FILE; leaving original in place."
-        rm -f "$tmp_profile"
-      else
-        mv "$tmp_profile" "$PROFILE_FILE"
-      fi
+    if ! sanitize_profile "$PROFILE_FILE" "$INSTALL_DIR"; then
+      log "Error: failed to clean $PROFILE_FILE; leaving original in place."
     fi
   fi
 else

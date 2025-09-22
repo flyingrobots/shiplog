@@ -36,39 +36,52 @@ run() {
 }
 
 resolve_path() {
-  local raw="$1" resolved=""
-  if command -v python3 >/dev/null 2>&1; then
-    resolved=$(python3 - "$raw" <<'PY' 2>/dev/null || true)
-import os, sys
-path = os.path.expanduser(sys.argv[1])
-if not path:
-    raise SystemExit(1)
-print(os.path.realpath(path))
-PY
-  elif command -v python >/dev/null 2>&1; then
-    resolved=$(python - "$raw" <<'PY' 2>/dev/null || true)
-import os, sys
-path = os.path.expanduser(sys.argv[1])
-if not path:
-    raise SystemExit(1)
-print(os.path.realpath(path))
-PY
+  local raw="$1"
+  [ -n "$raw" ] || return 1
+
+  local path="$raw"
+  case "$path" in
+    ~) path="$HOME" ;;
+    ~/*) path="$HOME/${path#~/}" ;;
+  esac
+
+  if [ "${path#/}" = "$path" ]; then
+    path="$PWD/$path"
   fi
-  if [ -z "$resolved" ]; then
-    local expanded="$raw"
-    case "$expanded" in
-      ~*) expanded="$HOME${expanded#~}" ;;
+
+  local current="/"
+  local suffix="${path#/}"
+  local IFS='/'
+  # shellcheck disable=SC2206
+  local parts=( $suffix )
+  local part candidate
+
+  for part in "${parts[@]}"; do
+    case "$part" in
+      ''|.)
+        continue
+        ;;
+      ..)
+        current="${current%/*}"
+        [ -n "$current" ] || current="/"
+        continue
+        ;;
     esac
-    local dir
-    dir=$(dirname "$expanded")
-    local base
-    base=$(basename "$expanded")
-    if ! resolved=$(cd "$dir" 2>/dev/null && pwd)/"$base"; then
-      return 1
+
+    if [ "$current" = "/" ]; then
+      candidate="/$part"
+    else
+      candidate="$current/$part"
     fi
-    resolved=$(cd "$(dirname "$resolved")" 2>/dev/null && pwd)/"$(basename "$resolved")"
-  fi
-  printf '%s' "$resolved"
+
+    if [ -d "$candidate" ]; then
+      current="$(cd "$candidate" 2>/dev/null && pwd -P)" || return 1
+    else
+      current="$candidate"
+    fi
+  done
+
+  printf '%s' "$current"
 }
 
 while [ $# -gt 0 ]; do

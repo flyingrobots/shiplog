@@ -94,10 +94,12 @@ cmd_init() {
   if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then
     git config core.logAllRefUpdates true
   fi
-  if is_boring; then
-    printf 'Configured refspecs for %s/* and enabled reflogs.\n' "$REF_ROOT"
+  if shiplog_can_use_bosun; then
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Init" -- "Configured refspecs for $REF_ROOT/* and enabled reflogs."
   else
-    "$GUM" style --border normal --padding "1 2" -- "Configured refspecs for $REF_ROOT/* and enabled reflogs."
+    printf 'Configured refspecs for %s/* and enabled reflogs.\n' "$REF_ROOT"
   fi
 }
 
@@ -154,7 +156,13 @@ cmd_write() {
   if is_boring; then
     sleep 0.01
   else
-    "$GUM" spin --spinner line --title "Gathering repo state…" -- sleep 0.2
+    if shiplog_can_use_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      "$bosun" spin --title "Gathering repo state…" -- sleep 0.2
+    else
+      sleep 0.2
+    fi
   fi
   local repo_head; repo_head="$(git rev-parse HEAD)"
   end_ts="$(fmt_ts)"
@@ -192,11 +200,16 @@ cmd_write() {
 
   local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url" "$seq" "$parent" "$trust_oid" "$previous_anchor" "$write_ts" "$author_name" "$author_email")"
 
-  if is_boring; then
-    printf '%s\n' "$msg"
+  if shiplog_can_use_bosun; then
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Preview" -- "$msg"
+    shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
   else
-    "$GUM" style --border normal --title "Preview" --padding "1 2" -- "$msg"
-    "$GUM" log --structured --time "rfc822" --level info "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}" >&2
+    printf '%s\n' "$msg"
+    if ! is_boring; then
+      shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
+    fi
   fi
 
   shiplog_confirm "Sign & append this entry to $journal_ref?" || die "Aborted."
@@ -212,11 +225,17 @@ cmd_write() {
   fi
 
   ff_update "$journal_ref" "$new" "$parent" "shiplog: append entry"
-  if is_boring; then
-    printf '✅ Appended %s to %s\n' "$(git rev-parse --short "$new")" "$(ref_journal "$env")"
+  local append_message="✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
+  if shiplog_can_use_bosun; then
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Write" -- "$append_message"
+    shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
   else
-    "$GUM" style --border rounded -- "✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
-    "$GUM" log --structured --time "rfc822" --level info "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}" >&2
+    printf '%s\n' "$append_message"
+    if ! is_boring; then
+      shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
+    fi
   fi
 
   if [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
@@ -229,8 +248,10 @@ cmd_write() {
         die "shiplog: failed to push $notes_ref to origin: $push_output"
       fi
     fi
-    if ! is_boring && command -v "$GUM" >/dev/null 2>&1; then
-      "$GUM" style --border normal -- "📤 Pushed $journal_ref to origin"
+    if shiplog_can_use_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Push" -- "📤 Pushed $journal_ref to origin"
     elif ! is_boring; then
       printf '📤 Pushed %s to origin\n' "$journal_ref"
     fi
@@ -274,10 +295,13 @@ cmd_verify() {
       bad=$((bad+1)); echo "❌ bad or missing signature on $c" >&2
     fi
   done < <(git rev-list "$(ref_journal "$env")")
-  if is_boring; then
-    printf 'Verified: OK=%s, BadSig=%s, Unauthorized=%s\n' "$ok" "$bad" "$unauth"
+  local verify_summary="Verified: OK=$ok, BadSig=$bad, Unauthorized=$unauth"
+  if shiplog_can_use_bosun; then
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Verify" -- "$verify_summary"
   else
-    "$GUM" style --border normal --padding "1 2" -- "Verified: OK=$ok, BadSig=$bad, Unauthorized=$unauth"
+    printf '%s\n' "$verify_summary"
   fi
   [ $bad -eq 0 ] && [ $unauth -eq 0 ]
 }
@@ -329,7 +353,7 @@ cmd_policy() {
       else
         signed_status="enabled"
       fi
-      if [ "$boring" -eq 1 ]; then
+      if [ "$boring" -eq 1 ] || ! shiplog_can_use_bosun; then
         printf 'Source: %s\n' "${POLICY_SOURCE:-default}"
         printf 'Require Signed: %s\n' "$signed_status"
         printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
@@ -342,7 +366,9 @@ cmd_policy() {
         rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
         rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
         rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
-        "$GUM" table --separator $'\t' --columns Field,Value <<<"$rows"
+        local bosun
+        bosun=$(shiplog_bosun_bin)
+        printf '%s' "$rows" | "$bosun" table --columns "Field,Value"
       fi
       ;;
     validate)

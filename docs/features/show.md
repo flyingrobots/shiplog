@@ -10,8 +10,8 @@ git shiplog show [COMMIT]
 
 ## Behavior
 - Defaults to the latest commit in the current branch's shiplog history.
-- When `gum` is installed, displays output in formatted boxes for better readability.
-- When `gum` is unavailable, outputs plain text. If `jq` is available, JSON metadata is pretty-printed.
+- When Bosun is available, displays output in formatted boxes for better readability.
+- When Bosun is unavailable, outputs plain text. If `jq` is available, JSON metadata is pretty-printed.
 - Automatically detects and displays any git notes attached under `refs/_shiplog/notes/logs/<commit>`.
 
 ## Related Code

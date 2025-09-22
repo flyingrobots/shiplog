@@ -45,7 +45,7 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 
 - Rebased branch onto latest `main`; verified new commits (`3390bda`, `9e115b2`) keep trust/policy flow stable inside Docker.
 - Hardened developer tooling: guarded `test.sh` against host execution, standardized Docker compose/Makefile resource names, and fixed jq trailer parsing so Bats passes.
-- Converted `.devcontainer/scripts/verified-download.sh` to pure Bash to drop the Python dependency.
+- Converted `.devcontainer/scripts/verified-download.sh` to pure Bash to drop the extra interpreter dependency.
 - Ran `make test` in Docker (pass) and noted `ci-matrix/run-all.sh` still needs an arm64-friendly Arch base image.
 - Updated this worklog (86% complete) and marked “Enforce trust workflow in hooks and tests” plus “Finish sandboxed test migration and isolation” as done.
 
@@ -75,14 +75,14 @@ notes:
   - images must install bash/git/coreutils and set init.defaultBranch main to avoid legacy warnings
 ```
 
-- [ ] Migrate CLI interactions from Gum to Bosun
+- [ ] Migrate CLI interactions to Bosun
 ```yaml
 priority: P0
 impact: removes legacy dependency and unifies interactive UX
 steps:
   - wire git-shiplog prompts (input/confirm/choose/table) to scripts/bosun
-  - replace gum references in installers, README, Docker image, and environment docs
-  - delete gum shim code and extend tests to cover bosun help output
+  - replace legacy references in installers, README, Docker image, and environment docs with Bosun guidance
+  - delete old shims and extend tests to cover Bosun help output
 blocked_by: []
 notes:
   - cleanup includes updating release packaging and CI images
@@ -146,7 +146,7 @@ priority: P1
 impact: avoids destructive rm/git operations on unsafe paths
 steps:
   - replace install script path resolution with pure-shell realpath/readlink logic
-  - remove embedded Python from uninstall script or move it into a standalone helper with validation
+  - remove embedded interpreters from uninstall script or move them into a standalone helper with validation
   - add regression tests covering FORCE/DATA dir edge cases
 blocked_by: []
 notes:
@@ -181,7 +181,7 @@ notes:
 
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
-- [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with Python guard.
+- [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
 - [x] Refactor `lib/common.sh` JSON escaping/logging helpers.
 - [x] Replace `maybe_sync_shiplog_ref` with robust fetch/push handling and clear errors.
 - [x] Remove legacy `is_boring` fallback in `lib/git.sh` and standardise env vars.
@@ -217,8 +217,8 @@ notes:
 - [x] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
 - [x] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.
 - [x] lib/common.sh — improve JSON escaping fallback (or require jq), validate env var names/blacklist, refactor prompt helpers, add logging helper.
-- [x] lib/git.sh — source common.sh explicitly, enable strict mode, standardize gum fallback messaging.
-- [x] .devcontainer/scripts/verified-download.sh — capture Python resolver output, fail on errors.
+- [x] lib/git.sh — source common.sh explicitly, enable strict mode, standardize Bosun fallback messaging.
+- [x] .devcontainer/scripts/verified-download.sh — capture resolver output, fail on errors.
 - [x] contrib/README.md — format install script as fenced bash block without diff artefacts.
 
 ## Testing

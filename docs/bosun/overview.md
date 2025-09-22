@@ -1,6 +1,6 @@
 # Bosun Overview
 
-Bosun provides lightweight TUI primitives implemented in pure Bash. Each subcommand mirrors the behavior of its `gum` equivalent but works in non-interactive environments and honors `NO_COLOR`.
+Bosun provides lightweight TUI primitives implemented in pure Bash, designed to work in both interactive shells and non-interactive environments while honoring `NO_COLOR`.
 
 Available commands:
 

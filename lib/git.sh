@@ -257,19 +257,22 @@ pretty_ls() {
   local rows=""
   local header_cols=(Commit Status Service Env Author Date)
   local header_line
-  local gum_bin="${GUM:-gum}"
-  local gum_available=0
-  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
+  local bosun_available=0
+  local bosun_bin
 
-  if command -v "$gum_bin" >/dev/null 2>&1; then
-    gum_available=1
-  fi
-  if [ "$gum_available" -ne 1 ]; then
-    printf "$gum_missing_message" "$gum_bin" >&2
+  if ! is_boring && shiplog_have_bosun; then
+    bosun_bin=$(shiplog_bosun_bin)
+    bosun_available=1
+  elif ! is_boring; then
+    printf 'shiplog: %s not found; falling back to plain output\n' "$(shiplog_bosun_bin)" >&2
   fi
 
   header_line=$(printf '%s\t' "${header_cols[@]}")
   header_line=${header_line%$'\t'}
+  local old_ifs="$IFS"
+  IFS=,
+  local bosun_columns="${header_cols[*]}"
+  IFS="$old_ifs"
 
   while IFS= read -r c; do
     local subj author date status service env
@@ -282,11 +285,11 @@ pretty_ls() {
     rows+="$c\t${status:-?}\t${service:-?}\t${env:-?}\t$author\t$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
 
-  if is_boring || [ "$gum_available" -ne 1 ]; then
+  if is_boring || [ "$bosun_available" -ne 1 ]; then
     printf '%s\n' "$header_line"
     printf '%s' "$rows"
   else
-    "$gum_bin" table --separator $'\t' --columns "${header_cols[@]}" <<< "$rows"
+    printf '%s' "$rows" | "$bosun_bin" table --columns "$bosun_columns"
   fi
 }
 
@@ -297,17 +300,16 @@ show_entry() {
   human="$(awk '/^---/{exit} {print}' <<< "$body")"
   json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
 
-  local gum_bin="${GUM:-gum}"
-  local gum_available=0
-  local gum_missing_message='shiplog: %s not found; falling back to plain output\n'
-  if command -v "$gum_bin" >/dev/null 2>&1; then
-    gum_available=1
-  fi
-  if [ "$gum_available" -ne 1 ]; then
-    printf "$gum_missing_message" "$gum_bin" >&2
+  local bosun_bin=""
+  local bosun_available=0
+  if ! is_boring && shiplog_have_bosun; then
+    bosun_bin=$(shiplog_bosun_bin)
+    bosun_available=1
+  elif ! is_boring; then
+    printf 'shiplog: %s not found; falling back to plain output\n' "$(shiplog_bosun_bin)" >&2
   fi
 
-  if is_boring || [ "$gum_available" -ne 1 ]; then
+  if is_boring || [ "$bosun_available" -ne 1 ]; then
     printf '%s\n' "$human"
     if [ -n "$json" ]; then
       if command -v jq >/dev/null 2>&1; then
@@ -322,18 +324,18 @@ show_entry() {
     return 0
   fi
 
-  "$gum_bin" style --border normal --margin "0 0 1 0" --padding "1 2" --title "SHIPLOG Entry" -- "$human"
+  "$bosun_bin" style --title "SHIPLOG Entry" -- "$human"
 
   if [ -n "$json" ]; then
     if command -v jq >/dev/null 2>&1; then
-      echo "$json" | jq . | "$gum_bin" style --border rounded --title "Structured Trailer (JSON)"
+      echo "$json" | jq . | "$bosun_bin" style --title "Structured Trailer (JSON)"
     else
-      echo "$json" | "$gum_bin" style --border rounded --title "Structured Trailer (raw)"
+      echo "$json" | "$bosun_bin" style --title "Structured Trailer (raw)"
     fi
   fi
 
   if git notes --ref="$NOTES_REF" show "$target" >/dev/null 2>&1; then
-    git notes --ref="$NOTES_REF" show "$target" | "$gum_bin" style --border rounded --title "Attached Log (notes)"
+    git notes --ref="$NOTES_REF" show "$target" | "$bosun_bin" style --title "Attached Log (notes)"
   fi
 }
 
