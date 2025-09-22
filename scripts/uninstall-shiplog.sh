@@ -119,7 +119,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remot
     [ -n "$ref" ] || continue
     local_tip=$(git rev-parse "$ref" 2>/dev/null || echo "")
     [ -n "$local_tip" ] || continue
-    remote_tip=$(git ls-remote origin "$ref" | awk '{print $1}')
+    remote_tip=$(timeout 30 git ls-remote origin "$ref" 2>/dev/null | awk '{print $1}' || echo "")
     if [ -z "$remote_tip" ]; then
       unpublished_refs+=("$ref")
       continue

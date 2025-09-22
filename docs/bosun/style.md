@@ -1,21 +1,12 @@
 # bosun style
 
-Render text inside a decorated box for human-friendly output.
+Render text inside a decorated ASCII box with borders and optional title styling for human-friendly terminal output.
 
-```
-bosun style [--title TEXT] [--width NUM] [--no-color] -- "content"
-```
 
-- `--title` adds a highlighted caption in the top border.
-- `--width` sets the overall box width (default 80 characters).
+
+- `--title` adds a bold, colored caption centered in the top border.
+- `--width` sets the overall box width (default 80 characters). Content longer than width will be wrapped.
 - `--no-color` removes ANSI styling (also implied by `NO_COLOR`).
-
 Examples:
-
-```bash
-bosun style --title "Preview" -- "Deploying web@v1.2.3 to prod"
-
-printf 'Multi-line\ncontent\n' | bosun style --width 60
-```
 
 The command trims ANSI codes when computing layout so coloured text remains aligned.

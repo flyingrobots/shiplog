@@ -1,7 +1,7 @@
-# List Command
+# git shiplog ls - List Journal Entries
 
 ## Summary
-`git shiplog ls` displays recent journal entries for an environment. It renders a gum-powered table in interactive shells and falls back to tab-separated output in boring mode or when gum is unavailable.
+`git shiplog ls` displays recent journal entries for an environment. In interactive shells, it renders entries in a formatted table using the gum CLI tool. When gum is unavailable or when running in non-interactive mode, it outputs tab-separated values instead.
 
 ## Usage
 ```bash
@@ -9,13 +9,22 @@ git shiplog ls [ENV]
 ```
 
 ## Behavior
-- Defaults to the resolved environment (`--env` flag or `SHIPLOG_ENV`).
-- Requires the journal ref to exist; otherwise exits with a helpful error.
-- Pulls commit metadata (status, service, author, timestamp) for each entry and feeds it to the UI helper.
+- **Environment Resolution**: Uses environment specified by:
+  1. Command line argument `[ENV]`
+  2. `--env` flag
+  3. `SHIPLOG_ENV` environment variable
+  4. Falls back to default if none specified
+- **Journal Validation**: Requires the journal reference (`refs/shiplog/<env>`) to exist. If missing, exits with error: "No journal found for environment '<env>'. Run 'git shiplog init <env>' first."
+- **Entry Processing**: Extracts the following metadata from each journal commit:
+  - Status (deployed/failed/etc.)
+  - Service name
+  - Author information
+  - Timestamp
+- **Output**: Passes extracted data to UI rendering system
 
 ## Related Code
-- `lib/commands.sh:89`
-- `lib/git.sh:141`
+- `lib/commands.sh` - Main command implementation
+- `lib/git.sh` - Git journal operations and metadata extraction
 
 ## Tests
 - `test/01_init_and_empty_ls.bats:25`

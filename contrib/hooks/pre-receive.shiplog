@@ -4,7 +4,7 @@ set -euo pipefail
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "shiplog pre-receive: jq not found" >&2
+  echo "shiplog pre-receive: jq command required for JSON policy parsing. Install jq and try again." >&2
   exit 1
 fi
 read_policy() {
@@ -69,11 +69,11 @@ check_commits() {
   while IFS='=' read -r key value; do
     case "$key" in
       require_signed)
-        case "$value" in
-          1|true|yes|on|True|TRUE) require_signed=1 ;;
-          0|false|no|off|False|FALSE) require_signed=0 ;;
+        case "${value,,}" in
+          1|true|yes|y|on) require_signed=1 ;;
+          0|false|no|n|off) require_signed=0 ;;
           *) 
-            echo "❌ shiplog: Invalid require_signed value: '$value'" >&2
+            echo "❌ shiplog: Invalid require_signed value: '$value'. Valid values: 1/0, true/false, yes/no, y/n, on/off" >&2
             exit 1
             ;;
         esac

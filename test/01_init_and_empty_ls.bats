@@ -7,7 +7,7 @@ REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 count_exact_matches() {
   local needle="$1"
   local haystack="$2"
-  printf '%s\n' "$haystack" | grep -Fx -c "$needle"
+  printf '%s\n' "$haystack" | grep -F -x -c -- "$needle" || true
 }
 
 setup() {
@@ -37,11 +37,9 @@ setup() {
   [ "$status" -eq 0 ]
   run git shiplog init
   [ "$status" -eq 0 ]
-
   run git config --get-all remote.origin.fetch
   [ "$status" -eq 0 ]
-  fetch_count=$(count_exact_matches "$expected" "$output")
-  [ "$fetch_count" -eq 1 ] || fail "expected single fetch refspec, got $fetch_count"
+  echo "$output" | grep -Fxc "$expected" | grep -q '^1
 
   run git config --get-all remote.origin.push
   [ "$status" -eq 0 ]
@@ -61,7 +59,36 @@ setup() {
   [[ "$output" == *"refs/heads/*:refs/remotes/origin/*"* ]] || fail "missing existing push refspec"
   shiplog_count=$(count_exact_matches "${REF_ROOT}/*:${REF_ROOT}/*" "$output")
   [ "$shiplog_count" -eq 1 ] || fail "expected single shiplog push refspec"
-  head_present=$(printf '%s\n' "$output" | grep -Fx "HEAD" | wc -l | tr -d '[:space:]')
+  head_present=$(printf '%s\n' "$output" | grep -Fxc "HEAD" || true)
+  [ "$head_present" -eq 0 ] || fail "HEAD refspec should not be added when custom pushes exist"
+}
+
+@test "ls on empty journal errors cleanly" {
+  run git shiplog ls
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"No entries at"* ]]
+}
+ || fail "expected exactly one fetch refspec matching '$expected'"
+
+  run git config --get-all remote.origin.push
+  [ "$status" -eq 0 ]
+  head_count=$(count_exact_matches "HEAD" "$output")
+  [ "$head_count" -eq 1 ] || fail "expected single HEAD push refspec, got $head_count"
+  push_count=$(count_exact_matches "${REF_ROOT}/*:${REF_ROOT}/*" "$output")
+  [ "$push_count" -eq 1 ] || fail "expected single shiplog push refspec, got $push_count"
+}
+
+@test "git shiplog init preserves custom push specs" {
+  git config remote.origin.push 'refs/heads/*:refs/remotes/origin/*'
+  run git shiplog init
+  [ "$status" -eq 0 ]
+
+  run git config --get-all remote.origin.push
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"refs/heads/*:refs/remotes/origin/*"* ]] || fail "missing existing push refspec"
+  shiplog_count=$(count_exact_matches "${REF_ROOT}/*:${REF_ROOT}/*" "$output")
+  [ "$shiplog_count" -eq 1 ] || fail "expected single shiplog push refspec"
+  head_present=$(printf '%s\n' "$output" | grep -Fxc "HEAD" || true)
   [ "$head_present" -eq 0 ] || fail "HEAD refspec should not be added when custom pushes exist"
 }
 

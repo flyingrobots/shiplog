@@ -4,7 +4,7 @@ Supporting assets that help you wire Shiplog into a larger deployment workflow.
 
 ## Hooks
 
-- `hooks/pre-receive.shiplog` – sample server-side guard that enforces (requires: git ≥2.35, jq ≥1.6, bash):
+- `hooks/pre-receive.shiplog` – sample server-side guard that enforces (requires: git ≥2.35, jq ≥1.6, bash). Note: Uses jq instead of yq for better cross-system availability:
   - fast-forward pushes to `refs/_shiplog/journal/*` and `refs/_shiplog/anchors/*`
   - commit signatures (GPG or SSH allowed signers)
   - author allowlists pulled from the active policy

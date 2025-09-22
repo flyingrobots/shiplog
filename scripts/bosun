@@ -59,7 +59,7 @@ json_escape() {
 }
 emit_json_kv() {
   printf '{"%s":' "$1"
-  if [ "$2" = "true" ] || [ "$2" = "false" ] || [[ "$2" =~ ^-?[1-9][0-9]*$|^0$|^-[1-9][0-9]*$ ]]; then
+  if [ "$2" = "true" ] || [ "$2" = "false" ] || [[ "$2" =~ ^-?(0|[1-9][0-9]*)$|^-?(0|[1-9][0-9]*)\.[0-9]+([eE][+-]?[0-9]+)?$ ]]; then
     printf '%s' "$2"
   else
     printf '"%s"' "$(printf '%s' "$2" | json_escape)"
@@ -121,10 +121,9 @@ cmd_confirm() {
   local prompt_col
   prompt_col=$(color '1;36' "$prompt")
   read -r -p "$prompt_col [y/N] " ans || true
-  # Trim whitespace only
-  ans="${ans#"${ans%%[![:space:]]*}"}"
-  ans="${ans%"${ans##*[![:space:]]}"}"
-  case "${ans,,}" in
+  # Trim whitespace safely
+  ans="$(printf '%s' "$ans" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
     y|yes) [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0 ;;
     *)     [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no";  return 1 ;;
   esac
@@ -192,7 +191,7 @@ cmd_choose() {
   local prompt_arrow
   prompt_arrow=$(color '1;33' '> ')
   read -r -p "$prompt_arrow" sel || true
-  if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le ${#opts[@]} ]; then
+  if [[ "$sel" =~ ^[1-9][0-9]*$|^[1-9]$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le ${#opts[@]} ]; then
     local pick="${opts[$((sel-1))]}"
     [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"
     return 0
@@ -304,6 +303,10 @@ cmd_spin() {
 
   local frames='-\|/' i=0 pid rc glyph
   "${cmd[@]}" & pid=$!
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" 2>/dev/null || true
+    return $?
+  fi
   trap 'kill $pid 2>/dev/null || true' INT TERM
   while kill -0 "$pid" 2>/dev/null; do
     local frame_col

@@ -10,30 +10,34 @@ publish_policy() {
   # Validate JSON content
   echo "$content" | jq -e '.' >/dev/null 2>&1 || { echo "Error: invalid JSON content" >&2; return 1; }
   local tmp
+  local tmp
   tmp=$(mktemp) || { echo "Error: failed to create temp file" >&2; return 1; }
+  # Ensure cleanup on exit
+  trap "rm -f '$tmp'" EXIT
   printf '%s\n' "$content" > "$tmp"
   local blob tree shiplog_tree parent commit
-  blob=$(git --git-dir="$REMOTE_DIR" hash-object -w "$tmp") || { echo "Error: failed to create blob" >&2; rm -f "$tmp"; return 1; }
-  shiplog_tree=$(printf '100644 blob %s\tpolicy.json\n' "$blob" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create shiplog tree" >&2; rm -f "$tmp"; return 1; }
-  tree=$(printf '040000 tree %s\t.shiplog\n' "$shiplog_tree" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create tree" >&2; rm -f "$tmp"; return 1; }
+  blob=$(git --git-dir="$REMOTE_DIR" hash-object -w "$tmp") || { echo "Error: failed to create blob" >&2; return 1; }
+  shiplog_tree=$(printf '100644 blob %s\tpolicy.json\n' "$blob" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create shiplog tree" >&2; return 1; }
+  tree=$(printf '040000 tree %s\t.shiplog\n' "$shiplog_tree" | git --git-dir="$REMOTE_DIR" mktree) || { echo "Error: failed to create tree" >&2; return 1; }
   parent=$(git --git-dir="$REMOTE_DIR" rev-parse --verify refs/_shiplog/policy/current 2>/dev/null || true)
   if [ -n "$parent" ]; then
     commit=$(GIT_AUTHOR_NAME="Test Policy" GIT_AUTHOR_EMAIL="test-policy@shiplog.test" \
       GIT_COMMITTER_NAME="Test Policy" GIT_COMMITTER_EMAIL="test-policy@shiplog.test" \
       git --git-dir="$REMOTE_DIR" commit-tree "$tree" -p "$parent" -m "policy update")
-    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" "$parent" || { rm -f "$tmp"; return 1; }
+    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" "$parent" || return 1
   else
     commit=$(GIT_AUTHOR_NAME="Test Policy" GIT_AUTHOR_EMAIL="test-policy@shiplog.test" \
       GIT_COMMITTER_NAME="Test Policy" GIT_COMMITTER_EMAIL="test-policy@shiplog.test" \
-      git --git-dir="$REMOTE_DIR" commit-tree "$tree" -m "policy init") || { rm -f "$tmp"; return 1; }
-    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" || { rm -f "$tmp"; return 1; }
+      git --git-dir="$REMOTE_DIR" commit-tree "$tree" -m "policy init") || return 1
+    git --git-dir="$REMOTE_DIR" update-ref refs/_shiplog/policy/current "$commit" || return 1
   fi
+  trap - EXIT  # Clear the trap
   rm -f "$tmp"
 }
 
 make_entry() {
   local service=${1:-hook-test}
-  local status=${2:-success}
+  local entry_status=${2:-success}
   local reason=${3:-"policy exercise"}
   local ticket=${4:-HOOK-1}
   local region=${5:-us-west-2}
@@ -44,7 +48,7 @@ make_entry() {
 
   # --boring keeps the command non-interactive so tests never block waiting for input.
   SHIPLOG_SERVICE="$service" \
-  SHIPLOG_STATUS="$status" \
+  SHIPLOG_STATUS="$entry_status" \
   SHIPLOG_REASON="$reason" \
   SHIPLOG_TICKET="$ticket" \
   SHIPLOG_REGION="$region" \

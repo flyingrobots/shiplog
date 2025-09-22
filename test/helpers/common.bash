@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 shiplog_install_cli() {
-  export SHIPLOG_HOME="${SHIPLOG_HOME:-/workspace}"
+  SHIPLOG_HOME="${SHIPLOG_HOME:-/workspace}"
 
   if [[ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]]; then
     echo "ERROR: Source file ${SHIPLOG_HOME}/bin/git-shiplog does not exist!" >&2

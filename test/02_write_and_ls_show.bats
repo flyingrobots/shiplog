@@ -22,11 +22,11 @@ setup() {
 teardown() {
   unset SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON SHIPLOG_TICKET
   unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE SHIPLOG_IMAGE SHIPLOG_TAG
-  unset SHIPLOG_AUTO_PUSH
+  unset SHIPLOG_AUTO_PUSH SHIPLOG_SIGN
 }
 
 @test "write creates a commit under refs/_shiplog/journal/prod" {
-  run bash -lc 'git shiplog --yes write'
+  run git shiplog --yes write
   [ "$status" -eq 0 ]
   ref="${REF_ROOT}/journal/prod"
   run git show -s --format=%s "$ref"

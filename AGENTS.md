@@ -1,7 +1,8 @@
-CRITICAL: NEVER RUN SHIPLOG LOCALLY - NEVER RUN THE TESTS DIRECTLY
-THIS CODE MESSES WITH GIT REPOS AND IF YOU FUCK IT UP YOU WILL
-RISK DESTROYING THE ACTUAL GIT REPO ITSELF AND FUCKING UP THIS ENTIRE PROJECT
+# ⚠️ CRITICAL WARNING
 
+**NEVER RUN SHIPLOG TESTS LOCALLY OR DIRECTLY**
+
+Shiplog tests manipulate Git repositories and can cause irreversible damage to your working repository if run outside the controlled Docker environment. Always use the designated test commands.
 # Git Workflow Guidelines
 
 ## Quick Reminders

@@ -11,8 +11,8 @@
 The `test/` directory contains the Bats-based integration suite that exercises the Shiplog CLI via the `git shiplog` porcelain. Each file ending in `.bats` is automatically picked up by the Docker test harness, and helper scripts live under `test/helpers/`.
 
 ## Test Runner
-- `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The container mounts the workspace at `/workspace` and executes `/usr/local/bin/run-tests`.
-- `make test-signing` performs the same flow with `ENABLE_SIGNING=true`, generating a throwaway GPG key inside the container so commits are signed before verification.
+- `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The container mounts the workspace at `/workspace` and executes `/usr/local/bin/run-tests`, which runs the Bats test suite.
+- `make test-signing` performs the same flow with `ENABLE_SIGNING=true`, generating a temporary GPG key inside the container to test signed commit verification.
 - The Docker entrypoint installs `bin/git-shiplog` into `/usr/local/bin/git-shiplog`, generates a non-interactive gum stub, and then calls `bats -r /workspace/test`.
 - Each Bats file calls `load helpers/common`, whose `shiplog_install_cli` helper ensures the CLI is present and executable before tests begin.
 

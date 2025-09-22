@@ -3,13 +3,19 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE' >&2
-Usage:
+Usage: Securely download and verify files using SHA-256 checksums
   verified-download.sh simple <base-url> <asset> <checksum-file> <output-path>
+
+Arguments:
+  base-url      Base URL to download from
+  asset         File to download
+  checksum-file File containing SHA-256 checksums
+  output-path   Relative path where to save the file
 USAGE
 }
 
 die() {
-  echo "shiplog: $*" >&2
+  echo "verified-download: ERROR: $*" >&2
   exit 1
 }
 
@@ -32,12 +38,52 @@ PY
 
 validate_output_path() {
   local raw="$1"
-  [[ "$raw" != *$'\0'* ]] || die "output path contains null byte"
+  [[ "$raw" != *
+
+mode=${1:-}
+[ -n "$mode" ] || { echo "ERROR: Mode argument required" >&2; usage; exit 1; }
+shift || true
+
+case "$mode" in
+  simple)
+    [ $# -eq 4 ] || { echo "ERROR: Simple mode requires exactly 4 arguments, got $#" >&2; usage; exit 1; }
+    base_url="$1"
+    asset="$2"
+    checksum_file="$3"
+    output="$4"
+    resolved_output=$(validate_output_path "$output")
+
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' EXIT
+
+    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$asset" "$base_url/$asset" || die "failed to download asset from $base_url/$asset"
+    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$checksum_file" "$base_url/$checksum_file" || die "failed to download checksum file from $base_url/$checksum_file"
+
+    # Parse checksum more robustly, handle both " " and " *" formats
+    checksum=$(awk -v f="$asset" '($2 == f || $2 == "*"f) && NF >= 2 { print $1; exit }' "$tmpdir/$checksum_file")
+    [ -n "$checksum" ] || die "unable to locate checksum for $asset in $checksum_file"
+    
+    # Validate it's actually a SHA-256 hash (64 hex chars)
+    [[ "$checksum" =~ ^[a-fA-F0-9]{64}$ ]] || die "invalid SHA-256 checksum format: $checksum"
+
+    # Use safer verification method
+    (cd "$tmpdir" && echo "$checksum  $asset" | sha256sum -c -)
+
+    mkdir -p "$(dirname "$resolved_output")"
+    install -m 0644 "$tmpdir/$asset" "$resolved_output" || die "failed to install $asset to $resolved_output"
+    [ -f "$resolved_output" ] || die "installation verification failed: $resolved_output not found"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+\0'* ]] || die "output path contains null byte"
   case "$raw" in
     /*) die "output path must be relative" ;;
   esac
   case "$raw" in
-    *".."* ) die "output path must not contain .. segments" ;;
+    *"/.."* | *"../"* | ".."* | *".." ) die "output path must not contain .. segments" ;;
   esac
 
   local base="${VERIFIED_DOWNLOAD_BASE:-$PWD}"
@@ -55,12 +101,12 @@ validate_output_path() {
 }
 
 mode=${1:-}
-[ -n "$mode" ] || { usage; exit 1; }
+[ -n "$mode" ] || { echo "ERROR: Mode argument required" >&2; usage; exit 1; }
 shift || true
 
 case "$mode" in
   simple)
-    [ $# -eq 4 ] || { usage; exit 1; }
+    [ $# -eq 4 ] || { echo "ERROR: Simple mode requires exactly 4 arguments, got $#" >&2; usage; exit 1; }
     base_url="$1"
     asset="$2"
     checksum_file="$3"
@@ -70,8 +116,8 @@ case "$mode" in
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
 
-    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$asset" "$base_url/$asset"
-    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$checksum_file" "$base_url/$checksum_file"
+    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$asset" "$base_url/$asset" || die "failed to download asset from $base_url/$asset"
+    curl -fsSL --max-time 60 --max-redirs 3 --user-agent "verified-download/1.0" -o "$tmpdir/$checksum_file" "$base_url/$checksum_file" || die "failed to download checksum file from $base_url/$checksum_file"
 
     # Parse checksum more robustly, handle both " " and " *" formats
     checksum=$(awk -v f="$asset" '($2 == f || $2 == "*"f) && NF >= 2 { print $1; exit }' "$tmpdir/$checksum_file")
@@ -84,7 +130,8 @@ case "$mode" in
     (cd "$tmpdir" && echo "$checksum  $asset" | sha256sum -c -)
 
     mkdir -p "$(dirname "$resolved_output")"
-    install -m 0644 "$tmpdir/$asset" "$resolved_output"
+    install -m 0644 "$tmpdir/$asset" "$resolved_output" || die "failed to install $asset to $resolved_output"
+    [ -f "$resolved_output" ] || die "installation verification failed: $resolved_output not found"
     ;;
   *)
     usage

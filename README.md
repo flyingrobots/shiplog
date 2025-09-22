@@ -10,12 +10,7 @@
 
 ## Uh-oh! Oh boy. It hit the fan.
 
-SMS? Alerting.  
-Beepers? Beeping.  
-Emails popping off.  
-Dogs barking.  
-Logs spewing.  
-Intern looking like they just saw a ghost.
+SMS alerts firing, beepers going off, logs spewing everywhere.
 
 > **\"What changed?\"** — the first question during every incident.
 
@@ -42,7 +37,7 @@ You don't even have to leave the terminal to find out who, what, where, when, wh
 - **Cryptographically signed** for compliance and clear provenance.  
 - **Git-native** so it follows your code everywhere.
 
-## What Makes SHIPLOG Different
+## What Makes Shiplog Different
 
 Shiplog isn't another deployment platform — **it's a primitive you build on**.
 
@@ -423,17 +418,12 @@ The following features are currently being worked on.
 - Iterate on Docker test harness performance and signed-build coverage.
 - Harden policy publishing automation (`scripts/shiplog-sync-policy.sh`).
 
-<!-- <features_table> -->
-| Feature | Description | Planned? | Started? | Code | Tests | Documentation | Remarks |
-|---------|-------------|----------|----------|------|-------|---------------|---------|
-| Journaling bootstrap | Configure hidden refspecs and reflogs via `git shiplog init` | Yes | Yes | lib/commands.sh:3 | test/01_init_and_empty_ls.bats:12 | docs/features/init.md | Sets up fetch/push for refs/_shiplog/* |
-| Deployment write flow | Interactive/boring write path with policy enforcement | Yes | Yes | lib/commands.sh:15 | test/02_write_and_ls_show.bats:22 | docs/features/write.md | Signs empty-tree commits and attaches logs |
-| Listing & detail views | `git shiplog ls` and `git shiplog show` render journal entries | Yes | Yes | lib/git.sh:141 | test/02_write_and_ls_show.bats:31 | docs/features/ls.md | Gum UI with plain fallbacks |
-| Verification tooling | Author + signature checks through `git shiplog verify` | Yes | Yes | lib/commands.sh:107 | test/05_verify_authors.bats:22 | docs/features/verify.md | Honors policy ref + git config |
-| JSON export | NDJSON output for downstream automation | Yes | Yes | lib/commands.sh:132 | test/03_export_json_ndjson.bats:11 | docs/features/export-json.md | Adds commit SHA metadata |
-| Policy resolution | Surfacing effective policy with `git shiplog policy` | Yes | In progress | lib/policy.sh:3 | test/09_policy_resolution.bats:25 | docs/features/policy.md | Needs richer validation UX |
-| Notes attachments | Optional NDJSON log notes displayed in `git shiplog show` | Yes | Yes | lib/git.sh:52 | test/04_notes_attachment.bats:20 | docs/features/notes.md | Shares ref with journals |
-<!-- </features_table> -->
+### Feature Status
+
+#### Core Features ✅
+- **Journaling bootstrap** - Configure hidden refspecs via `git shiplog init`
+- **Deployment write flow** - Interactive/boring write path with policy enforcement
+- **Listing & detail views** - `git shiplog ls` and `git shiplog show`
 
 ## License
 

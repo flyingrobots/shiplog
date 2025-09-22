@@ -1,7 +1,7 @@
 # Show Command
 
 ## Summary
-`git shiplog show` prints the details for a specific shiplog commit entry (or the latest one by default). It separates the human-readable header from the JSON metadata trailer and outputs any attached git notes to stdout.
+`git shiplog show` displays the details for a specific shiplog commit entry, defaulting to the latest entry if no commit is specified. It outputs the human-readable content followed by JSON metadata, along with any attached git notes.
 
 ## Usage
 ```bash

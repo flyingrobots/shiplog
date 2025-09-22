@@ -16,7 +16,7 @@ Examples:
 ```bash
 bosun spin --title "Deploying" -- sleep 3
 
-bosun spin -- title "Running tests" -- make test
+bosun spin --title "Running tests" -- make test
 ```
 
 The exit code of `bosun spin` matches the wrapped command, emitting a green check mark on success and a red cross on failure.

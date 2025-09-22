@@ -3,7 +3,10 @@
 load helpers/common
 
 setup() {
-  shiplog_install_cli
+  shiplog_install_cli || {
+    echo "Failed to install shiplog CLI" >&2
+    return 1
+  }
   git remote remove origin >/dev/null 2>&1 || true
   git config user.name "Shiplog Test"
   git config user.email "shiplog-test@example.local"
@@ -15,7 +18,7 @@ teardown() {
   unset SHIPLOG_AUTO_PUSH SHIPLOG_BORING
 }
 
-@test "signed commits verify when ENABLE_SIGNING=true image is used" {
+@test "signed commits verify when signing support is enabled" {
   if [ "${ENABLE_SIGNING:-false}" != "true" ]; then
     skip "Built without signing support; set ENABLE_SIGNING=true for this test"
   fi
@@ -34,8 +37,19 @@ teardown() {
   run bash -lc 'git shiplog --yes write'
   if [ "$status" -ne 0 ]; then
     echo "signed write output: $output" >&2
+  run git shiplog verify
+  if [ "$status" -ne 0 ]; then
+    echo "signed verify output: $output" >&2
   fi
   [ "$status" -eq 0 ]
-  run git shiplog verify
+
+  # Verify the commit was actually signed
+  run git log -1 --show-signature --format="%H"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Good signature"* ]] || [[ "$output" == *"gpg: Signature made"* ]]
+}
+  if [ "$status" -ne 0 ]; then
+    echo "signed verify output: $output" >&2
+  fi
   [ "$status" -eq 0 ]
 }

@@ -6,8 +6,8 @@
   "allow_ssh_signers_file": ".shiplog/allowed_signers",
   "authors": {
     "default_allowlist": [
-      "${DEPLOY_BOT_EMAIL:-deploy-bot@ci}",
-      "${ENGINEERING_EMAIL:-engineering@example.com}"
+      "${DEPLOY_BOT_EMAIL:?DEPLOY_BOT_EMAIL must be set}",
+      "${ENGINEERING_EMAIL:?ENGINEERING_EMAIL must be set}"
     ],
     "env_overrides": {
       "prod": [

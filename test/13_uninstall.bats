@@ -18,7 +18,15 @@ SCRIPT
 exit 0
 BOSUN
   chmod +x "$HOME/.shiplog/scripts/bosun"
-  ln -sf "$HOME/.shiplog/scripts/bosun" /usr/local/bin/bosun || skip "Cannot create symlink in /usr/local/bin - insufficient permissions"
+  if [[ -w /usr/local/bin ]]; then
+    ln -sf "$HOME/.shiplog/scripts/bosun" /usr/local/bin/bosun
+  fi
+
+  # Store original config for restoration
+  # Only mess with git config if we're actually in a git repo
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    skip "Not in a git repository"
+  fi
 
   # Store original config for restoration
   ORIGINAL_FETCH=$(git config --get-all remote.origin.fetch 2>/dev/null || echo "")
@@ -66,9 +74,12 @@ teardown() {
   [ "$status" -eq 0 ]
 
   [ ! -d "$HOME/.shiplog" ]
+  # Only test global binary removal if we actually installed them
+  if [ "$GLOBAL_INSTALL" = "true" ]; then
   [ ! -e /usr/local/bin/git-shiplog ]
   [ ! -e /usr/local/bin/shiplog ]
   [ ! -e /usr/local/bin/bosun ]
+  fi
 
   local fetch_config
   fetch_config=$(git config --get-all remote.origin.fetch 2>/dev/null || echo "")

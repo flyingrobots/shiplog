@@ -1,10 +1,6 @@
 #!/usr/bin/env bats
 
-@test "installer sets up dependencies in clean container" {
-  if ! command -v docker >/dev/null 2>&1; then
-    skip "docker CLI not available"
-  fi
-}
+
  
 @test "installer installs dependencies in clean container" {
   if ! command -v docker >/dev/null 2>&1; then
@@ -13,7 +9,7 @@
   run docker run --rm -v "$PWD":/workspace debian:bookworm-slim bash -c '
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update >/dev/null && apt-get install -y git curl ca-certificates >/dev/null
+    apt-get update -qq && apt-get install -y git curl ca-certificates
     cd /workspace && ./install-shiplog-deps.sh --silent
     gum --version && jq --version
   '
@@ -29,7 +25,7 @@
   run docker run --rm -v "$PWD":/workspace debian:bookworm-slim bash -c '
     set -euo pipefail
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update >/dev/null && apt-get install -y git curl ca-certificates >/dev/null
+    apt-get update -qq && apt-get install -y git curl ca-certificates
     cd /workspace
     ./install-shiplog-deps.sh --silent
     install -m 0755 /workspace/bin/git-shiplog /usr/local/bin/git-shiplog
