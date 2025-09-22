@@ -37,7 +37,7 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 ## Worklog
 
 ```
-█████████████████████████▓░░░░░░░░░░░░ 84%
+████████████████████▓░░░░░░░░░░░░ 82%
 42/51 complete (9 remaining)
 ```
 
