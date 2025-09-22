@@ -57,6 +57,12 @@
 - [x] Investigate and fix the failing Dockerized test suite after the CLI/runtime changes.
 - [ ] Re-enable pre-receive hook tests once we can exercise the Git server path without SSH.
 - [x] Restore the signing test when reliable GPG automation exists in CI.
+- [ ] Wire `git shiplog` subcommands to `scripts/bosun` instead of `gum`, and delete the gum stub.
+- [ ] Swap installer/uninstaller/README references from gum to bosun and drop gum from the Docker image.
+- [ ] Harden `scripts/bosun` (ANSI stripping, quoting) until ShellCheck passes and the CI parser error disappears.
+- [ ] Build a non-SSH hook harness (e.g., local exec transport) and unskip the three pre-receive tests.
+- [ ] Document the signing workflow (loopback wrapper, allowed signers) in README + docs/features, and add failing-path tests.
+- [ ] Align ShellCheck across scripts (bin/git-shiplog globals, install script printf) so the lint run is warning-free or explicitly suppressed.
 
 ## Testing
 

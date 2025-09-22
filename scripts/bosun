@@ -4,6 +4,20 @@
 
 set -Eeuo pipefail
 
+BOSUN_SELF="${BASH_SOURCE[0]:-$0}"
+BOSUN_DIR="$(cd "$(dirname "$BOSUN_SELF")" && pwd)"
+BOSUN_DOC_ROOT="${BOSUN_DOC_ROOT:-$BOSUN_DIR/../docs/bosun}"
+
+show_doc() {
+  local topic="$1" doc
+  doc="$BOSUN_DOC_ROOT/$topic.md"
+  if [ -r "$doc" ]; then
+    cat "$doc"
+    return 0
+  fi
+  return 1
+}
+
 # ---- TTY & Color ------------------------------------------------------------
 is_tty() { [ -t 1 ]; }
 ansi() {
@@ -16,27 +30,21 @@ color() { ansi "$1"; shift; printf '%s' "$*"; ansi '0'; }
 
 # ---- JSON helper ------------------------------------------------------------
 json_escape() {
-  local data output=""
+  local data
   data=$(cat)
-  if command -v python3 >/dev/null 2>&1; then
-    output=$(python3 - <<'PY' "$data" 2>/dev/null || true)
-import json, sys
-print(json.dumps(sys.argv[1])[1:-1])
-PY
-  elif command -v python >/dev/null 2>&1; then
-    output=$(python - <<'PY' "$data" 2>/dev/null || true)
-import json, sys
-print(json.dumps(sys.argv[1])[1:-1])
-PY
-  elif command -v jq >/dev/null 2>&1; then
-    output=$(printf '%s' "$data" | jq -Rs @json 2>/dev/null || true)
-    output=${output#"}
-    output=${output%"}
-  fi
-
-  if [ -n "$output" ]; then
-    printf '%s' "$output"
-    return 0
+  if command -v jq >/dev/null 2>&1; then
+    local enc
+    enc=$(printf '%s' "$data" | jq -Rs @json 2>/dev/null || true)
+    if [ -n "$enc" ]; then
+      if [ "${enc:0:1}" = '"' ]; then
+        enc=${enc#?}
+      fi
+      if [ "${enc: -1}" = '"' ]; then
+        enc=${enc%?}
+      fi
+      printf '%s' "$enc"
+      return 0
+    fi
   fi
 
   local fallback
@@ -110,7 +118,9 @@ cmd_confirm() {
     [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"
     return 0
   fi
-  read -r -p "$(color '1;36' "$prompt") [y/N] " ans || true
+  local prompt_col
+  prompt_col=$(color '1;36' "$prompt")
+  read -r -p "$prompt_col [y/N] " ans || true
   # Trim whitespace only
   ans="${ans#"${ans%%[![:space:]]*}"}"
   ans="${ans%"${ans##*[![:space:]]}"}"
@@ -135,7 +145,9 @@ cmd_input() {
   local prompt="${placeholder:->}"
   local out
   if is_tty; then
-    read -r -p "$(color '1;33' "$prompt") " out || true
+    local prompt_col
+    prompt_col=$(color '1;33' "$prompt")
+    read -r -p "$prompt_col " out || true
   else
     out="$(cat - 2>/dev/null || true)"
   fi
@@ -164,14 +176,22 @@ cmd_choose() {
     [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"
     return 0
   fi
-  [ -n "$header" ] && echo "$(color '1;36' "$header")"
+  if [ -n "$header" ]; then
+    local header_col
+    header_col=$(color '1;36' "$header")
+    echo "$header_col"
+  fi
   local i=1 o
   for o in "${opts[@]}"; do
-    printf "  %s) %s\n" "$(color '1;35' "$i")" "$o"
+    local option_idx
+    option_idx=$(color '1;35' "$i")
+    printf "  %s) %s\n" "$option_idx" "$o"
     i=$((i+1))
   done
   local sel
-  read -r -p "$(color '1;33' '> ')" sel || true
+  local prompt_arrow
+  prompt_arrow=$(color '1;33' '> ')
+  read -r -p "$prompt_arrow" sel || true
   if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le ${#opts[@]} ]; then
     local pick="${opts[$((sel-1))]}"
     [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"
@@ -193,7 +213,9 @@ cmd_style() {
   done
   local text="$*"
   [ -z "$text" ] && text="$(cat - 2>/dev/null || echo)"
-  draw_box "$(color '1;34' "$title")" "$text"
+  local title_col
+  title_col=$(color '1;34' "$title")
+  draw_box "$title_col" "$text"
 }
 
 cmd_table() {
@@ -237,21 +259,26 @@ cmd_table() {
       ((${#col} > ${widths[$idx]})) && widths[$idx]=${#col}
     done
   done
+  local header_text border_text
   for idx in "${!headers[@]}"; do
-    printf "%s" "$(color '1;37' "$(printf "%-${widths[$idx]}s" "${headers[$idx]}")")"
-    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+    header_text=$(printf '%-*s' "${widths[$idx]}" "${headers[$idx]}")
+    local header_colored
+    header_colored=$(color '1;37' "$header_text")
+    printf '%s' "$header_colored"
+    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
   done
-  printf "\n"
+  printf '\n'
   for idx in "${!headers[@]}"; do
-    printf "%s" "$(printf "%-${widths[$idx]}s" '' | tr ' ' '─')"
-    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+    border_text=$(printf '%-*s' "${widths[$idx]}" '' | tr ' ' '─')
+    printf '%s' "$border_text"
+    [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
   done
   printf "\n"
   for r in "${rows[@]}"; do
     IFS=$'\t' read -r -a cols <<< "$r"
     for idx in "${!headers[@]}"; do
-      printf "%-${widths[$idx]}s" "${cols[$idx]:-}"
-      [ "$idx" -lt $((${#headers[@]}-1)) ] && printf "  "
+      printf '%-*s' "${widths[$idx]}" "${cols[$idx]:-}"
+      [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
     done
     printf "\n"
   done
@@ -268,52 +295,71 @@ cmd_spin() {
     esac; shift
   done
   local cmd=( "$@" )
-  local cmd=( "$@" )
-  # Validate that we have a command
-  [ ${#cmd[@]} -eq 0 ] && { echo "bosun spin: no command specified" >&2; return 2; }
-  if ! is_tty || [ ${#cmd[@]} -eq 0 ]; then
+  [ ${#cmd[@]} -gt 0 ] || { echo "bosun spin: no command specified" >&2; return 2; }
+
+  if ! is_tty; then
     "${cmd[@]}"
     return $?
   fi
-  local frames='-\|/' i=0
-  "${cmd[@]}" & local pid=$!
+
+  local frames='-\|/' i=0 pid rc glyph
+  "${cmd[@]}" & pid=$!
+  trap 'kill $pid 2>/dev/null || true' INT TERM
   while kill -0 "$pid" 2>/dev/null; do
-  local frames='-\|/' i=0
-  "${cmd[@]}" & local pid=$!
-  while kill -0 "$pid" 2>/dev/null; do
-    printf "\r%s %s" "$(color '1;36' "${frames:i:1}")" "$title"
-    i=$(( (i+1) % 4 ))
-    if kill -0 "$pid" 2>/dev/null; then
-      sleep 1  # Use portable sleep
-    fi
+    local frame_col
+    frame_col=$(color '1;36' "${frames:i:1}")
+    printf '\r%s %s' "$frame_col" "$title"
+    i=$(( (i + 1) % ${#frames} ))
+    sleep 0.1
   done
-  wait $pid
-  local rc=$?
-  local glyph
+  trap - INT TERM
+  wait "$pid"
+  rc=$?
   if [ "$rc" -eq 0 ]; then
     glyph=$(color '1;32' '✔')
   else
     glyph=$(color '1;31' '✖')
   fi
   printf "\r%s %s\n" "$glyph" "$title"
-  return $rc
+  return "$rc"
 }
 
 usage() {
-  cat <<EOF
+  if ! show_doc overview; then
+    cat <<'EOF'
 bosun — bash-only TUI helpers
 
 Usage:
+  bosun help [command]
   bosun confirm [--yes] [--json] [--no-color] "Prompt"
   bosun input [--placeholder P] [--value V] [--json]
   bosun choose [--header H] [--default OPT] [--json] OPT1 OPT2 …
   bosun style [--title T] [--width N] [--no-color] -- "text"
   bosun table --columns "Col1,Col2" [--rows-file file.tsv]
   bosun spin --title "Doing X" -- <command>
+
+Run "bosun help <command>" to see detailed documentation.
 EOF
+  fi
 }
 
 sub="${1:-}"; shift || true
+
+if [ -n "$sub" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help)
+        if show_doc "$sub"; then
+          exit 0
+        else
+          usage
+          exit 64
+        fi
+        ;;
+    esac
+  done
+fi
+
 case "$sub" in
   confirm) cmd_confirm "$@";;
   input)   cmd_input "$@";;
@@ -321,6 +367,14 @@ case "$sub" in
   style)   cmd_style "$@";;
   table)   cmd_table "$@";;
   spin)    cmd_spin "$@";;
-  ''|-h|--help|help) usage;;
+  help)
+    topic="${1:-overview}"
+    if ! show_doc "$topic"; then
+      echo "bosun: no documentation for '$topic'" >&2
+      usage
+      exit 64
+    fi
+    ;;
+  ''|-h|--help) usage;;
   *) echo "bosun: unknown subcommand '$sub'" >&2; usage; exit 64;;
 esac

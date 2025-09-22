@@ -50,12 +50,12 @@ Think `git commit` for deployments. It gives you the essential building block (c
 
 ```mermaid
 gitGraph
-  commit id: \"feat: add auth\" tag: \"main\"  
-  commit id: \"fix: handle errors\"
+  commit id: "feat: add auth" tag: "main"  
+  commit id: "fix: handle errors"
   branch shiplog_prod
-  commit id: \"✅ web v2.1.3 → prod\"
-  commit id: \"❌ api v1.4.2 → prod\" 
-  commit id: \"🔄 rollback web v2.1.2\"
+  commit id: "✅ web v2.1.3 → prod"
+  commit id: "❌ api v1.4.2 → prod" 
+  commit id: "🔄 rollback web v2.1.2"
 ```
 
 **Built on Git** means:
@@ -137,16 +137,16 @@ Shiplog keeps records of who, what, where, when, why, and how deployments were m
 
 ```mermaid
 gitGraph
-  commit id:\"init\" tag:\"main\"
+  commit id:"init" tag:"main"
   branch journal_prod
   checkout journal_prod
-  commit id:\"prod-001\" tag:\"refs/_shiplog/journal/prod\"
-  commit id:\"prod-002\"
+  commit id:"prod-001" tag:"refs/_shiplog/journal/prod"
+  commit id:"prod-002"
   branch journal_staging
-  commit id:\"stg-001\" tag:\"refs/_shiplog/journal/staging\"
-  commit id:\"stg-002\"
+  commit id:"stg-001" tag:"refs/_shiplog/journal/staging"
+  commit id:"stg-002"
   checkout journal_prod
-  commit id:\"prod-003\"
+  commit id:"prod-003"
   checkout main
 ```
 
@@ -176,15 +176,15 @@ Plus JSON metadata for tooling:
 
 ```json
 {
-  \"env\": \"prod\",
-  \"service\": \"web\", 
-  \"status\": \"success\",
-  \"who\": {\"name\": \"Alice\", \"email\": \"alice@company.com\"},
-  \"what\": {\"artifact\": \"ghcr.io/yourorg/web:v2.1.3\"},
-  \"where\": {\"region\": \"us-west-2\", \"cluster\": \"prod-1\"},
-  \"why\": {\"reason\": \"Hotfix checkout cart\", \"ticket\": \"OPS-7421\"},
-  \"when\": {\"start\": \"2025-09-20T14:30:00Z\", \"duration\": \"2m15s\"},
-  \"how\": {\"pipeline\": \"github-actions\", \"run_url\": \"https://...\"}
+  "env": "prod",
+  "service": "web", 
+  "status": "success",
+  "who": {"name": "Alice", "email": "alice@company.com"},
+  "what": {"artifact": "ghcr.io/yourorg/web:v2.1.3"},
+  "where": {"region": "us-west-2", "cluster": "prod-1"},
+  "why": {"reason": "Hotfix checkout cart", "ticket": "OPS-7421"},
+  "when": {"start": "2025-09-20T14:30:00Z", "duration": "2m15s"},
+  "how": {"pipeline": "github-actions", "run_url": "https://..."}
 }
 ```
 
@@ -217,39 +217,39 @@ Keep policy in Git, in a signed ref, and mirror it into the working tree so huma
 
 ```json
 {
-  \"version\": 1,
-  \"require_signed\": true,
-  \"allow_ssh_signers_file\": \".shiplog/allowed_signers\",
-  \"authors\": {
-    \"default_allowlist\": [
-      \"deploy-bot@ci\",
-      \"james@flyingrobots.dev\"
+  "version": 1,
+  "require_signed": true,
+  "allow_ssh_signers_file": ".shiplog/allowed_signers",
+  "authors": {
+    "default_allowlist": [
+      "deploy-bot@ci",
+      "james@flyingrobots.dev"
     ],
-    \"env_overrides\": {
-      \"prod\": [
-        \"deploy-bot@ci\",
-        \"james@flyingrobots.dev\"
+    "env_overrides": {
+      "prod": [
+        "deploy-bot@ci",
+        "james@flyingrobots.dev"
       ]
     }
   },
-  \"deployment_requirements\": {
-    \"prod\": {
-      \"require_ticket\": true,
-      \"require_service\": true,
-      \"require_where\": [
-        \"cluster\",
-        \"region\",
-        \"namespace\"
+  "deployment_requirements": {
+    "prod": {
+      "require_ticket": true,
+      "require_service": true,
+      "require_where": [
+        "cluster",
+        "region",
+        "namespace"
       ]
     },
-    \"default\": {
-      \"require_ticket\": false
+    "default": {
+      "require_ticket": false
     }
   },
-  \"ff_only\": true,
-  \"notes_ref\": \"refs/_shiplog/notes\",
-  \"journals_ref_prefix\": \"refs/_shiplog/journal/\",
-  \"anchors_ref_prefix\": \"refs/_shiplog/anchors/\"
+  "ff_only": true,
+  "notes_ref": "refs/_shiplog/notes",
+  "journals_ref_prefix": "refs/_shiplog/journal/",
+  "anchors_ref_prefix": "refs/_shiplog/anchors/"
 }
 ```
 
@@ -258,7 +258,7 @@ Keep policy in Git, in a signed ref, and mirror it into the working tree so huma
 Developers can customise via Git config while iterating:
 
 ```bash
-git config shiplog.policy.allowedAuthors \"deploy-bot@ci you@example.com\"
+git config shiplog.policy.allowedAuthors "deploy-bot@ci you@example.com"
 git config shiplog.policy.requireSigned true
 git config shiplog.policy.allowedSignersFile .shiplog/allowed_signers
 ```
@@ -288,20 +288,20 @@ bash install-shiplog.sh
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/flyingrobots/shiplog.git \"$HOME/.shiplog\"
+   git clone https://github.com/flyingrobots/shiplog.git "$HOME/.shiplog"
    ```
    
 2. Update your shell configuration (`~/.bashrc`, `~/.zshrc`, etc.):
    ```bash
-   export SHIPLOG_HOME=\"$HOME/.shiplog\"
-   export PATH=\"$SHIPLOG_HOME/bin:$PATH\"
+   export SHIPLOG_HOME="$HOME/.shiplog"
+   export PATH="$SHIPLOG_HOME/bin:$PATH"
    ```
    
 3. Reload your shell and verify: `git shiplog --help`
 
 4. Install dependencies:
    ```bash
-   \"$SHIPLOG_HOME/install-shiplog-deps.sh\"
+   "$SHIPLOG_HOME/install-shiplog-deps.sh"
    ```
 
 If you reinstall into an existing repository, the installer issues `git fetch origin "refs/_shiplog/*:refs/_shiplog/*"` so your local journal history stays in sync.
@@ -435,20 +435,10 @@ The following features are currently being worked on.
 | Notes attachments | Optional NDJSON log notes displayed in `git shiplog show` | Yes | Yes | lib/git.sh:52 | test/04_notes_attachment.bats:20 | docs/features/notes.md | Shares ref with journals |
 <!-- </features_table> -->
 
-```mermaid
-graph LR
-  A[Day 1: Human Headers Only] --> B[Week 2: JSON Trailers]
-  B --> C[Month 1: Signature Verification + Author Policies]
-  C --> D[Month 3: Anchors + Resume Logic]
-  D --> E[Month 6: SIEM Export + UI Dashboard]
-```
-
 ## License
 
 MIT © J. Kirby Ross
 
 ---
-
-**SHIPLOG**: Because every deploy should leave a trace you can trust.
 
 > **\"Trust but verify\"** — every deploy should leave a signature you can't lose.
