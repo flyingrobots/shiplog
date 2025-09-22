@@ -37,9 +37,17 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 ## Worklog
 
 ```
-████████████████▓░░░ 82%
-42/51 complete (9 remaining)
+█████████████████▓░░ 86%
+44/51 complete (7 remaining)
 ```
+
+### Daily Log – 2025-09-22
+
+- Rebased branch onto latest `main`; verified new commits (`3390bda`, `9e115b2`) keep trust/policy flow stable inside Docker.
+- Hardened developer tooling: guarded `test.sh` against host execution, standardized Docker compose/Makefile resource names, and fixed jq trailer parsing so Bats passes.
+- Converted `.devcontainer/scripts/verified-download.sh` to pure Bash to drop the Python dependency.
+- Ran `make test` in Docker (pass) and noted `ci-matrix/run-all.sh` still needs an arm64-friendly Arch base image.
+- Updated this worklog (86% complete) and marked “Enforce trust workflow in hooks and tests” plus “Finish sandboxed test migration and isolation” as done.
 
 - [ ] Add GitHub Actions bash matrix workflow
 ```yaml
@@ -93,7 +101,7 @@ notes:
   - ensure shellcheck passes after refactor
 ```
 
-- [ ] Enforce trust workflow in hooks and tests
+- [x] Enforce trust workflow in hooks and tests
 ```yaml
 priority: P0
 impact: guarantees signed trust/policy refs and reliable journal enforcement
@@ -103,7 +111,7 @@ steps:
   - ensure test harness mirrors new trust bootstrap and stale-trust rejection cases
 blocked_by: []
 notes:
-  - leverage shiplog-testing-sandbox repo to isolate hook scenarios
+  - harness now provisions sandbox remotes with trust/policy refs; stale-trust cases validated in test/11
 ```
 
 - [ ] Document signing workflow and add failure-path coverage
@@ -145,7 +153,7 @@ notes:
   - align logging with README security guidance
 ```
 
-- [ ] Finish sandboxed test migration and isolation
+- [x] Finish sandboxed test migration and isolation
 ```yaml
 priority: P0
 impact: prevents mutations to real remotes and exercises new trust flow
@@ -155,7 +163,7 @@ steps:
   - guarantee tests create throw-away remotes/repos and restore git config state
 blocked_by: []
 notes:
-  - include coverage for stale trust_oid and anchor sequencing
+  - all bats suites now bootstrap isolated clones; journal JSON assertions use git cat-file helpers
 ```
 
 - [ ] Align shellcheck coverage and suppressions
