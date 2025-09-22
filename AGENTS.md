@@ -36,6 +36,10 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 
 ## Worklog
 
+```
+██████████████████████▓░░░░░░░░░░░░░░░░░ 67%
+41/61 complete (20 remaining)
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with Python guard.
