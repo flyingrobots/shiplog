@@ -26,6 +26,30 @@ chmod +x /usr/local/bin/jq
 Bootstrap is the only moment you may bypass quorum checks. After the initial push, every update to
 `refs/_shiplog/trust/root` must be fast-forward and co-signed by the current threshold of maintainers.
 
+### Fast Path: `scripts/shiplog-bootstrap-trust.sh`
+
+Run the helper to collect maintainer metadata, generate `.shiplog/trust.json` and
+`.shiplog/allowed_signers`, create the signed genesis commit, and optionally push it to origin:
+
+```bash
+./scripts/shiplog-bootstrap-trust.sh           # prompts for maintainer roster and SSH keys
+./scripts/shiplog-bootstrap-trust.sh --no-push # prepare locally, push later
+```
+
+The script will:
+
+1. Prompt for maintainer names, emails, roles, optional OpenPGP fingerprints, and SSH public keys.
+2. Build a JSON manifest with the chosen signature threshold.
+3. Write `.shiplog/trust.json` and `.shiplog/allowed_signers` (backing up existing files unless `--force`).
+4. Create and sign the genesis commit for `refs/_shiplog/trust/root`.
+5. Offer to push the new ref to `origin`.
+
+After the script completes (and you push the ref, if desired), distribute the roster with
+`./scripts/shiplog-trust-sync.sh` so every workstation and CI runner receives the generated
+`allowed_signers` file.
+
+### Manual Bootstrap (detailed)
+
 ```bash
 # 0) Prepare trust material (ideally on an offline machine)
 cat > .shiplog/trust.json <<'JSON'
