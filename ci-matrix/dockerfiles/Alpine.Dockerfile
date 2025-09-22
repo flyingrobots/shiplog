@@ -12,8 +12,13 @@ RUN git config --system init.defaultBranch main
 COPY --link <<'SH' /usr/local/bin/run-tests
 #!/usr/bin/env bash
 set -euo pipefail
+echo "=== Alpine 3 (musl/BusyBox) ==="
+cat /etc/alpine-release || true
+echo "bash: $(bash --version | head -n1)"
+echo "git:  $(git --version)"
+echo "coreutils: $(stat --version 2>/dev/null | head -n1 || echo busybox-stat)"
 cd /work
-bash ./test.sh
+exec bash ./test.sh
 SH
 RUN chmod +x /usr/local/bin/run-tests
 
