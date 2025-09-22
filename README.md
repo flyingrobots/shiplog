@@ -83,7 +83,7 @@ Because it's built on Git, you get:
 gitGraph
   commit id: "feat: add auth" tag: "main"
   commit id: "fix: handle errors"
-  branch shiplog_prod
+  branch reds/_shiplog/prod
   commit id: "✅ web v2.1.3 → prod"
   commit id: "❌ api v1.4.2 → prod"
   commit id: "🔄 rollback web v2.1.2"

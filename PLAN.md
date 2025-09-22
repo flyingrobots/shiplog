@@ -1,6 +1,7 @@
 # Shiplog Next Steps
 
 ## Priority 1 (Critical)
+
 1. **Replace gum integration** with bundled `scripts/bosun` helper
    - Add Bash fallbacks for all interactive components
    - Acceptance: All gum calls replaced, zero external UI dependencies
@@ -11,6 +12,7 @@
    - Acceptance: CI/automated environments work without user prompts
 
 ## Priority 2 (High)  
+
 3. **Fix macOS compatibility in time helpers**
    - Replace `date -d` usage with portable alternatives
    - Acceptance: All time/duration operations work on macOS and Linux
@@ -26,6 +28,7 @@
    - Acceptance: All policy parsing works with jq, yq completely removed
 
 ## Priority 3 (Medium)
+
 6. **Clean up test dependencies**
    - Remove remaining hard gum dependencies from test/Docker stubs
    - Acceptance: Tests run without gum installed

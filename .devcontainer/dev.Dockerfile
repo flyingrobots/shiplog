@@ -26,8 +26,7 @@ RUN arch="$(dpkg --print-architecture)" \
        esac \
     && gum_release="https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}" \
     && shiplog-download simple "$gum_release" "gum_${GUM_VERSION}_${gum_platform}.tar.gz" "checksums.txt" /tmp/gum.tgz \
-    && gum_release="https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}" \
-    && shiplog-download simple "$gum_release" "gum_${GUM_VERSION}_${gusuf}.tar.gz" "checksums.txt" /tmp/gum.tgz \
+
     && tar -C /usr/local/bin -xzf /tmp/gum.tgz gum \
     && rm -f /tmp/gum.tgz \
     && chmod +x /usr/local/bin/gum \

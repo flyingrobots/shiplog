@@ -16,7 +16,8 @@
         "timonwong.shellcheck",
         "ms-azuretools.vscode-docker",
         "EditorConfig.EditorConfig",
-        "redhat.vscode-yaml"
+        "redhat.vscode-yaml",
+        "DavidAnson.vscode-markdownlint"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
