@@ -4,6 +4,7 @@ IMAGE           ?= shiplog-tests
 CONTEXT         ?= .
 ENABLE_SIGNING  ?= false
 DOCKER_BUILD_OPTS ?=
+CONTAINER_NAME  ?= shiplog-tests-run
 
 .PHONY: all build test build-signing test-signing clean
 
@@ -17,7 +18,7 @@ build:
 
 ## Run tests with the already-built image
 test: build
-	docker run --rm -v $(PWD):/workspace $(IMAGE)
+	docker run --rm --name $(CONTAINER_NAME) -v $(PWD):/workspace $(IMAGE)
 
 ## Convenience: force-signing build
 build-signing:
@@ -26,7 +27,7 @@ build-signing:
 ## Convenience: run tests with signing enabled
 test-signing:
 	$(MAKE) DOCKER_BUILD_OPTS="$(DOCKER_BUILD_OPTS)" build-signing
-	docker run --rm -v $(PWD):/workspace $(IMAGE)
+	docker run --rm --name $(CONTAINER_NAME)-signing -v $(PWD):/workspace $(IMAGE)
 
 ## Clean local dangling images/containers (non-destructive)
 clean:

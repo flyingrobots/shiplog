@@ -82,11 +82,12 @@ cmd_init() {
     git config --add remote.origin.fetch "$fetch_value"
   fi
 
-  mapfile -t existing_push < <(git config --get-all remote.origin.push 2>/dev/null || true)
-  if ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "$REF_ROOT/*:$REF_ROOT/*"; then
+  local existing_push
+  existing_push=$(git config --get-all remote.origin.push 2>/dev/null || true)
+  if ! printf '%s\n' "$existing_push" | grep -Fxq "$REF_ROOT/*:$REF_ROOT/*"; then
     git config --add remote.origin.push "$REF_ROOT/*:$REF_ROOT/*"
   fi
-  if [ ${#existing_push[@]} -eq 0 ] && ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "HEAD"; then
+  if [ -z "$existing_push" ] && ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "HEAD"; then
     git config --add remote.origin.push HEAD
   fi
 

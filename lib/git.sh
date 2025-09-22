@@ -98,8 +98,8 @@ compose_message() {
   },
   status: $status,
   when: {
-    start_ts: $start,
-    end_ts: $end,
+    start_ts: $start_ts,
+    end_ts: $end_ts,
     dur_s: $dur
   },
   seq: $seq,
@@ -125,8 +125,8 @@ JQ
     --arg ticket "$ticket" \
     --arg run_url "$run_url" \
     --arg status "$status" \
-    --arg start "$start_ts" \
-    --arg end "$end_ts" \
+    --arg start_ts "$start_ts" \
+    --arg end_ts "$end_ts" \
     --arg trust "$trust_oid" \
     --arg parent "$journal_parent" \
     --arg anchor "$previous_anchor" \
