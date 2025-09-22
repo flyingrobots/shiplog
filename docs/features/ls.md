@@ -8,6 +8,21 @@
 git shiplog ls [ENV]
 ```
 
+## Parameters
+- `ENV` *(optional)* — target environment name. When omitted, Shiplog resolves the environment in this order: command argument, `--env` flag, `SHIPLOG_ENV`, and finally the tool’s default environment.
+
+## Examples
+```bash
+# List entries for the default environment
+git shiplog ls
+
+# List entries for production explicitly
+git shiplog ls production
+
+# List entries for staging using the --env flag
+git shiplog --env staging ls
+```
+
 ## Behavior
 - **Environment Resolution**: Uses environment specified by:
   1. Command line argument `[ENV]`

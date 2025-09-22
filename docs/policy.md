@@ -3,9 +3,15 @@
 This document summarizes the fields accepted by `.shiplog/policy.json`. A formal JSON Schema is published at [`examples/policy.schema.json`](../examples/policy.schema.json). Validate changes locally with:
 
 ```bash
-jq --schema examples/policy.schema.json '.' < .shiplog/policy.json
-# or, if jq --schema is unavailable:
-python3 -m jsonschema -i .shiplog/policy.json examples/policy.schema.json
+# Syntax check
+jq '.' .shiplog/policy.json >/dev/null
+
+# Schema validation (choose one)
+npm install -g ajv-cli
+ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shiplog/policy.json
+
+pip install jsonschema
+python -m jsonschema -i .shiplog/policy.json examples/policy.schema.json
 ```
 
 ## Top-level Fields
@@ -27,9 +33,14 @@ python3 -m jsonschema -i .shiplog/policy.json examples/policy.schema.json
 
 ```json
 "authors": {
-  "default_allowlist": ["deploy-bot@ci"],
+  "default_allowlist": [
+    "deploy-bot@ci",
+    "releases@example.com"
+  ],
   "env_overrides": {
-    "prod": ["prod-approver@example.com"]
+    "prod": ["lead@example.com", "sre@example.com"],
+    "staging": ["qa@example.com"],
+    "default": ["dev@example.com"]
   }
 }
 ```

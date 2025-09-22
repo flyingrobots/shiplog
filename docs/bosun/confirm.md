@@ -16,11 +16,20 @@ Examples:
 
 ```bash
 bosun confirm "Deploy to production?"
-#> yes | no
+#> Deploy to production? [y/N] y
+#> yes
+# exit 0
 
 bosun confirm --yes "Skip safety check"
-# exits 0 without prompting
+#> yes
+# exit 0
 
 bosun confirm --json "Continue?"
-#> {"ok":true}
+#> {"ok": true}
+# exit 0
+
+bosun confirm "Abort release?"
+#> Abort release? [y/N] n
+#> no
+# exit 1
 ```

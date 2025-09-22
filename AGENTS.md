@@ -70,15 +70,15 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - [ ] Align ShellCheck across scripts (bin/git-shiplog globals, install script printf) so the lint run is warning-free or explicitly suppressed.
 - [x] Update Docker test harness to work on a copied repo snapshot (no bind mount) and ensure tests create isolated git remotes.
 - [ ] Prevent tests from mutating real remotes (introduce throw-away test repos instead of in-place git config edits).
-- [ ] docs/bosun/choose.md — add an interactive example showing menu prompt, user input, and output.
-- [ ] docs/bosun/confirm.md — normalize examples (consistent comments, JSON formatting, decline scenario + exit codes).
-- [ ] docs/bosun/input.md — add edge-case examples (empty stdin, non-tty behaviour, placeholder+default) with outputs/exit codes.
-- [ ] docs/bosun/overview.md — expand each command description with purpose, flags, defaults, and a concise example.
-- [ ] docs/features/init.md — clarify the `core.logAllRefUpdates` explanation with concrete behaviour and implications.
-- [ ] docs/features/ls.md — document ENV parameter and add multiple usage examples.
-- [ ] docs/features/policy.md — replace buzzwords with explicit precedence rules, add minimal + full policy examples, schema reference, override mapping.
-- [ ] docs/features/write.md — enumerate all supported `SHIPLOG_*` env vars (purpose, type, defaults, examples).
-- [ ] docs/policy.md — correct validation guidance, provide full authors JSON example, note schema/override usage.
+- [x] docs/bosun/choose.md — add an interactive example showing menu prompt, user input, and output.
+- [x] docs/bosun/confirm.md — normalize examples (consistent comments, JSON formatting, decline scenario + exit codes).
+- [x] docs/bosun/input.md — add edge-case examples (empty stdin, non-tty behaviour, placeholder+default) with outputs/exit codes.
+- [x] docs/bosun/overview.md — expand each command description with purpose, flags, defaults, and a concise example.
+- [x] docs/features/init.md — clarify the `core.logAllRefUpdates` explanation with concrete behaviour and implications.
+- [x] docs/features/ls.md — document ENV parameter and add multiple usage examples.
+- [x] docs/features/policy.md — replace buzzwords with explicit precedence rules, add minimal + full policy examples, schema reference, override mapping.
+- [x] docs/features/write.md — enumerate all supported `SHIPLOG_*` env vars (purpose, type, defaults, examples).
+- [x] docs/policy.md — correct validation guidance, provide full authors JSON example, note schema/override usage.
 - [ ] examples/policy.json — resolve signers file path deterministically (absolute/homedir) and adjust docs.
 - [ ] examples/policy.schema.json — tighten Git ref regex validation for notes/prefix fields.
 - [ ] lib/commands.sh — remove ensure_config_value helper and refactor maybe_sync_shiplog_ref via new helper functions; simplify artifact construction.

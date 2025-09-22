@@ -36,7 +36,7 @@ shiplog: Run inside a git repo.
 
 ## Behavior
 - Adds fetch/push refspecs for `refs/_shiplog/*` to enable remote synchronization.
-- Enables `core.logAllRefUpdates` to maintain comprehensive reflog history.
+- Enables `core.logAllRefUpdates`, which tells Git to record a reflog entry for every ref update (branches, tags, `HEAD`, and custom refs) so prior object IDs remain discoverable via `git reflog` or `git reset --reflog`. This improves recovery from mistakes and supports safe rollbacks at the cost of slightly larger reflog history; enable it whenever you need reliable rollback and auditing.
 - Adds a `push = HEAD` refspec only if no push configuration exists, preserving custom push setups.
 - Produces a human-friendly confirmation in interactive shells and plain output when `--boring` is supplied.
 
