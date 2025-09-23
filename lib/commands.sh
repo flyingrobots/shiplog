@@ -75,6 +75,10 @@ maybe_sync_shiplog_ref() {
   esac
 }
 
+cmd_version() {
+  printf 'shiplog %s\n' "$(shiplog_version)"
+}
+
 cmd_init() {
   ensure_in_repo
   local fetch_value="+$REF_ROOT/*:$REF_ROOT/*"
@@ -410,6 +414,7 @@ Usage:
   $cmd [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
 
 Commands:
+  version             Print Shiplog version
   init                 Initialize shiplog configuration in current repo
   write [ENV]          Create a new deployment log entry
   ls [ENV] [LIMIT]     List recent deployment entries (default: last 20)
@@ -446,6 +451,7 @@ run_command() {
   local sub="${1:-}"
   shift || true
   case "$sub" in
+    version)       cmd_version "$@";;
     init)          cmd_init "$@";;
     write)         cmd_write "$@";;
     ls)            cmd_ls "$@";;

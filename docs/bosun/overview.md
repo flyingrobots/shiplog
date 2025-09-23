@@ -4,6 +4,7 @@ Bosun provides lightweight TUI primitives implemented in pure Bash, designed to 
 
 Available commands:
 
+- `bosun --version` — Prints the currently installed build identifier (git describe when available, otherwise short SHA).
 - `bosun confirm` — Prompts for a yes/no response, honouring colors unless `NO_COLOR`/`--no-color` is set. Flags include `--yes` for non-interactive acceptance and `--json` to emit `{"ok": true|false}`. Returns exit 0 on yes, exit 1 on no. Example: `bosun confirm "Deploy?"` → `Deploy? [y/N] y` then `yes`.
 - `bosun input` — Reads a single line from the user or stdin with optional `--placeholder`, `--value/--default`, and `--json` flags. Falls back to the provided default when stdin is empty and exits 0 with the captured text. Example: `bosun input --placeholder "Artifact" --value latest` prints `latest` when the user presses enter.
 - `bosun choose` — Displays a numbered menu of options supplied as positional arguments. Supports `--header`, `--default`, `--json`, and obeys `NO_COLOR`. Returns the chosen value (or the default in non-TTY mode); `bosun choose --header "Env" dev stage prod` selects an environment.

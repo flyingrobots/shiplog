@@ -17,6 +17,31 @@ need() {
   command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
 }
 
+shiplog_version() {
+  if [ -n "${SHIPLOG_VERSION:-}" ]; then
+    printf '%s' "$SHIPLOG_VERSION"
+    return
+  fi
+
+  local repo
+  repo="${SHIPLOG_HOME:-$(pwd)}"
+  if git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    local desc
+    desc=$(git -C "$repo" describe --tags --always 2>/dev/null || true)
+    if [ -n "$desc" ]; then
+      printf '%s' "$desc"
+      return
+    fi
+    desc=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || true)
+    if [ -n "$desc" ]; then
+      printf '%s' "$desc"
+      return
+    fi
+  fi
+
+  printf '%s' "unknown"
+}
+
 shiplog_bosun_bin() {
   printf '%s' "${SHIPLOG_BOSUN_BIN:-bosun}"
 }

@@ -108,7 +108,7 @@ export SHIPLOG_HOME="$HOME/.shiplog"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 ```
 
-3. Reload your shell and verify: `shiplog --help`
+3. Reload your shell and verify: `git shiplog --help` and `git shiplog --version`
 
 4. Install dependencies:
 
