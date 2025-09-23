@@ -33,7 +33,12 @@ split_string() {
 }
 
 trim_space() {
-  printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+  local var="$1"
+  # Remove leading whitespace
+  var="${var#"${var%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
 }
 
 show_doc() {
@@ -255,14 +260,12 @@ cmd_table() {
   done
   [ -n "$columns_arg" ] || { echo "bosun table: --columns required" >&2; return 2; }
 
-  split_string "," "$columns_arg"
-  local headers=()
-  local h
-  for h in "${split_result[@]}"; do
-    local trimmed
-    trimmed=$(trim_space "$h")
-    [ -n "$trimmed" ] || { echo "bosun table: empty column name" >&2; return 2; }
-    headers+=("$trimmed")
+  local IFS=','
+  read -ra headers <<< "$columns_arg"
+  local i
+  for i in "${!headers[@]}"; do
+    headers[$i]=$(trim_space "${headers[$i]}")
+    [ -n "${headers[$i]}" ] || { echo "bosun table: empty column name" >&2; return 2; }
   done
 
   local rows=()
