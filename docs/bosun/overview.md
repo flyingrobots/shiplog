@@ -2,6 +2,8 @@
 
 Bosun provides lightweight TUI primitives implemented in pure Bash, designed to work in both interactive shells and non-interactive environments while honoring `NO_COLOR`.
 
+> **Prerequisite:** Bosun requires `perl` at runtime to strip ANSI sequences safely. Install it on hosts where you intend to use Bosun; the tool fails fast with a clear error if `perl` is unavailable.
+
 Available commands:
 
 - `bosun --version` — Prints the currently installed build identifier (git describe when available, otherwise short SHA).

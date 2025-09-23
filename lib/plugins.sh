@@ -17,30 +17,22 @@ shiplog_plugins_stage_dir() {
 shiplog_plugins_list() {
   local stage="$1"
   local dir
-  dir=$(shiplog_plugins_stage_dir "$stage")
+  dir=$(shiplog_plugins_stage_dir "$stage") || return 1
   [ -d "$dir" ] || return 0
-  local plugin
-  while IFS= read -r -d '' plugin; do
-    # ensure canonical path stays inside plugins dir
+
+  local plugins_root
+  plugins_root=$(cd "$(shiplog_plugins_dir)" 2>/dev/null && pwd -P) || return 1
+
+  find "$dir" -maxdepth 1 -type f -perm -u+x -name '*.sh' 2>/dev/null | sort | while IFS= read -r plugin; do
     local canonical
     canonical=$(cd "$(dirname "$plugin")" 2>/dev/null && pwd -P)
     if [ -z "$canonical" ]; then
       printf 'shiplog: failed to resolve canonical path for %s\n' "$plugin" >&2
       continue
     fi
-shiplog_plugins_list() {
-  local stage="$1"
-  local dir
-  dir=$(shiplog_plugins_stage_dir "$stage")
-  [ -d "$dir" ] || return 0
-  local plugins_canonical
-  plugins_canonical=$(cd "$(shiplog_plugins_dir)" 2>/dev/null && pwd -P) || return 1
-  local plugin
-  while IFS= read -r -d '' plugin; do
-    # ... existing validation logic
     case "$canonical/" in
-      "$plugins_canonical/"*)
-        printf '%s\0' "$plugin"
+      "$plugins_root/"*)
+        printf '%s\n' "$plugin"
         ;;
       *)
         printf 'shiplog: ignoring plugin outside plugins dir: %s\n' "$plugin" >&2
@@ -48,15 +40,13 @@ shiplog_plugins_list() {
     esac
   done
 }
-  done < <(find "$dir" -maxdepth 1 -type f -perm -u+x -name '*.sh' -print0 2>/dev/null | sort -z)
-}
 
 shiplog_plugins_filter() {
   local stage="$1" input="$2"
-  local tmp_output
-  tmp_output="$input"
+  local tmp_output="$input"
   local plugin
-  while IFS= read -r -d '' plugin; do
+  while IFS= read -r plugin; do
+    [ -n "$plugin" ] || continue
     tmp_output=$(printf '%s' "$tmp_output" | "$plugin" "$stage") || {
       printf 'shiplog: plugin %s failed during stage %s\n' "$plugin" "$stage" >&2
       return 1
