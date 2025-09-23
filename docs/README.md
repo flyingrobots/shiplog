@@ -4,3 +4,4 @@
 - [Trust Bootstrap and Enforcement](TRUST.md)
 - [Feature Guides](features)
 - [Bosun Helpers](bosun)
+- [Plugin Hooks](plugins.md)

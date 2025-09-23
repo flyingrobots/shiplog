@@ -47,7 +47,7 @@ SIGNERS_FILE_EFFECTIVE=""
 # -------- Source Library Functions --------
 [ -d "$LIB_DIR" ] || { echo "❌ shiplog: unable to locate lib dir ($LIB_DIR)" >&2; exit 1; }
 
-for lib in common.sh policy.sh git.sh commands.sh; do
+for lib in common.sh policy.sh git.sh plugins.sh commands.sh; do
   if [[ ! -f "$LIB_DIR/$lib" ]]; then
     echo "❌ shiplog: missing required library: $LIB_DIR/$lib" >&2
     exit 1

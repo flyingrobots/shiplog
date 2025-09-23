@@ -199,6 +199,7 @@ cmd_write() {
   write_ts="$(fmt_ts)"
 
   local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url" "$seq" "$parent" "$trust_oid" "$previous_anchor" "$write_ts" "$author_name" "$author_email")"
+  msg=$(shiplog_plugins_filter "pre-commit-message" "$msg")
 
   if shiplog_can_use_bosun; then
     local bosun
