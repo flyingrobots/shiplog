@@ -67,7 +67,7 @@ notes:
 priority: P1
 impact: verifies shiplog works across mainstream distros and ensures modern Git defaults
 steps:
-  - add ci-matrix/dockerfiles for Debian, Ubuntu, Fedora, Alpine, Arch with consistent run-tests entrypoint
+  - add ci-matrix Dockerfile for Debian, Ubuntu, Fedora, Alpine, Arch with consistent run-tests entrypoint
   - provide docker-compose.yml and run-all.sh wrapper to build/run each image mounting repo at /work
   - add repo-root test.sh that run-tests can invoke (wrapper around bats -r test or chosen suite)
 blocked_by: []
@@ -178,6 +178,181 @@ blocked_by: []
 notes:
   - depends on Bosun/installer refactors to settle
 ```
+
+- [ ] Expand Bosun Markdown renderer with pager
+```yaml
+priority: P1
+impact: surfacing docs/runbooks directly in CLI with tables/links and a built-in pager
+steps:
+  - extend bosun to parse Markdown (headings, emphasis, code, tables, links)
+  - add display mode with ANSI styling and optional paging behavior
+  - wire bosun help/docs to use the renderer
+blocked_by: []
+notes:
+  - enables `git shiplog help` and runbooks to show formatted content in-terminal
+```
+
+- [ ] Enforce per-path author allowlists
+```yaml
+priority: P1
+impact: prevents unauthorized edits to sensitive areas (Dockerfiles, trust scripts, etc.)
+steps:
+  - extend policy to support path→author mappings
+  - teach verification hooks to reject entries violating the map
+  - document how to configure and maintain the mappings
+blocked_by: []
+notes:
+  - complements pre-push guardrails by hardening repository ownership
+```
+
+- [ ] Add shiplog command wrapper with log capture
+```yaml
+priority: P1
+impact: make it trivial to wrap deployments/tests, capture stdout/stderr, and attach structured logs as notes
+steps:
+  - provide a `git shiplog run <cmd>` (or similar) that tees output to a temp file
+  - annotate start/finish events and set `SHIPLOG_LOG` automatically
+  - support optional JSON/timestamp formatting and filters before attaching notes
+blocked_by: []
+notes:
+  - builds on existing `SHIPLOG_LOG` behavior and unlocks scripted integrations
+```
+
+- [ ] Design extension/plugin system
+```yaml
+priority: P2
+impact: lets teams customize entry payloads (enrich, veto, mutate trailers) while keeping core logic stable
+steps:
+  - define a safe hook API for pre/post entry mutations
+  - ensure sandboxing/security boundaries so plugins cannot bypass policy checks
+  - document lifecycle and configuration
+blocked_by: []
+notes:
+  - opens compatibility with secrets scrubbers, metadata injectors, org-specific tooling
+```
+
+- [ ] Integrate secrets scrubber
+```yaml
+priority: P1
+impact: protects journals from leaking tokens/API keys when attaching logs or structured data
+steps:
+  - provide configurable patterns and allowlist for auto-redaction
+  - integrate scrubber into log attachment path (including future `shiplog run` wrapper)
+  - add tests to confirm sensitive strings are removed before commit/push
+blocked_by: [Design extension/plugin system]
+notes:
+  - pairs naturally with the plugin architecture; could ship a built-in default scrubber
+```
+
+- [ ] Harden docs/plugins.md usage guidance
+```yaml
+priority: P1
+impact: clarify plugin directory semantics for operators
+steps:
+  - document SHIPLOG_PLUGINS_DIR behavior (auto-create?, relative vs absolute, ~ expansion, permissions, fallback)
+  - add absolute/relative path examples and link to troubleshooting for permission errors
+blocked_by: []
+notes:
+  - current docs are incomplete around lines 40–48
+```
+
+- [ ] Expand plugin safety guidance
+```yaml
+priority: P1
+impact: make threats and mitigations explicit for plugin authors
+steps:
+  - enumerate risks (malicious names, traversal, symlinks, privilege escalation)
+  - document mitigations (canonical path checks, permissions, code provenance, execution sandboxing, logging)
+blocked_by: []
+notes:
+  - strengthen docs/plugins.md safety notes (lines ~34–38)
+```
+
+- [ ] Clarify plugin script contract
+```yaml
+priority: P1
+impact: ensure plugin authors know stderr/timeout/env semantics
+steps:
+  - specify stderr handling, timeouts, env vars, working dir, stdin format and limits
+  - replace unsafe regex example with vetted patterns and add tests covering error paths
+blocked_by: []
+notes:
+  - update docs/plugins.md script interface section (lines ~19–32)
+```
+
+- [ ] Deduplicate CI matrix package installs
+```yaml
+priority: P1
+impact: keep distro builds consistent and maintainable
+steps:
+  - introduce shared package list in ci-matrix/Dockerfile with distro-specific additions
+  - document package purpose and retain cleanup commands per distro
+blocked_by: []
+notes:
+  - clean up lines 12–27 in ci-matrix/Dockerfile
+```
+
+- [ ] Clarify Ubuntu build args in matrix compose
+```yaml
+priority: P3
+impact: remove confusion in docker-compose.yml for Ubuntu service
+steps:
+  - add inline comment explaining Ubuntu uses the Debian/apt family
+blocked_by: []
+notes:
+  - adjust ci-matrix/docker-compose.yml lines 16–64
+```
+
+- [ ] Align lib/plugins.sh with shell policy
+```yaml
+priority: P1
+impact: ensure plugin loader matches POSIX/guidelines
+steps:
+  - decide between POSIX-compatible implementation or explicit bash requirement
+  - update shebang/directive/docs accordingly and adjust constructs (process substitution, arrays, sort -z)
+blocked_by: []
+notes:
+  - address directives, process substitution, and sorting portability
+```
+
+- [ ] Optimize Bosun table parsing
+```yaml
+priority: P1
+impact: faster, portable table rendering
+steps:
+  - replace split_string loops with localized IFS/read usage for widths and printing
+blocked_by: []
+notes:
+  - refactor sections around rows parsing in scripts/bosun
+```
+
+- [ ] Require perl for ANSI stripping
+```yaml
+priority: P2
+impact: predictable Bosun output when perl is missing
+steps:
+  - fail fast with a clear error if perl is unavailable and update docs to reflect dependency
+blocked_by: []
+notes:
+  - adjust strip_ansi fallback branch in scripts/bosun
+```
+
+- [ ] Improve split helper implementation
+```yaml
+priority: P2
+impact: make split_string efficient and localized
+steps:
+  - use local arrays / readarray approach and document behavior for multi-char delimiters
+blocked_by: []
+notes:
+  - update helper near top of scripts/bosun
+```
+
+## Lessons Learned
+
+- Tests that exercise Bosun must run inside the container; native runs may pass even when tab parsing fails under Docker. Always validate UI paths in the same environment CI uses.
+- Structured output (Bosun tables) should be constructed column-by-column to avoid shell quoting surprises; use `$'\t'` concatenation rather than embedding literal tabs in a single string.
+- Plugin scripts run with full privileges—enforce canonical path checks and clear execution contracts so extensions can’t escape the sandbox. Document the security expectations alongside hooks.
 
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.

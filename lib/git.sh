@@ -282,7 +282,7 @@ pretty_ls() {
     status="$(git show -s --format=%B "$c" | awk -F': ' '/^Status: /{print $2; exit}')"
     service="$(echo "$subj" | awk '{print $2}')"
     env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
-    rows+="$c\t${status:-?}\t${service:-?}\t${env:-?}\t$author\t$date"$'\n'
+    rows+="$c"$'\t'"${status:-?}"$'\t'"${service:-?}"$'\t'"${env:-?}"$'\t'"$author"$'\t'"$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
 
   if is_boring || [ "$bosun_available" -ne 1 ]; then

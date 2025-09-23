@@ -1,23 +1,53 @@
 # syntax=docker/dockerfile:1
-FROM debian:bookworm-slim
 
-ARG ENABLE_SIGNING=false
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE} AS base
+
 ARG DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=$DEBIAN_FRONTEND \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
-# Base dependencies for shiplog tests
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        git \
-       ca-certificates \
-       curl \
        jq \
        bats \
        gnupg \
+       curl \
+       ca-certificates \
+       shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
 
-# Test runner script (sets up throw-away repo, executes bats)
+# ---------------------------------------------------------------------------
+# devcontainer stage
+# ---------------------------------------------------------------------------
+FROM base AS devcontainer
+
+ARG DEVCONTAINER_USER=vscode
+RUN if ! id "$DEVCONTAINER_USER" >/dev/null 2>&1; then \
+      useradd -ms /bin/bash "$DEVCONTAINER_USER"; \
+    fi
+USER "$DEVCONTAINER_USER"
+WORKDIR /workspaces/shiplog
+CMD ["bash"]
+
+# ---------------------------------------------------------------------------
+# test runner image (default)
+# ---------------------------------------------------------------------------
+FROM base AS test
+ARG ENABLE_SIGNING=false
+ENV ENABLE_SIGNING=$ENABLE_SIGNING
+
+WORKDIR /workspace
+COPY . /workspace
+
+ENV SHIPLOG_HOME=/workspace \
+    SHIPLOG_LIB_DIR=/workspace/lib \
+    SHIPLOG_BOSUN_BIN=/workspace/scripts/bosun \
+    PATH=/workspace/bin:$PATH
+
 RUN cat <<'SCRIPT' > /usr/local/bin/run-tests
 #!/usr/bin/env bash
 set -euo pipefail
@@ -31,13 +61,11 @@ TEST_ROOT=$(mktemp -d)
 cp -a "$SRC_WORKSPACE/." "$TEST_ROOT/shiplog"
 export SHIPLOG_HOME="$TEST_ROOT/shiplog"
 export SHIPLOG_LIB_DIR="$SHIPLOG_HOME/lib"
-cd "$SHIPLOG_HOME"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 export SHIPLOG_BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
 export SHIPLOG_REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 export SHIPLOG_NOTES_REF=${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}
 
-# Optional signing bootstrap (if ENABLE_SIGNING build-arg was true)
 if [ "${ENABLE_SIGNING:-false}" = "true" ]; then
   if ! command -v gpg >/dev/null; then
     echo "gnupg missing" >&2
@@ -47,8 +75,7 @@ if [ "${ENABLE_SIGNING:-false}" = "true" ]; then
     echo "Generating throw-away GPG key"
     mkdir -p ~/.gnupg
     chmod 700 ~/.gnupg
-    printf "allow-loopback-pinentry
-" > ~/.gnupg/gpg-agent.conf
+    printf "allow-loopback-pinentry\n" > ~/.gnupg/gpg-agent.conf
     export GPG_TTY="$(tty 2>/dev/null || echo /dev/null)"
     gpgconf --kill gpg-agent >/dev/null 2>&1 || true
     gpg --batch --pinentry-mode loopback --passphrase '' --quick-gen-key "Shiplog Test <shiplog-test@example.local>" default default never >/dev/null
@@ -66,11 +93,6 @@ else
   export SHIPLOG_SIGN=${SHIPLOG_SIGN:-0}
 fi
 
-console_log() {
-  printf '%s
-' "$*"
-}
-
 echo "Setting up throw-away repo"
 TMPREPO="$(mktemp -d)"
 cd "$TMPREPO"
@@ -79,27 +101,25 @@ git config user.name  "$TEST_AUTHOR_NAME"
 git config user.email "$TEST_AUTHOR_EMAIL"
 git commit --allow-empty -m init >/dev/null
 
-# Bring in shiplog script from mounted workspace
 if [ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]; then
   echo "Missing ${SHIPLOG_HOME}/bin/git-shiplog. Mount your project into ${SHIPLOG_HOME}." >&2
   exit 1
 fi
 install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 
-# Refspecs for hidden refs (so tests that fetch/push work if needed)
-git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*" || true
-git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"  || true
+# If tests require a remote, point origin at the temp repo itself.
+# Otherwise, remove this block entirely.
+# git remote add origin "file://$TMPREPO"
+# git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
+# git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 git config core.logAllRefUpdates true
-
 echo "Running bats tests"
-if compgen -G "$SHIPLOG_HOME/test/*.bats" > /dev/null; then
-  bats -r "$SHIPLOG_HOME/test"
+if compgen -G "${SHIPLOG_HOME}/test/*.bats" > /dev/null; then
+  bats -r "${SHIPLOG_HOME}/test"
 else
-  echo "No tests found at $SHIPLOG_HOME/test/*.bats"
+  echo "No tests found at ${SHIPLOG_HOME}/test/*.bats"
 fi
 SCRIPT
 RUN chmod +x /usr/local/bin/run-tests
-
-ENV ENABLE_SIGNING=${ENABLE_SIGNING}
 
 ENTRYPOINT ["/usr/local/bin/run-tests"]

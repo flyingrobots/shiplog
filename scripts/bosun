@@ -9,6 +9,15 @@ BOSUN_DIR="$(cd "$(dirname "$BOSUN_SELF")" && pwd)"
 SHIPLOG_HOME="${SHIPLOG_HOME:-$(cd "$BOSUN_DIR/.." && pwd)}"
 BOSUN_DOC_ROOT="${BOSUN_DOC_ROOT:-$BOSUN_DIR/../docs/bosun}"
 
+
+strip_ansi() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe 's/\e\[[0-9;]*[0-9A-PR-TZcf-nq-uy=><]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[P^_].*?\e\\//g'
+  else
+    sed -E 's/\x1B\[[0-9;]*[ -\/]*[@-~]//g'
+  fi
+}
+
 split_string() {
   local delim="$1" input="$2"
   split_result=()
@@ -48,6 +57,12 @@ bosun_version() {
     fi
   fi
   printf '%s' "unknown"
+  local var="$1"
+  # Remove leading whitespace
+  var="${var#"${var%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
 }
 
 show_doc() {
@@ -119,11 +134,7 @@ draw_box() {
   local border_side="│" corner_bl="└" corner_br="┘"
   [ "$inner" -lt 1 ] && inner=1
   local title_raw
-  if command -v perl >/dev/null 2>&1; then
-    title_raw="$(printf '%s' "$title_col" | perl -pe 's/\e\[[0-9;]*[0-9A-PR-TZcf-nq-uy=><]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[P^_].*?\e\\//g')"
-  else
-    title_raw="$(printf '%s' "$title_col" | sed $'s/\033\[[0-9;]*[A-Za-z]//g')"
-  fi
+  title_raw="$(printf '%s' "$title_col" | strip_ansi)"
   if [ -n "$title_raw" ]; then
     local barlen=$(( width - ${#title_raw} - 4 ))
     [ "$barlen" -lt 0 ] && barlen=0

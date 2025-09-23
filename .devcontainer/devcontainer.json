@@ -1,11 +1,9 @@
 {
   "name": "Shiplog",
   "build": {
-    "dockerfile": "dev.Dockerfile",
+    "dockerfile": "../Dockerfile",
     "context": "..",
-    "args": {
-      "GUM_VERSION": "0.13.0"
-    }
+    "target": "devcontainer"
   },
   "workspaceFolder": "/workspaces/shiplog",
   "remoteUser": "vscode",
