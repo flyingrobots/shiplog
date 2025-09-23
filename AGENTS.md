@@ -205,6 +205,19 @@ notes:
   - complements pre-push guardrails by hardening repository ownership
 ```
 
+- [ ] Add shiplog command wrapper with log capture
+```yaml
+priority: P1
+impact: make it trivial to wrap deployments/tests, capture stdout/stderr, and attach structured logs as notes
+steps:
+  - provide a `git shiplog run <cmd>` (or similar) that tees output to a temp file
+  - annotate start/finish events and set `SHIPLOG_LOG` automatically
+  - support optional JSON/timestamp formatting and filters before attaching notes
+blocked_by: []
+notes:
+  - builds on existing `SHIPLOG_LOG` behavior and unlocks scripted integrations
+```
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
