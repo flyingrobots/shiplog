@@ -1,53 +1,35 @@
 # SHIPLOG • 🚢🪵
 
-The pager goes off at 3:17 a.m.
-The intern is frozen, hands hovering over the keyboard like it’s wired with C4.
-And of course, you picked this week to quit smoking.
+The pager goes off at 3:17 a.m. The intern is frozen, hands hovering over the keyboard like it’s wired with C4. And of course, you picked this week to quit smoking.
 
-The coffee pot’s empty. Of course it is. You quit coffee too, because you’re a genius.
 The dashboards are bleeding red.
 Slack is twelve parallel arguments, all noise, no answers.
 
-The monitoring alert reads like a ransom note — all caps, no punctuation, and somehow it knows your name.
-The runbook is 400 pages long. Step one: panic.
+The monitoring alert reads like a ransom note — all caps, no punctuation, and somehow it knows your name. The runbook is 400 pages long. Step one: panic.
 
-Bob mutters, “It worked on my laptop.”
-Bob’s laptop hasn’t been patched since the Obama administration.
+Bob mutters, “It worked on my laptop.” Bob’s laptop hasn’t been patched since the Obama administration.
 
-The Jira ticket’s still “In Review.”
-That’s funny, because prod isn’t.
+The Jira ticket’s still “In Review.” That’s funny, because prod isn’t.
 
-The CI logs stop mid-sentence.
-Last line: “Deploying…” Nothing else. Just static.
+The CI logs stop mid-sentence. Last line: “Deploying…” Nothing else. Just static.
 
-And in the corner, Jenkins is whispering again.
-He’s been mumbling the same cronjob lullaby since 2019.
-Nobody listens — until prod catches fire, and suddenly the old man’s a suspect.
+And in the corner, Jenkins is whispering again. He’s been mumbling the same cronjob lullaby since 2019. Nobody listens until prod catches fire, and suddenly the old man’s a suspect.
 
 Stop blaming the ghost. Stop digging through rubble.
 
 All of the ship is logged in Git.
 
-Zero infra. No new tools.
-Lives by your code.
+Zero infra. No new tools. Lives by your code. No archaeology. No copy/paste. No 2FA hopscotch through three dashboards.
 
-No archaeology.
-No copy/paste.
-No 2FA hopscotch through three dashboards.
-
-Just clarity.
-And the truth.
+Just clarity. And the truth.
 
 *INT. WAR ROOM – DAWN*
 
-The intern finally exhales, hands unclenched.
-Slack arguments dissolve into praise.
-Bob swears he’ll upgrade Jenkins — “just in case.”
+The intern finally exhales, hands unclenched. Slack arguments dissolve into praise. Bob swears he’ll upgrade Jenkins — “just in case.”
 
 Yeah, right.
 
-The room is calm again.
-The intern looks at you, wide-eyed:
+The room is calm again. The intern looks at you, wide-eyed:
 
 “How’d you figure it out so fast?”
 
