@@ -218,6 +218,32 @@ notes:
   - builds on existing `SHIPLOG_LOG` behavior and unlocks scripted integrations
 ```
 
+- [ ] Design extension/plugin system
+```yaml
+priority: P2
+impact: lets teams customize entry payloads (enrich, veto, mutate trailers) while keeping core logic stable
+steps:
+  - define a safe hook API for pre/post entry mutations
+  - ensure sandboxing/security boundaries so plugins cannot bypass policy checks
+  - document lifecycle and configuration
+blocked_by: []
+notes:
+  - opens compatibility with secrets scrubbers, metadata injectors, org-specific tooling
+```
+
+- [ ] Integrate secrets scrubber
+```yaml
+priority: P1
+impact: protects journals from leaking tokens/API keys when attaching logs or structured data
+steps:
+  - provide configurable patterns and allowlist for auto-redaction
+  - integrate scrubber into log attachment path (including future `shiplog run` wrapper)
+  - add tests to confirm sensitive strings are removed before commit/push
+blocked_by: [Design extension/plugin system]
+notes:
+  - pairs naturally with the plugin architecture; could ship a built-in default scrubber
+```
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
