@@ -67,7 +67,7 @@ notes:
 priority: P1
 impact: verifies shiplog works across mainstream distros and ensures modern Git defaults
 steps:
-  - add ci-matrix/dockerfiles for Debian, Ubuntu, Fedora, Alpine, Arch with consistent run-tests entrypoint
+  - add ci-matrix Dockerfile for Debian, Ubuntu, Fedora, Alpine, Arch with consistent run-tests entrypoint
   - provide docker-compose.yml and run-all.sh wrapper to build/run each image mounting repo at /work
   - add repo-root test.sh that run-tests can invoke (wrapper around bats -r test or chosen suite)
 blocked_by: []
