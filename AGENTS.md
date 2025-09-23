@@ -125,6 +125,7 @@ steps:
 blocked_by: []
 notes:
   - coordinate with hook enforcement changes to keep messaging consistent
+  - first-time trust bootstrap now scripted via scripts/shiplog-bootstrap-trust.sh
 ```
 
 - [ ] Complete policy and sync tooling hardening
