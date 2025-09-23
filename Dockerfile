@@ -107,10 +107,12 @@ if [ ! -f "${SHIPLOG_HOME}/bin/git-shiplog" ]; then
 fi
 install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 
-git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*" || true
-git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"  || true
+# If tests require a remote, point origin at the temp repo itself.
+# Otherwise, remove this block entirely.
+# git remote add origin "file://$TMPREPO"
+# git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
+# git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 git config core.logAllRefUpdates true
-
 echo "Running bats tests"
 if compgen -G "${SHIPLOG_HOME}/test/*.bats" > /dev/null; then
   bats -r "${SHIPLOG_HOME}/test"
