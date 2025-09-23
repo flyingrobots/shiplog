@@ -192,6 +192,19 @@ notes:
   - enables `git shiplog help` and runbooks to show formatted content in-terminal
 ```
 
+- [ ] Enforce per-path author allowlists
+```yaml
+priority: P1
+impact: prevents unauthorized edits to sensitive areas (Dockerfiles, trust scripts, etc.)
+steps:
+  - extend policy to support path→author mappings
+  - teach verification hooks to reject entries violating the map
+  - document how to configure and maintain the mappings
+blocked_by: []
+notes:
+  - complements pre-push guardrails by hardening repository ownership
+```
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
