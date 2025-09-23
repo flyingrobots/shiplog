@@ -108,7 +108,9 @@ export SHIPLOG_HOME="$HOME/.shiplog"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 ```
 
-3. Reload your shell and verify: `shiplog --help`
+3. Reload your shell and verify: `git shiplog --help` and `git shiplog --version`
+
+> ⚠️ **Important:** Shiplog’s own workflows mutate Git repositories aggressively. Do **not** run `git shiplog …` inside this repository on your host; use the dev container or a disposable sandbox clone instead. See [docs/docker.md](docs/docker.md) for our container strategy.
 
 4. Install dependencies:
 
