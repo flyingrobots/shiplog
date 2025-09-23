@@ -179,6 +179,19 @@ notes:
   - depends on Bosun/installer refactors to settle
 ```
 
+- [ ] Expand Bosun Markdown renderer with pager
+```yaml
+priority: P1
+impact: surfacing docs/runbooks directly in CLI with tables/links and a built-in pager
+steps:
+  - extend bosun to parse Markdown (headings, emphasis, code, tables, links)
+  - add display mode with ANSI styling and optional paging behavior
+  - wire bosun help/docs to use the renderer
+blocked_by: []
+notes:
+  - enables `git shiplog help` and runbooks to show formatted content in-terminal
+```
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
