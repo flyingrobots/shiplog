@@ -8,6 +8,39 @@ BOSUN_SELF="${BASH_SOURCE[0]:-$0}"
 BOSUN_DIR="$(cd "$(dirname "$BOSUN_SELF")" && pwd)"
 BOSUN_DOC_ROOT="${BOSUN_DOC_ROOT:-$BOSUN_DIR/../docs/bosun}"
 
+strip_ansi() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe 's/\e\[[0-9;]*[0-9A-PR-TZcf-nq-uy=><]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[P^_].*?\e\\//g'
+  else
+    sed -E 's/\x1B\[[0-9;]*[ -\/]*[@-~]//g'
+  fi
+}
+
+split_string() {
+  local delim="$1" input="$2"
+  split_result=()
+  local i char current=""
+  for ((i = 0; i < ${#input}; i++)); do
+    char=${input:i:1}
+    if [ "$char" = "$delim" ]; then
+      split_result+=("$current")
+      current=""
+    else
+      current+="$char"
+    fi
+  done
+  split_result+=("$current")
+}
+
+trim_space() {
+  local var="$1"
+  # Remove leading whitespace
+  var="${var#"${var%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
+}
+
 show_doc() {
   local topic="$1" doc
   doc="$BOSUN_DOC_ROOT/$topic.md"
@@ -77,11 +110,7 @@ draw_box() {
   local border_side="│" corner_bl="└" corner_br="┘"
   [ "$inner" -lt 1 ] && inner=1
   local title_raw
-  if command -v perl >/dev/null 2>&1; then
-    title_raw="$(printf '%s' "$title_col" | perl -pe 's/\e\[[0-9;]*[0-9A-PR-TZcf-nq-uy=><]//g; s/\e\][^\a]*(\a|\e\\)//g; s/\e[P^_].*?\e\\//g')"
-  else
-    title_raw="$(printf '%s' "$title_col" | sed $'s/\033\[[0-9;]*[A-Za-z]//g')"
-  fi
+  title_raw="$(printf '%s' "$title_col" | strip_ansi)"
   if [ -n "$title_raw" ]; then
     local barlen=$(( width - ${#title_raw} - 4 ))
     [ "$barlen" -lt 0 ] && barlen=0
@@ -218,10 +247,10 @@ cmd_style() {
 }
 
 cmd_table() {
-  local columns="" rows_file=""
+  local columns_arg="" rows_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --columns) columns="$2"; shift ;;
+      --columns) columns_arg="$2"; shift ;;
       --rows-file) rows_file="$2"; shift ;;
       --no-color) BOSUN_NO_COLOR=1 ;;
       --width) BOSUN_WIDTH="$2"; shift ;;
@@ -229,57 +258,76 @@ cmd_table() {
       *) break ;;
     esac; shift
   done
-  [ -z "$columns" ] && { echo "bosun table: --columns required" >&2; return 2; }
-  local IFS=,
-  # Disable glob expansion to prevent injection
-  set -f
-  local headers=($columns)
-  set +f
+  [ -n "$columns_arg" ] || { echo "bosun table: --columns required" >&2; return 2; }
+
+  local IFS=','
+  read -ra headers <<< "$columns_arg"
+  local i
+  for i in "${!headers[@]}"; do
+    headers[$i]=$(trim_space "${headers[$i]}")
+    [ -n "${headers[$i]}" ] || { echo "bosun table: empty column name" >&2; return 2; }
+  done
+
   local rows=()
   if [ -n "$rows_file" ]; then
-    mapfile -t rows < "$rows_file"
+    if [ ! -r "$rows_file" ]; then
+      echo "bosun table: unable to read $rows_file" >&2
+      return 2
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+      rows+=("$line")
+    done < "$rows_file"
   else
-    mapfile -t rows < <(cat - 2>/dev/null)
+    while IFS= read -r line; do
+      rows+=("$line")
+    done
   fi
+
   local -a widths=()
   local idx
   for idx in "${!headers[@]}"; do
     widths[$idx]=${#headers[$idx]}
   done
-  local r
-  for r in "${rows[@]}"; do
-    IFS=$'\t' read -r -a cols <<< "$r"
-    if [ ${#cols[@]} -ne ${#headers[@]} ]; then
-      echo "bosun table: row has ${#cols[@]} columns but expected ${#headers[@]}" >&2
+
+  local row
+  for row in "${rows[@]}"; do
+    [ -n "$row" ] || continue
+    split_string $'\t' "$row"
+    if [ ${#split_result[@]} -ne ${#headers[@]} ]; then
+      echo "bosun table: row has ${#split_result[@]} columns but expected ${#headers[@]}" >&2
       return 3
     fi
-    for idx in "${!headers[@]}"; do
-      local col="${cols[$idx]:-}"
-      ((${#col} > ${widths[$idx]})) && widths[$idx]=${#col}
+    for idx in "${!split_result[@]}"; do
+      local col="${split_result[$idx]}"
+      if [ ${#col} -gt ${widths[$idx]} ]; then
+        widths[$idx]=${#col}
+      fi
     done
   done
+
   local header_text border_text
   for idx in "${!headers[@]}"; do
     header_text=$(printf '%-*s' "${widths[$idx]}" "${headers[$idx]}")
-    local header_colored
-    header_colored=$(color '1;37' "$header_text")
-    printf '%s' "$header_colored"
+    printf '%s' "$(color '1;37' "$header_text")"
     [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
   done
   printf '\n'
+
   for idx in "${!headers[@]}"; do
     border_text=$(printf '%-*s' "${widths[$idx]}" '' | tr ' ' '─')
     printf '%s' "$border_text"
     [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
   done
-  printf "\n"
-  for r in "${rows[@]}"; do
-    IFS=$'\t' read -r -a cols <<< "$r"
-    for idx in "${!headers[@]}"; do
-      printf '%-*s' "${widths[$idx]}" "${cols[$idx]:-}"
-      [ "$idx" -lt $((${#headers[@]}-1)) ] && printf '  '
+  printf '\n'
+
+  for row in "${rows[@]}"; do
+    [ -n "$row" ] || continue
+    split_string $'\t' "$row"
+    for idx in "${!split_result[@]}"; do
+      printf '%-*s' "${widths[$idx]}" "${split_result[$idx]}"
+      [ "$idx" -lt $((${#split_result[@]}-1)) ] && printf '  '
     done
-    printf "\n"
+    printf '\n'
   done
 }
 

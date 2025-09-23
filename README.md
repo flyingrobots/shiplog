@@ -59,7 +59,7 @@ You smirk, close the laptop, and say:
 
 Shiplog is your deployment black box recorder. Every release leaves a cryptographic receipt.
 
-You don't have to leave the terminal to find out who, what, where, when, why, and how your deployments were made.
+Treat it as an infrastructure primitive—wire it into deployment pipelines, CI/CD jobs, and automation. The CLI is available for local debugging, but the expectation is that Shiplog runs inside your scripted workflows rather than as a manual, ad-hoc tool.
 
 ### Use Shiplog for Future You
 
@@ -108,7 +108,9 @@ export SHIPLOG_HOME="$HOME/.shiplog"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 ```
 
-3. Reload your shell and verify: `shiplog --help`
+3. Reload your shell and verify: `git shiplog --help` and `git shiplog --version`
+
+> ⚠️ **Important:** Shiplog’s own workflows mutate Git repositories aggressively. Do **not** run `git shiplog …` inside this repository on your host; use the dev container or a disposable sandbox clone instead. See [docs/docker.md](docs/docker.md) for our container strategy.
 
 4. Install dependencies:
 

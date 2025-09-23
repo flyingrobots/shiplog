@@ -13,35 +13,55 @@ services:
     container_name: shiplog-ci-debian
     build:
       context: ..
-      dockerfile: ci-matrix/dockerfiles/Debian.Dockerfile
+      dockerfile: ci-matrix/Dockerfile
+      args:
+        BASE_IMAGE: debian:bookworm-slim
+        DISTRO_FAMILY: debian
+        MATRIX_NAME: "Debian (bookworm)"
   ubuntu:
     <<: *service-defaults
     image: shiplog-ci-ubuntu
     container_name: shiplog-ci-ubuntu
     build:
       context: ..
-      dockerfile: ci-matrix/dockerfiles/Ubuntu.Dockerfile
+      dockerfile: ci-matrix/Dockerfile
+      args:
+        BASE_IMAGE: ubuntu:24.04
+        DISTRO_FAMILY: debian
+        MATRIX_NAME: "Ubuntu 24.04"
   fedora:
     <<: *service-defaults
     image: shiplog-ci-fedora
     container_name: shiplog-ci-fedora
     build:
       context: ..
-      dockerfile: ci-matrix/dockerfiles/Fedora.Dockerfile
+      dockerfile: ci-matrix/Dockerfile
+      args:
+        BASE_IMAGE: fedora:40
+        DISTRO_FAMILY: fedora
+        MATRIX_NAME: "Fedora 40"
   alpine:
     <<: *service-defaults
     image: shiplog-ci-alpine
     container_name: shiplog-ci-alpine
     build:
       context: ..
-      dockerfile: ci-matrix/dockerfiles/Alpine.Dockerfile
+      dockerfile: ci-matrix/Dockerfile
+      args:
+        BASE_IMAGE: alpine:3.20
+        DISTRO_FAMILY: alpine
+        MATRIX_NAME: "Alpine 3.20"
   arch:
     <<: *service-defaults
     image: shiplog-ci-arch
     container_name: shiplog-ci-arch
     build:
       context: ..
-      dockerfile: ci-matrix/dockerfiles/Arch.Dockerfile
+      dockerfile: ci-matrix/Dockerfile
+      args:
+        BASE_IMAGE: archlinux:base
+        DISTRO_FAMILY: arch
+        MATRIX_NAME: "Arch Linux"
 
 networks:
   matrix:
