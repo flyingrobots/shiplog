@@ -91,6 +91,22 @@ policy_install_file() {
     fi
     return 0
   fi
+  # If contents differ but JSON bodies are identical, treat as no-op (avoid backup churn across distros)
+  if command -v jq >/dev/null 2>&1; then
+    local old_norm new_norm
+    old_norm=$(jq -cS . "$dest_file" 2>/dev/null || true)
+    new_norm=$(jq -cS . "$new_file" 2>/dev/null || true)
+    if [ -n "$old_norm" ] && [ -n "$new_norm" ] && [ "$old_norm" = "$new_norm" ]; then
+      rm -f "$new_file"
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "Policy" -- "No semantic changes to $dest_file"
+      else
+        printf 'No semantic changes to %s\n' "$dest_file"
+      fi
+      return 0
+    fi
+  fi
   local ts backup diffout
   ts="$(date +%Y%m%d%H%M%S)"
   backup="${dest_file}.bak.${ts}"
