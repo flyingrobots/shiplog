@@ -49,7 +49,18 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - Ran `make test` in Docker (pass) and noted `ci-matrix/run-all.sh` still needs an arm64-friendly Arch base image.
 - Updated this worklog (86% complete) and marked “Enforce trust workflow in hooks and tests” plus “Finish sandboxed test migration and isolation” as done.
 
-- [ ] Add GitHub Actions bash matrix workflow
+### Daily Log – 2025-09-24
+
+- Fixed Bosun non-TTY input hang (scripts/bosun input no longer blocks on empty stdin).
+- Completed setup wizard (Open/Balanced/Strict) with per-env strictness, non-interactive flags, backups/diffs, and --dry-run.
+- Implemented per-environment `require_signed` in CLI and hook; policy show includes per-env mapping (plain + JSON).
+- Hardened trust bootstrap (env-driven, removed stray prompt loop, repo-root paths, wizard uses --no-push).
+- Synced policy ref layout to `.shiplog/policy.json` in the policy ref tree.
+- Test harness: local sandbox option, remove upstream origin, non-interactive SSH signing; added wizard/per-env tests.
+- Aligned CI artifact paths; added cross-distro bash matrix workflow.
+- Full Dockerized suite green locally (1..40).
+
+- [x] Add GitHub Actions bash matrix workflow
 ```yaml
 priority: P1
 impact: ensures ./test.sh runs across Debian/Ubuntu/Fedora/Alpine/Arch on every push/PR
@@ -88,7 +99,7 @@ notes:
   - cleanup includes updating release packaging and CI images
 ```
 
-- [ ] Harden scripts/bosun runtime safety
+- [x] Harden scripts/bosun runtime safety
 ```yaml
 priority: P1
 impact: prevents malformed docs paths and ANSI/TSV parsing bugs
@@ -114,7 +125,7 @@ notes:
   - harness now provisions sandbox remotes with trust/policy refs; stale-trust cases validated in test/11
 ```
 
-- [ ] Document signing workflow and add failure-path coverage
+- [x] Document signing workflow and add failure-path coverage
 ```yaml
 priority: P1
 impact: clarifies operations and prevents silent misconfigurations
@@ -139,6 +150,8 @@ steps:
 blocked_by: []
 notes:
   - cross-validate against docs/TRUST.md examples
+  - DONE: per-env require_signed resolution (CLI + hook)
+  - DONE: sync-policy writes `.shiplog/policy.json` in the policy ref tree
 ```
 
 - [ ] Refactor installers and uninstallers for path safety
@@ -354,6 +367,14 @@ notes:
 - Tests that exercise Bosun must run inside the container; native runs may pass even when tab parsing fails under Docker. Always validate UI paths in the same environment CI uses.
 - Structured output (Bosun tables) should be constructed column-by-column to avoid shell quoting surprises; use `$'\t'` concatenation rather than embedding literal tabs in a single string.
 - Plugin scripts run with full privileges—enforce canonical path checks and clear execution contracts so extensions can’t escape the sandbox. Document the security expectations alongside hooks.
+
+## New/Updated Tasks
+
+- [x] Align CI artifact paths to test/** and ci-logs/* (updated .github/workflows/ci.yml)
+- [x] Setup wizard (Phase 2): per-env strictness, --authors, --dry-run, backups/diffs, --auto-push
+- [x] Per-env signing enforcement: CLI + hook; policy show per-env mapping (plain+JSON)
+- [x] Non-interactive trust bootstrap: env-driven, no stray prompts; wizard uses --no-push
+- [x] Test hardening: local sandbox mode; remove upstream origin; SSH signing helper; new wizard/per-env tests; all green
 
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.

@@ -100,6 +100,33 @@ export PATH="$SHIPLOG_HOME/bin:$PATH"
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
 ```
 
+## Setup Wizard (Recommended)
+
+Use the built‑in wizard to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per‑environment enforcement:
+
+```bash
+# Interactive
+git shiplog setup
+
+# Non‑interactive (examples)
+SHIPLOG_SETUP_STRICTNESS=balanced \
+SHIPLOG_SETUP_AUTHORS="you@example.com teammate@example.com" \
+  git shiplog setup --authors "you@example.com teammate@example.com"
+
+SHIPLOG_SETUP_STRICTNESS=strict \
+SHIPLOG_SETUP_STRICT_ENVS="prod" \
+  git shiplog setup --strict-envs "prod"
+
+# Auto‑push policy ref when origin is configured
+git shiplog setup --auto-push
+```
+
+- Open: unsigned by default, fast adoption.
+- Balanced: unsigned plus an author allowlist.
+- Strict: require signatures globally or per‑environment (e.g., prod only).
+
+See docs/features/setup.md:1 and docs/features/modes.md:1 for details.
+
 ## Basic Usage
 
 Once installed, you can initialize a repo and start recording deployments.
@@ -168,7 +195,7 @@ Shiplog's security model is based on policy-as-code, stored and enforced within 
 - **Mirror in main branch**: A copy of the policy file lives on your `main` branch, allowing changes to go through the normal PR review process.
 - **CI sync script**: A script (`scripts/shiplog-sync-policy.sh`) fast-forwards the policy ref after a merge, ensuring the enforced policy is always what's been reviewed and approved.
 
-Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast‑forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
+Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
 
 Signing is opt-in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup.
 
