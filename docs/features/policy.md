@@ -5,7 +5,9 @@ Shiplog layers policy data from several sources to produce the effective allowli
 
 ## Usage
 ```bash
-git shiplog policy [show|validate] [--boring]
+git shiplog policy [show|validate] [--boring|--json]
+git shiplog policy require-signed <true|false>
+git shiplog policy toggle
 ```
 
 ## Resolution Order
@@ -31,7 +33,7 @@ Allowed Signers File: /repo/.shiplog/allowed_signers
 Notes Ref: refs/_shiplog/notes/logs
 ```
 
-Run `git shiplog policy --boring` for plain-text output or `--json` (planned) to integrate with tooling.
+Run `git shiplog policy --boring` for plain-text output or `--json` to integrate with tooling.
 
 ## Policy File Examples
 

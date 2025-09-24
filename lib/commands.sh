@@ -329,6 +329,7 @@ cmd_policy() {
   resolve_policy
 
   local boring=0
+  local as_json=0
   if is_boring; then
     boring=1
   fi
@@ -337,6 +338,10 @@ cmd_policy() {
     case "$1" in
       --boring|-b)
         boring=1
+        shift
+        ;;
+      --json)
+        as_json=1
         shift
         ;;
       show|validate|require-signed|toggle)
@@ -355,28 +360,36 @@ cmd_policy() {
 
   case "$action" in
     show|"" )
-      local signed_status
-      if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" = "0" ]; then
-        signed_status="disabled"
+      local require_signed_bool="false"
+      [ "${SHIPLOG_SIGN_EFFECTIVE:-0}" != "0" ] && require_signed_bool="true"
+      if [ "$as_json" -eq 1 ]; then
+        jq -n \
+          --arg source "${POLICY_SOURCE:-default}" \
+          --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
+          --arg signers "${SIGNERS_FILE_EFFECTIVE:-}" \
+          --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}" \
+          --argjson req "$require_signed_bool" \
+          '{source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes}'
       else
-        signed_status="enabled"
-      fi
-      if [ "$boring" -eq 1 ] || ! shiplog_can_use_bosun; then
-        printf 'Source: %s\n' "${POLICY_SOURCE:-default}"
-        printf 'Require Signed: %s\n' "$signed_status"
-        printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
-        printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
-        printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shiplog/notes/logs}"
-      else
-        local rows=""
-        rows+=$'Source\t'"${POLICY_SOURCE:-default}"$'\n'
-        rows+=$'Require Signed\t'"$signed_status"$'\n'
-        rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
-        rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
-        rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
-        local bosun
-        bosun=$(shiplog_bosun_bin)
-        printf '%s' "$rows" | "$bosun" table --columns "Field,Value"
+        local signed_status
+        if [ "$require_signed_bool" = "true" ]; then signed_status="enabled"; else signed_status="disabled"; fi
+        if [ "$boring" -eq 1 ] || ! shiplog_can_use_bosun; then
+          printf 'Source: %s\n' "${POLICY_SOURCE:-default}"
+          printf 'Require Signed: %s\n' "$signed_status"
+          printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
+          printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
+          printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shipLOG/notes/logs}"
+        else
+          local rows=""
+          rows+=$'Source\t'"${POLICY_SOURCE:-default}"$'\n'
+          rows+=$'Require Signed\t'"$signed_status"$'\n'
+          rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
+          rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
+          rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
+          local bosun
+          bosun=$(shiplog_bosun_bin)
+          printf '%s' "$rows" | "$bosun" table --columns "Field,Value"
+        fi
       fi
       ;;
     validate)
@@ -451,16 +464,19 @@ cmd_setup() {
       local choice
       choice=$("$bosun" choose --header "Security mode" --default "Open (unsigned)" \
         "Open (unsigned)" \
-        "Balanced (unsigned + allowlist)") || true
+        "Balanced (unsigned + allowlist)" \
+        "Strict (signed)") || true
       case "$choice" in
         "Balanced (unsigned + allowlist)") strictness=balanced ;;
+        "Strict (signed)") strictness=strict ;;
         *) strictness=open ;;
       esac
     else
-      printf 'Select security mode [open/balanced]: ' >&2
+      printf 'Select security mode [open/balanced/strict]: ' >&2
       read -r strictness || strictness="open"
       case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
         balanced) strictness=balanced ;;
+        strict) strictness=strict ;;
         *) strictness=open ;;
       esac
     fi
@@ -470,6 +486,7 @@ cmd_setup() {
   case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
     open) strictness=open ;;
     balanced) strictness=balanced ;;
+    strict) strictness=strict ;;
     *) die "Unknown strictness: $strictness (expected: open|balanced)" ;;
   esac
 
@@ -513,6 +530,11 @@ cmd_setup() {
           rm -f "$tmp"; die "shiplog: failed to update $policy_file"
         fi
         ;;
+      strict)
+        if ! jq '(.version // 1) as $v | .version=$v | .require_signed=true' "$policy_file" >"$tmp" 2>/dev/null; then
+          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+        fi
+        ;;
     esac
   else
     case "$strictness" in
@@ -523,6 +545,9 @@ cmd_setup() {
         local authors_json
         authors_json=$(printf '%s\n' $authors_input | jq -R -s 'split("\n") | map(select(length>0)) | unique')
         jq -n --argjson arr "$authors_json" '{version:1, require_signed:false, authors:{default_allowlist:$arr}}' >"$tmp"
+        ;;
+      strict)
+        printf '{"version":1,"require_signed":true}\n' >"$tmp"
         ;;
     esac
   fi
@@ -543,6 +568,25 @@ cmd_setup() {
       "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
     else
       printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
+    fi
+  fi
+
+  # If strict mode, attempt trust bootstrap (non-interactive if env is provided)
+  if [ "$strictness" = "strict" ]; then
+    if [ -x "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" ]; then
+      # Detect non-interactive intent via SHIPLOG_TRUST_COUNT
+      if [ -n "${SHIPLOG_TRUST_COUNT:-}" ] || is_boring; then
+        SHIPLOG_ASSUME_YES=${SHIPLOG_ASSUME_YES:-1} SHIPLOG_PLAIN=${SHIPLOG_PLAIN:-1} \
+          "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh || die "shiplog: trust bootstrap failed"
+      else
+        # Interactive fallback: inform the user
+        if shiplog_can_use_bosun; then
+          local bosun; bosun=$(shiplog_bosun_bin)
+          "$bosun" style --title "Trust" -- "Run scripts/shiplog-bootstrap-trust.sh to create refs/_shiplog/trust/root, then push it to origin."
+        else
+          printf 'Trust: run scripts/shiplog-bootstrap-trust.sh to create refs/_shiplog/trust/root, then push it to origin.\n'
+        fi
+      fi
     fi
   fi
 
