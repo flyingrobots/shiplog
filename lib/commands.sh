@@ -452,10 +452,27 @@ cmd_setup() {
   resolve_policy
 
   local strictness="${SHIPLOG_SETUP_STRICTNESS:-}"
+  local strict_envs_raw="${SHIPLOG_SETUP_STRICT_ENVS:-}"
+  local auto_push="${SHIPLOG_SETUP_AUTO_PUSH:-0}"
   local authors_input="${SHIPLOG_SETUP_AUTHORS:-}"
   local include_self=1
   local self_email
   self_email="$(git config user.email 2>/dev/null || echo)"
+
+  # Parse flags
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --auto-push) auto_push=1; shift ;;
+      --strict-envs)
+        shift
+        strict_envs_raw="${1:-}"
+        [ -n "$strict_envs_raw" ] || die "--strict-envs requires a value"
+        shift
+        ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
 
   if [ -z "$strictness" ] && ! is_boring; then
     if shiplog_can_use_bosun; then
@@ -489,6 +506,48 @@ cmd_setup() {
     strict) strictness=strict ;;
     *) die "Unknown strictness: $strictness (expected: open|balanced)" ;;
   esac
+
+  local strict_global=0
+  local strict_envs=""
+  if [ "$strictness" = "strict" ]; then
+    # Determine whether strict applies to all envs or selected envs
+    if [ -n "$strict_envs_raw" ]; then
+      strict_global=0
+      strict_envs="$strict_envs_raw"
+    elif ! is_boring && shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      local scope
+      scope=$("$bosun" choose --header "Apply signing to" --default "All environments" "All environments" "Specific environments") || true
+      case "$scope" in
+        "Specific environments")
+          strict_global=0
+          local envs_in
+          envs_in=$("$bosun" input --placeholder "Enter env names (space/comma separated)" --value "prod")
+          strict_envs="$envs_in"
+          ;;
+        *)
+          strict_global=1
+          ;;
+      esac
+    else
+      # Plain prompts
+      if ! is_boring; then
+        printf 'Apply signing to all environments? [Y/n]: ' >&2
+        local ans; read -r ans || ans="y"
+        case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+          n|no) strict_global=0 ;;
+          *) strict_global=1 ;;
+        esac
+      fi
+      if [ "$strict_global" -eq 0 ] && [ -z "$strict_envs_raw" ]; then
+        printf 'Enter env names (space/comma separated) [prod]: ' >&2
+        read -r strict_envs || strict_envs="prod"
+      fi
+    fi
+  fi
+
+  # Normalize strict_envs separators to spaces
+  strict_envs=$(printf '%s\n' "$strict_envs" | tr ',;' '  ')
 
   if [ "$strictness" = "balanced" ]; then
     if [ -z "$authors_input" ] && ! is_boring; then
@@ -531,8 +590,23 @@ cmd_setup() {
         fi
         ;;
       strict)
-        if ! jq '(.version // 1) as $v | .version=$v | .require_signed=true' "$policy_file" >"$tmp" 2>/dev/null; then
-          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+        if [ "$strict_global" -eq 1 ]; then
+          if ! jq '(.version // 1) as $v | .version=$v | .require_signed=true' "$policy_file" >"$tmp" 2>/dev/null; then
+            rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+          fi
+        else
+          # per-env strictness: set global false and mark selected envs
+          # Build JSON array from strict_envs
+          local envs_json
+          envs_json=$(printf '%s\n' $strict_envs | jq -R -s 'split("\n") | map(select(length>0)) | unique')
+          if ! jq --argjson envs "$envs_json" '
+              (.version // 1) as $v | .version=$v | .require_signed=false |
+              .deployment_requirements = (.deployment_requirements // {}) |
+              reduce ($envs[]) as $e (.;
+                .deployment_requirements[$e] = ((.deployment_requirements[$e] // {}) + {require_signed:true})
+              )' "$policy_file" >"$tmp" 2>/dev/null; then
+            rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+          fi
         fi
         ;;
     esac
@@ -547,7 +621,13 @@ cmd_setup() {
         jq -n --argjson arr "$authors_json" '{version:1, require_signed:false, authors:{default_allowlist:$arr}}' >"$tmp"
         ;;
       strict)
-        printf '{"version":1,"require_signed":true}\n' >"$tmp"
+        if [ "$strict_global" -eq 1 ]; then
+          printf '{"version":1,"require_signed":true}\n' >"$tmp"
+        else
+          local envs_json
+          envs_json=$(printf '%s\n' $strict_envs | jq -R -s 'split("\n") | map(select(length>0)) | unique')
+          jq -n --argjson envs "$envs_json" '{version:1, require_signed:false, deployment_requirements: (reduce $envs[] as $e ({}; .[$e]={require_signed:true}))}' >"$tmp"
+        fi
         ;;
     esac
   fi
@@ -568,6 +648,21 @@ cmd_setup() {
       "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
     else
       printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
+    fi
+  fi
+
+  # Auto-push if requested and origin exists
+  if [ "$auto_push" -eq 1 ]; then
+    if has_remote_origin; then
+      git push origin refs/_shiplog/policy/current >/dev/null 2>&1 || true
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "Policy" -- "📤 Pushed refs/_shiplog/policy/current to origin"
+      else
+        printf '📤 Pushed refs/_shiplog/policy/current to origin\n'
+      fi
+    else
+      printf 'ℹ️ shiplog: no origin remote; skipped auto-push.\n'
     fi
   fi
 

@@ -67,3 +67,24 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+@test "setup strict per-env writes deployment_requirements and can auto-push" {
+  # Create a bare origin and set as remote
+  ORIGIN_DIR=$(mktemp -d)
+  git init --bare "$ORIGIN_DIR"
+  git remote add origin "$ORIGIN_DIR"
+
+  run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_STRICT_ENVS="prod staging" SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push --strict-envs "prod staging"
+  [ "$status" -eq 0 ]
+  run jq -r '.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "false" ]
+  run jq -r '.deployment_requirements.prod.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "true" ]
+  run jq -r '.deployment_requirements.staging.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "true" ]
+  # Auto-push should populate origin
+  run git --git-dir="$ORIGIN_DIR" rev-parse --verify refs/_shiplog/policy/current
+  [ "$status" -eq 0 ]
+}
