@@ -88,13 +88,16 @@ percent() { # args: done total -> integer percent
   echo $(( d * 100 / t ))
 }
 
-bar() { # args: pct -> 50-char bar
+bar() { # args: pct -> 50-char bar (UTF-8 safe without tr)
   local p="$1"
   local width=50
   local filled=$(( p * width / 100 ))
   local empty=$(( width - filled ))
-  printf '%*s' "$filled" '' | tr ' ' '█'
-  printf '%*s' "$empty" '' | tr ' ' '░'
+  local out=""
+  local i
+  for ((i=0; i<filled; i++)); do out+="█"; done
+  for ((i=0; i<empty; i++)); do out+="░"; done
+  printf '%s' "$out"
 }
 
 render_pb() { # args: title pct completed total
