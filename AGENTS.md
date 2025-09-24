@@ -454,3 +454,34 @@ blocked_by: []
 notes:
   - Keep all tests Docker-only; use sandbox harness and fake SSH key files
 ```
+### P0 – Production Trust + Docs Hardening
+
+- Replace placeholder trust root contact
+  - Update `.shiplog/trust.json` maintainer entries with real, monitored emails; set valid `pgp_fpr` (40‑hex) or document why `null` is used; confirm `role` and `revoked` fields.
+  - Validate keys, update docs/processes referencing trust contacts.
+
+- Raise trust threshold and add maintainers
+  - Increase `threshold` (≥2 or majority). Add at least two additional maintainers with keys; validate and document rotation + emergency recovery procedures.
+
+- Fix placeholder `pgp_fpr: null`
+  - Replace with real PGP fingerprint or remove the maintainer entry; ensure valid JSON and rerun validation tooling.
+
+- Normalize README Setup Wizard section
+  - Standardize hyphenation (built-in, Non-interactive, Auto-push), tidy examples (env-only for non-interactive), consistent code blocks and comments, remove line-number suffixes in doc links, add a clear “Setup Modes” subsection with concrete one‑liners.
+
+- Normalize separator parsing in setup
+  - In `lib/commands.sh`, use `tr -s` to squeeze spaces after replacing `,;` to avoid empty elements.
+
+- Refactor policy show raw-policy loader
+  - Extract shared logic (load_raw_policy) to avoid duplication between JSON/plain branches; prefer policy ref over working file; return empty on errors.
+
+- Harden env passing to trust bootstrap
+  - Call bootstrap via `env SHIPLOG_ASSUME_YES=1 SHIPLOG_PLAIN=1 ... --no-push` to avoid leaking env into parent.
+
+- Validate `SIGN_TRUST` env in bootstrap
+  - Accept only boolean-ish values (1/0/true/false/yes/no, case-insensitive), normalize to 1/0; warn or fail on invalid; trim whitespace.
+
+- Remove duplicate git identity config in tests
+  - Consolidate `git config user.name/email` to the sandbox setup only.
+
+Owner: core + docs; Priority: P0; Target: MVP follow-up PR

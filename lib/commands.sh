@@ -669,8 +669,8 @@ cmd_setup() {
     fi
   fi
 
-  # Normalize strict_envs separators to spaces
-  strict_envs=$(printf '%s\n' "$strict_envs" | tr ',;' '  ')
+  # Normalize strict_envs separators to single spaces
+  strict_envs=$(printf '%s\n' "$strict_envs" | tr ',;' ' ' | tr -s ' ')
 
   if [ "$strictness" = "balanced" ]; then
     if [ -z "$authors_input" ] && ! is_boring; then
