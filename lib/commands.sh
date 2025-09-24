@@ -793,7 +793,7 @@ cmd_setup() {
       # Detect non-interactive intent via SHIPLOG_TRUST_COUNT
       if [ -n "${SHIPLOG_TRUST_COUNT:-}" ] || is_boring; then
         SHIPLOG_ASSUME_YES=${SHIPLOG_ASSUME_YES:-1} SHIPLOG_PLAIN=${SHIPLOG_PLAIN:-1} \
-          "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh || die "shiplog: trust bootstrap failed"
+          "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh --no-push || die "shiplog: trust bootstrap failed"
         # Auto-push trust ref if requested
         if [ "$auto_push" -eq 1 ] && has_remote_origin; then
           local trust_ref

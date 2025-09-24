@@ -21,9 +21,10 @@ else
   echo "shiplog: schema validation skipped (jq --schema unavailable or schema missing)" >&2
 fi
 
-blob=$(git hash-object -w "$POLICY_FILE")
-entry=$(printf '100644 blob %s\t%s\n' "$blob" "$(basename "$POLICY_FILE")")
-tree=$(printf "%s" "$entry" | git mktree)
+policy_blob=$(git hash-object -w "$POLICY_FILE")
+# Create a tree at .shiplog/policy.json to match server hook expectations
+inner_tree=$(printf '100644 blob %s\tpolicy.json\n' "$policy_blob" | git mktree)
+tree=$(printf '040000 tree %s\t.shiplog\n' "$inner_tree" | git mktree)
 parent=$(git rev-parse -q --verify "$POLICY_REF" 2>/dev/null || echo "")
 
 commit_args=("$tree")

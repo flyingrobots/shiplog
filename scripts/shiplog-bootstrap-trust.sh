@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHIPLOG_HOME="${SHIPLOG_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-cd "$SHIPLOG_HOME"
 
 BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
 if command -v "$BOSUN_BIN" >/dev/null 2>&1; then
@@ -129,6 +128,7 @@ SIGN_TRUST="${SHIPLOG_TRUST_SIGN:-1}"
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "run this script inside a git repository"
 fi
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 TRUST_REF="refs/_shiplog/trust/root"
 if git show-ref --verify --quiet "$TRUST_REF" && [ "$FORCE" -ne 1 ]; then
@@ -310,9 +310,9 @@ if ! prompt_confirm "Continue with these settings?" 1; then
   exit 1
 fi
 
-mkdir -p "$SHIPLOG_HOME/.shiplog"
-trust_path="$SHIPLOG_HOME/.shiplog/trust.json"
-signers_path="$SHIPLOG_HOME/.shiplog/allowed_signers"
+mkdir -p "$REPO_ROOT/.shiplog"
+trust_path="$REPO_ROOT/.shiplog/trust.json"
+signers_path="$REPO_ROOT/.shiplog/allowed_signers"
 
 if [ -e "$trust_path" ] && [ "$FORCE" -ne 1 ]; then
   prompt_confirm "Overwrite existing $trust_path?" 0 || die "Refusing to overwrite $trust_path"

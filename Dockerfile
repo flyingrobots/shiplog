@@ -16,6 +16,7 @@ RUN apt-get update \
        gnupg \
        curl \
        ca-certificates \
+       openssh-client \
        shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
