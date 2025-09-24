@@ -366,14 +366,14 @@ cmd_policy() {
   ensure_in_repo
   resolve_policy
 
-  local boring=0
-cmd_policy() {
-  ensure_in_repo
-  resolve_policy
-
-  local boring=0
-  local as_json=0
-  ...
+  local boring=0 as_json=0 action=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --boring|-b) boring=1; shift ;;
+      --json) as_json=1; shift ;;
+      show|validate|require-signed|toggle) action="$1"; shift; break ;;
+      *) action="$1"; shift; break ;;
+    esac
   done
   action="${action:-show}"
 
@@ -381,52 +381,24 @@ cmd_policy() {
     command -v jq >/dev/null 2>&1 || die "jq required for --json output"
   fi
 
-  case "$action" in
-  if is_boring; then
-    boring=1
-  fi
-  local action=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --boring|-b)
-        boring=1
-        shift
-        ;;
-      --json)
-        as_json=1
-        shift
-        ;;
-      show|validate|require-signed|toggle)
-        action="$1"
-        shift
-        # fall through to capture any additional args for actions
-        ;;
-      *)
-        action="$1"
-        shift
-        break
-        ;;
-    esac
-  done
-  action="${action:-show}"
+  load_raw_policy() {
+    local raw=""
+    if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
+      raw=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
+    fi
+    if [ -z "$raw" ] && [ -f ".shiplog/policy.json" ]; then
+      raw=$(cat .shiplog/policy.json 2>/dev/null || true)
+    fi
+    printf '%s' "$raw"
+  }
 
   case "$action" in
-    show|"" )
+    show|"")
       local require_signed_bool="false"
       [ "${SHIPLOG_SIGN_EFFECTIVE:-0}" != "0" ] && require_signed_bool="true"
       if [ "$as_json" -eq 1 ]; then
-        # Load raw policy JSON from ref or working tree (if available) to extract per-env settings
-        local raw_policy=""
-        if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
-          raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
-        fi
-        if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
-          raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
-        fi
-        if [ -z "$raw_policy" ]; then
-          raw_policy='{}'
-        fi
-        # Build JSON output with policy info and per-environment requirements
+        local raw_policy; raw_policy=$(load_raw_policy)
+        [ -n "$raw_policy" ] || raw_policy='{}'
         jq -n \
           --arg source "${POLICY_SOURCE:-default}" \
           --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
@@ -435,19 +407,10 @@ cmd_policy() {
           --argjson req "$require_signed_bool" \
           --argjson policy "$raw_policy" \
           '
-            # Extract per-env require_signed settings from deployment_requirements
             def env_require_map(p): (p.deployment_requirements // {})
               | with_entries(.value = (.value.require_signed // null));
-            
-            # Construct final JSON structure
-            {
-              source: $source,
-              require_signed: $req,
-              allowed_authors: $authors,
-              allowed_signers_file: $signers,
-              notes_ref: $notes,
-              env_require_signed: env_require_map($policy)
-            }
+            {source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes,
+             env_require_signed: env_require_map($policy)}
           '
       else
         local signed_status
@@ -458,20 +421,9 @@ cmd_policy() {
           printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
           printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
           printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shiplog/notes/logs}"
-          # Per-env mapping for humans (boring output)
-          local raw_policy env_lines
-          raw_policy=""
-          if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
-            raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
-          fi
-          if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
-            raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
-          fi
+          local raw_policy; raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            env_lines=$(printf '%s' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "Require Signed (\(.key)): \(.value.require_signed)"' 2>/dev/null || true)
-            if [ -n "$env_lines" ]; then
-              printf '%s\n' "$env_lines"
-            fi
+            printf '%s\n' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "Require Signed (\(.key)): \(.value.require_signed)"' 2>/dev/null || true
           fi
         else
           local rows=""
@@ -480,28 +432,14 @@ cmd_policy() {
           rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
           rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
           rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
-          # Append per-env require_signed rows if available
-          local raw_policy env_lines
-          raw_policy=""
-          if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
-            raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
-          fi
-          if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
-            raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
-          fi
+          local raw_policy; raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            env_lines=$(printf '%s' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null || true)
-            if [ -n "$env_lines" ]; then
-              while IFS=$'\t' read -r env_name env_req; do
-                [ -z "$env_name" ] && continue
-                rows+=$'Require Signed ('"$env_name"$')\t'"$env_req"$'\n'
-              done <<EOF
-$env_lines
-EOF
-            fi
+            printf '%s\n' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null | while IFS=$'\t' read -r env_name env_req; do
+              [ -z "$env_name" ] && continue
+              rows+=$'Require Signed ('"$env_name"$')\t'"$env_req"$'\n'
+            done
           fi
-          local bosun
-          bosun=$(shiplog_bosun_bin)
+          local bosun; bosun=$(shiplog_bosun_bin)
           printf '%s' "$rows" | "$bosun" table --columns "Field,Value"
         fi
       fi
@@ -510,54 +448,34 @@ EOF
       printf '%s\n' "Policy source: ${POLICY_SOURCE:-default}" >&2
       ;;
     require-signed)
-      local val="${1:-}"
-      case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in
+      local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in
         1|true|yes|on) val=true ;;
         0|false|no|off) val=false ;;
         *) die "Usage: git shiplog policy require-signed <true|false>" ;;
       esac
       mkdir -p .shiplog
-      local policy_file=".shiplog/policy.json" tmp
-      tmp=$(mktemp)
+      local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
       if [ -f "$policy_file" ]; then
-        if ! jq \
-          --argjson rs "$val" \
-          '(.version // 1) as $v | .version=$v | .require_signed=$rs' \
-          "$policy_file" >"$tmp" 2>/dev/null; then
-          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
-        fi
+        jq --argjson rs "$val" '(.version // 1) as $v | .version=$v | .require_signed=$rs' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
       else
         printf '{"version":1,"require_signed":%s}\n' "$val" >"$tmp"
       fi
       policy_install_file "$tmp" "$policy_file"
       if shiplog_can_use_bosun; then
-        local bosun; bosun=$(shiplog_bosun_bin)
-        "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
+        local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
       else
         printf 'Set require_signed to %s in %s\n' "$val" "$policy_file"
       fi
       if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
         SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
-        if shiplog_can_use_bosun; then
-          local bosun; bosun=$(shiplog_bosun_bin)
-          "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
-        else
-          printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
-        fi
+        if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"; else printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'; fi
       else
         printf 'Note: sync helper missing; commit and publish policy manually.\n'
       fi
       ;;
     toggle)
-      # Toggle require_signed based on effective policy value
-      local current="${SHIPLOG_SIGN_EFFECTIVE:-0}"
-      local new="false"
-      [ "$current" = "0" ] && new=true || new=false
-      cmd_policy require-signed "$new"
-      ;;
-    *)
-      die "Unknown policy subcommand: $action"
-      ;;
+      local current="${SHIPLOG_SIGN_EFFECTIVE:-0}"; local new="false"; [ "$current" = "0" ] && new=true || new=false; cmd_policy require-signed "$new" ;;
+    *) die "Unknown policy subcommand: $action" ;;
   esac
 }
 
