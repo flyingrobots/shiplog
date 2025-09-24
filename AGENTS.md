@@ -55,8 +55,8 @@ Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, 
 ## Worklog
 
 ```
-███████████████▓░░░░ 75%
-58/77 complete (19 remaining)
+████████████████░░░ 77%
+59/77 complete (18 remaining)
 ```
 
 ### Progress Bar Maintenance
@@ -170,48 +170,10 @@ notes:
   - first-time trust bootstrap now scripted via scripts/shiplog-bootstrap-trust.sh
 ```
 
-- [x] Complete policy and sync tooling hardening
-```yaml
-priority: P1
-impact: stabilizes policy resolution and schema validation
-steps:
-  - finish lib/policy.sh refactor (default signing behaviour, author aggregation)
-  - update scripts/shiplog-sync-policy.sh to detect jq --schema cleanly
-  - ensure resolve_signers_path and policy parsing align with new trust model
-blocked_by: []
-notes:
-  - cross-validate against docs/TRUST.md examples
-  - DONE: per-env require_signed resolution - environments can independently enforce/skip signature validation (implemented in CLI commands and pre-receive hook)
-  - DONE: sync-policy writes `.shiplog/policy.json` in the policy ref tree
-  - DONE: canonicalize policy writes (jq -S) and treat semantically equal JSON as no-op
-  - DONE: robust `policy show --json` path and trailing flag parsing
+ - Archived: Complete policy and sync tooling hardening (see docs/archives/AGENTS/completed-2025-09-25.md)
+ - Archived: Refactor installers and uninstallers for path safety (see docs/archives/AGENTS/completed-2025-09-25.md)
 
-- [x] Refactor installers and uninstallers for path safety
-```yaml
-priority: P1
-impact: avoids destructive rm/git operations on unsafe paths
-steps:
-  - replace install script path resolution with pure-shell realpath/readlink logic
-  - remove embedded interpreters from uninstall script or move them into a standalone helper with validation
-  - add regression tests covering FORCE/DATA dir edge cases
-blocked_by: []
-notes:
-  - align logging with README security guidance
-  - DONE: installer no longer fetches Shiplog refs into the caller repo; fetch scoped to `$SHIPLOG_HOME` and force-refreshed tool refs
-```
-
-- [x] Finish sandboxed test migration and isolation
-```yaml
-priority: P0
-impact: prevents mutations to real remotes and exercises new trust flow
-steps:
-  - convert remaining tests (02,09,11,13,helpers) to use shiplog-testing-sandbox clone helpers
-  - add jq-aware trailer helpers and ensure failures surface clearly
-  - guarantee tests create throw-away remotes/repos and restore git config state
-blocked_by: []
-notes:
-  - all bats suites now bootstrap isolated clones; journal JSON assertions use git cat-file helpers
-```
+- Archived: Finish sandboxed test migration and isolation (see docs/archives/AGENTS/completed-2025-09-25.md)
 
 - [ ] Align shellcheck coverage and suppressions
 ```yaml
@@ -544,14 +506,7 @@ Owner: core + docs; Priority: P0; Target: MVP follow-up PR
 
 ### New/Updated Tasks (GitHub Toolkit & UX)
 
-- [x] Add `git shiplog show --json` and `--json-compact`
-- [x] Honor trailing `--boring` on subcommands
-- [x] Add `git shiplog refs root show|set` and `refs migrate` wrapper
-- [x] Add migration helper script (`scripts/shiplog-migrate-ref-root.sh`)
-- [x] Add importable GitHub Ruleset JSON (branch namespace)
-- [x] Add GitHub Actions workflows for verify (branch) and audit (custom refs)
-- [x] Document GitHub protections and ref root switching (docs/hosting/github.md, runbook)
-- [x] Add Environment Reference (docs/reference/env.md) and README quick commands
+- Archived: see docs/archives/AGENTS/completed-2025-09-25.md
 
 ### New/Updated Tasks (Follow-ups)
 
@@ -568,15 +523,154 @@ Owner: core + docs; Priority: P0; Target: MVP follow-up PR
     - keep zero external deps; prefer POSIX shell + git timestamps
   ```
 
-- [ ] Trailer JSON validation command
+### Backlog
+
+- [ ] show docs page
+  ```yaml
+  priority: P3
+  impact: clarifies `show` usage for humans and scripts
+  steps:
+    - add docs/features/show.md covering --json/--json-compact and trailing --boring
+    - include examples for ref/sha targets and extracting notes
+  blocked_by: []
+  notes:
+    - link from README Core Commands
+  ```
+
+- [ ] tooling versions in README
+  ```yaml
+  priority: P3
+  impact: sets clear expectations for environments
+  steps:
+    - document minimum versions (git, jq, bash) and CI package names
+    - call out ssh-keygen requirement for signing flows/tests
+  blocked_by: []
+  notes:
+    - keep versions aligned with CI matrix images
+  ```
+
+- [ ] self-hosted hooks guide
+  ```yaml
+  priority: P2
+  impact: enables strict enforcement on self-hosted Git
+  steps:
+    - add docs/server/self-hosted.md with pre-receive example and setup
+    - include allowlist/signature checks wired to policy/trust
+    - provide a quick test harness (local bare repo) in docs
+  blocked_by: []
+  notes:
+    - base on current pre-receive logic used in tests
+  ```
+
+- [ ] refs list subcommand
+  ```yaml
+  priority: P3
+  impact: improves discoverability
+  steps:
+    - add `git shiplog refs list` showing journals/policy/trust/notes with short OIDs and dates
+  blocked_by: []
+  notes:
+    - use `git for-each-ref` under current ref root
+  ```
+
+- [ ] trust show subcommand
+  ```yaml
+  priority: P3
+  impact: quick insight into trust state
+  steps:
+    - add `git shiplog trust show` (plain & JSON) printing id, threshold, maintainers (revoked flags)
+  blocked_by: []
+  notes:
+    - read `.shiplog/trust.json` from trust ref
+  ```
+
+- [ ] verify --json output
+  ```yaml
+  priority: P2
+  impact: enables CI to parse detailed validation results
+  steps:
+    - add `--json` to `git shiplog verify` emitting per-commit results
+  blocked_by: []
+  notes:
+    - keep plain output unchanged by default
+  ```
+
+- [ ] validate-trailer tests
+  ```yaml
+  priority: P2
+  impact: prevents regressions in new command
+  steps:
+    - add bats tests for malformed trailers (missing/invalid fields)
+  blocked_by: []
+  notes:
+    - craft commits with synthetic bad trailers in a sandbox repo
+  ```
+
+- [ ] policy validate command
+  ```yaml
+  priority: P2
+  impact: catches broken policy before publish
+  steps:
+    - add `git shiplog policy validate` (jq-based structural checks; note if jq --schema unsupported)
+    - document in docs/features/policy.md
+  blocked_by: []
+  notes:
+    - jq is mandatory; no new deps
+  ```
+
+- [ ] README badges for workflows
+  ```yaml
+  priority: P3
+  impact: quick visibility of Shiplog checks
+  steps:
+    - add optional badges for verify/audit workflows in README
+  blocked_by: []
+  notes:
+    - provide snippet and instructions (already provided in conversation)
+  ```
+
+- [ ] SHIPLOG_HOME guard
+  ```yaml
+  priority: P3
+  impact: prevents accidental writes in installer repo
+  steps:
+    - warn (stderr) when write/setup commands run inside `$SHIPLOG_HOME`
+  blocked_by: []
+  notes:
+    - allow override via env if needed
+  ```
+
+- [ ] doctor command
+  ```yaml
+  priority: P3
+  impact: faster diagnosis of common misconfigurations
+  steps:
+    - add `git shiplog doctor` reporting refspecs, jq presence, policy/trust resolution, env
+  blocked_by: []
+  notes:
+    - plain output and JSON (optional)
+  ```
+
+- [ ] shellcheck workflow
+  ```yaml
+  priority: P2
+  impact: keeps scripts maintainable and CI-friendly
+  steps:
+    - add GH Actions job to run shellcheck on bin/, scripts/, lib/
+  blocked_by: []
+  notes:
+    - integrate with existing matrix or as a separate job
+  ```
+
+- [x] Trailer JSON validation command
   ```yaml
   priority: P2
   impact: catches invalid trailers proactively; improves UX and CI checks
   steps:
     - add `git shiplog validate-trailer [COMMIT]` (defaults to latest journal)
-    - pretty errors; suggest fixes; optional schema flag
-    - document in docs/features; add unit tests for malformed trailers
+    - pretty errors; minimal structural checks (env, ts, status, what.service, when.dur_s)
+    - document in docs/features; add unit tests for malformed trailers (future)
   blocked_by: []
   notes:
-    - reuse existing jq; avoid adding new deps
+    - DONE: implemented command using jq; documented in docs/features/validate-trailer.md
   ```

@@ -1,3 +1,10 @@
+## 📊 Project Progress
+
+```
+████████████████░░░ 77%
+59/77 complete (18 remaining)
+```
+
 # SHIPLOG • 🚢🪵
 
 The pager goes off at 3:17 a.m. The intern is frozen, hands hovering over the keyboard like it’s wired with C4. And of course, you picked this week to quit smoking.
@@ -126,13 +133,16 @@ SHIPLOG_SETUP_STRICTNESS=strict \
 SHIPLOG_SETUP_STRICT_ENVS="prod staging" \
 SHIPLOG_SETUP_AUTO_PUSH=1 \
 git shiplog setup
+```
 
 What it does
+
 - Writes `.shiplog/policy.json` deterministically (backs up previous policy with a timestamp and shows a diff).
 - Syncs the local policy ref `refs/_shiplog/policy/current` (no push by default).
 - For `--strictness strict`, bootstraps a trust ref locally using `scripts/shiplog-bootstrap-trust.sh --no-push` (expects `SHIPLOG_TRUST_*` vars in CI).
 
 Next steps (suggested commands)
+
 - Configure local signing (optional):
   - `git config --local user.name "Your Name"`
   - `git config --local user.email "you@example.com"`
@@ -255,6 +265,7 @@ See docs/features/modes.md:1 for how to run unsigned by default, enable signing 
 | `git shiplog show` | Show entry details | `git shiplog show <commit>` |
 | `git shiplog verify` | Check signatures + author allowlist | `git shiplog verify --env prod` |
 | `git shiplog export-json` | NDJSON export for external tools | `git shiplog export-json \| jq '.'` |
+| `git shiplog validate-trailer` | Validate JSON trailer for an entry | `git shiplog validate-trailer <commit>` |
 | `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
 | `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
 | `git shiplog refs migrate` | Mirror refs between roots | `git shiplog refs migrate --to refs/heads/_shiplog --dry-run` |
@@ -348,9 +359,3 @@ make test-signing
 MIT © J. Kirby Ross • [@flyingrobots](https://github.com/flyingrobots)
 
 _Jenkins was not harmed in the making of this project._
-## 📊 Project Progress
-
-```
-███████████████▓░░░░ 75%
-58/77 complete (19 remaining)
-```
