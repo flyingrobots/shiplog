@@ -5,7 +5,7 @@
 
 ## Usage
 ```bash
-git shiplog ls [ENV]
+git shiplog ls [ENV] [LIMIT]
 ```
 
 ## Parameters
@@ -28,18 +28,19 @@ git shiplog --env staging ls
   1. Command line argument `[ENV]`
   2. `--env` flag
   3. `SHIPLOG_ENV` environment variable
-  4. Falls back to default if none specified
-- **Journal Validation**: Requires the journal reference (`refs/shiplog/<env>`) to exist. If missing, exits with error: "No journal found for environment '<env>'. Run 'git shiplog init <env>' first."
+  4. Falls back to default (`prod`) if none specified
+- **Journal Reference**: Lists from `refs/_shiplog/journal/<env>`. If the ref has no entries, the command fails with an error.
 - **Entry Processing**: Extracts the following metadata from each journal commit:
   - Status (deployed/failed/etc.)
   - Service name
   - Author information
   - Timestamp
-- **Output**: Passes extracted data to UI rendering system
+- **LIMIT**: Caps the number of entries returned (default `20`).
+- **Output**: In interactive mode with Bosun, renders a table. Otherwise prints TSV with header.
 
 ## Related Code
-- `lib/commands.sh` - Main command implementation
-- `lib/git.sh` - Git journal operations and metadata extraction
+- `lib/commands.sh` — `cmd_ls()`
+- `lib/git.sh` — `pretty_ls()` and journal helpers
 
 ## Tests
 - `test/01_init_and_empty_ls.bats:25`

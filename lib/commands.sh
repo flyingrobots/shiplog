@@ -222,7 +222,8 @@ cmd_write() {
       die "shiplog: service name is required but not provided"
     fi
   fi
-  local start_ts end_ts dur_s
+  local start_ts end_ts dur_s start_epoch end_epoch
+  start_epoch=$(date -u +%s)
   start_ts="$(fmt_ts)"
   if is_boring; then
     sleep 0.01
@@ -236,8 +237,9 @@ cmd_write() {
     fi
   fi
   local repo_head; repo_head="$(git rev-parse HEAD)"
+  end_epoch=$(date -u +%s)
   end_ts="$(fmt_ts)"
-  dur_s=$(( $(date -u -d "$end_ts" +%s 2>/dev/null || gdate -u -d "$end_ts" +%s) - $(date -u -d "$start_ts" +%s 2>/dev/null || gdate -u -d "$start_ts" +%s) ))
+  dur_s=$(( end_epoch - start_epoch ))
 
   local artifact=""
   if [ -n "$artifact_image" ]; then

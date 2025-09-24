@@ -1,24 +1,27 @@
 # Show Command
 
 ## Summary
-`git shiplog show` displays the details for a specific shiplog commit entry, defaulting to the latest entry if no commit is specified. It outputs the human-readable content followed by JSON metadata, along with any attached git notes.
+`git shiplog show` displays the details for a shiplog entry. It defaults to the latest entry in the current environment’s journal when no target is specified. Output includes a human‑readable summary, the JSON trailer, and any attached Git notes (logs).
 
 ## Usage
 ```bash
-git shiplog show [COMMIT]
+git shiplog show [--json|--json-compact|--jsonl] [--boring] [COMMIT|REF]
 ```
 
 ## Behavior
-- Defaults to the latest commit in the current branch's shiplog history.
-- When Bosun is available, displays output in formatted boxes for better readability.
-- When Bosun is unavailable, outputs plain text. If `jq` is available, JSON metadata is pretty-printed.
-- Automatically detects and displays any git notes attached under `refs/_shiplog/notes/logs/<commit>`.
+- Default target: latest entry at the environment journal ref (`refs/_shiplog/journal/<ENV>`). ENV resolves from `--env`, then `SHIPLOG_ENV`, or `prod`.
+- `--json`: print only the JSON trailer of the entry (pretty if `jq` is present; raw otherwise).
+- `--json-compact`/`--jsonl`: print a single compact JSON line.
+- `--boring`: disable Bosun UI rendering and print plain text.
+- Bosun present: renders sections in titled boxes; otherwise prints plain text.
+- Notes: if a note exists at `NOTES_REF` (default `refs/_shiplog/notes/logs`), its contents are shown after the trailer.
+- Error on missing trailer: if the entry body does not contain a JSON trailer, the command fails with a clear message.
 
 ## Related Code
-- `lib/commands.sh` - `show_command()` function
-- `lib/git.sh` - `get_shiplog_entry()` and related git operations
+- `lib/commands.sh` — `cmd_show()`
+- `lib/git.sh` — `show_entry()` and helpers
 
 ## Tests
-- `test/02_write_and_ls_show.bats` - Basic show command functionality
-- `test/04_notes_attachment.bats` - Notes detection and display
-- `test/08_show_latest_default.bats` - Default behavior when no commit specified
+- `test/02_write_and_ls_show.bats`
+- `test/04_notes_attachment.bats`
+- `test/08_show_latest_default.bats`

@@ -1,361 +1,156 @@
-## 📊 Project Progress
-
-```
-████████████████░░░ 77%
-59/77 complete (18 remaining)
-```
-
 # SHIPLOG • 🚢🪵
 
-The pager goes off at 3:17 a.m. The intern is frozen, hands hovering over the keyboard like it’s wired with C4. And of course, you picked this week to quit smoking.
+## Friday, 3:17 PM
 
-The dashboards are bleeding red.
-Slack is twelve parallel arguments, all noise, no answers.
+*Bzzzt. Bzzzzzt. Bzzzzzzzzt.*
 
-The monitoring alert reads like a ransom note — all caps, no punctuation, and somehow it knows your name. The runbook is 400 pages long. Step one: panic.
+The intern looks like they just saw a ghost.
+The dashboards flip from green to red.  
+Slack explodes.  
+Bob mutters, “It worked on my laptop.”  
+The CI logs stop mid-sentence.  
+Jenkins, the poor old man, quietly running the same cron jobs since 2019, is suddenly a suspect. 
 
-Bob mutters, “It worked on my laptop.” Bob’s laptop hasn’t been patched since the Obama administration.
+You’re about to dive into six different dashboards to piece together the truth when you remember: **We use Shiplog.**
 
-The Jira ticket’s still “In Review.” That’s funny, because prod isn’t.
+In a flash, you run a single command and the chaos dissolves. 
 
-The CI logs stop mid-sentence. Last line: “Deploying…” Nothing else. Just static.
-
-And in the corner, Jenkins is whispering again. He’s been mumbling the same cronjob lullaby since 2019. Nobody listens until prod catches fire, and suddenly the old man’s a suspect.
-
-Stop blaming the ghost. Stop digging through rubble.
-
-All of the ship is logged in Git.
-
-Zero infra. No new tools. Lives by your code. No archaeology. No copy/paste. No 2FA hopscotch through three dashboards.
-
-Just clarity. And the truth.
-
-*INT. WAR ROOM – DAWN*
-
-The intern finally exhales, hands unclenched. Slack arguments dissolve into praise. Bob swears he’ll upgrade Jenkins — “just in case.”
-
-Yeah, right.
-
-The room is calm again. The intern looks at you, wide-eyed:
-
-“How’d you figure it out so fast?”
-
-You smirk, close the laptop, and say:
-
-**“Simple. Get Shiplog.”**
-
-## 🚢 What Is Shiplog?
-
-Shiplog is your deployment black box recorder. Every release leaves a cryptographic receipt.
-
-Treat it as an infrastructure primitive—wire it into deployment pipelines, CI/CD jobs, and automation. The CLI is available for local debugging, but the expectation is that Shiplog runs inside your scripted workflows rather than as a manual, ad-hoc tool.
-
-### Use Shiplog for Future You
-
-- **Human-readable**: Helps when you're debugging at 3 a.m.
-- **Machine-parseable**: For your monitoring tools and dashboards.
-- **Cryptographically signed**: For compliance and clear provenance.
-- **Git-native**: It follows your code everywhere.
-
-### What Makes Shiplog Different
-
-Shiplog isn't another deployment platform, it's a primitive. Build with it. Think `git commit` for deployments. It gives you the essential building block (cryptographic receipts) that you can use to build whatever workflows your team needs.
-
-Because it's built on Git, you get:
-
-- **Zero new infrastructure**: No databases, no services.
-- **Distributed by default**: It works offline and syncs everywhere.
-- **Tamper-evident**: Signed commits and append-only refs prevent history rewriting.
-- **Familiar tooling**: Use familiar commands like `git log` and `git show`.
-
-```mermaid
-gitGraph
-  commit id: "feat: add auth" tag: "main"
-  commit id: "fix: handle errors"
-  branch reds/_shiplog/prod
-  commit id: "✅ web v2.1.3 → prod"
-  commit id: "❌ api v1.4.2 → prod"
-  commit id: "🔄 rollback web v2.1.2"
+```bash
+git shiplog show
+┌ SHIPLOG Entry ────────────────────────────────────────────────┐
+│ Deploy: boring-web v1.2.3 → prod/us-east-1/prod-a/default     │
+│ Reason: Starting Migration...                                 │
+│ Status: FAILURE (7m12s) @ 2025-09-21T22:38:42Z                │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Quickstart
+The truth is revealed: a failed migration, a clear timestamp, and the exact commit that triggered it.
 
-There are a few ways to get started.
+---
 
-### Quick Install (Recommended)
+## ✨ What Is Shiplog?
 
-> ⚠️ **Important:** Shiplog’s own workflows mutate Git repositories aggressively. Do **not** run `git shiplog …` inside this repository on your host; use the dev container or a disposable sandbox clone instead. See [docs/docker.md](docs/docker.md) for our container strategy.
+Shiplog is your deployment black box recorder. Think `git commit` — but for releases. Every deployment leaves a cryptographically signed receipt in Git. Human-readable, machine-parseable, tamper-evident.
 
-1. Clone the repository:
+Why you want it:
 
-```Bash
+- 🧑‍💻 Readable: Debug at 3 a.m. without archeology.
+- 🤖 Parseable: Pipe JSON to dashboards, alerts, or bots.
+- 🔏 Signed: Clear provenance and compliance.
+- 🪢 Git-native: No infra. No SaaS. Just commits.
+
+### 📦 Philosophy
+
+Shiplog isn’t another deployment platform.
+It’s a primitive. A receipt. A ledger.
+Build your workflows around it, same way you build around git commit.
+
+No dashboards. No archaeology. Just clarity.
+
+---
+
+## 🚀 Getting Started
+
+```bash
 git clone https://github.com/flyingrobots/shiplog.git "$HOME/.shiplog"
-```
-
-2. Update your shell configuration (`~/.bashrc`, `~/.zshrc`, etc.):
-
-```Bash
 export SHIPLOG_HOME="$HOME/.shiplog"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
-```
-
-3. Reload your shell and verify: `git shiplog --help` and `git shiplog --version`
-
-4. Install dependencies:
-
-```Bash
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
 ```
 
-## Setup (Recommended)
-
-Use the built-in setup wrapper to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per-environment enforcement. The wrapper is non-interactive and file-first: it writes `.shiplog/policy.json`, syncs the local policy ref, and only pushes if you ask it to.
+Verify install:
 
 ```bash
-# Defaults to open (unsigned)
-git shiplog setup
-
-# Balanced (add author allowlist)
-git shiplog setup \
-  --strictness balanced \
-  --authors "you@example.com teammate@example.com"
-
-# Strict per-environment (e.g., prod only)
-git shiplog setup \
-  --strictness strict \
-  --strict-envs "prod"
-
-# Auto-push policy/trust refs when origin is configured
-git shiplog setup --auto-push
-
-# Env-style equivalents (useful in CI)
-SHIPLOG_SETUP_STRICTNESS=strict \
-SHIPLOG_SETUP_STRICT_ENVS="prod staging" \
-SHIPLOG_SETUP_AUTO_PUSH=1 \
-git shiplog setup
+git shiplog --version
 ```
 
-What it does
+---
 
-- Writes `.shiplog/policy.json` deterministically (backs up previous policy with a timestamp and shows a diff).
-- Syncs the local policy ref `refs/_shiplog/policy/current` (no push by default).
-- For `--strictness strict`, bootstraps a trust ref locally using `scripts/shiplog-bootstrap-trust.sh --no-push` (expects `SHIPLOG_TRUST_*` vars in CI).
+## 🛠️ Basic Usage
 
-Next steps (suggested commands)
+Initialize in your repo:
 
-- Configure local signing (optional):
-  - `git config --local user.name "Your Name"`
-  - `git config --local user.email "you@example.com"`
-  - `git config --local gpg.format ssh`
-  - `git config --local user.signingkey ~/.ssh/your_signing_key.pub`
-  - `git config --local commit.gpgSign true`
-- Publish refs when ready (if not using `--auto-push`):
-  - `git push origin refs/_shiplog/policy/current`
-  - `[if created] git push origin refs/_shiplog/trust/root`
-- Inspect effective policy:
-  - `git shiplog policy show --json`
-```
-
-### Setup Modes
-
-- Open: Unsigned by default for fast adoption.
-- Balanced: Unsigned plus an author allowlist (provide emails).
-- Strict: Require signatures globally or per-environment (e.g., prod only).
-
-See docs/features/setup.md and docs/features/modes.md for details.
-
-## Basic Usage
-
-Once installed, you can initialize a repo and start recording deployments.
-
-```Bash
-# Initialize in your repo
+```bash
 cd your-project
 git shiplog init
+```
 
-# Record your first deployment
+*(NOTE: See [docs/TRUST.md](docs/TRUST.md) for one-time policy and trust setup instructions)*
+
+Record a deployment event:
+
+```bash
 export SHIPLOG_ENV=prod
 export SHIPLOG_SERVICE=web
 git shiplog write
+```
 
-# View your deployment history
+Inspect history:
+
+```bash
 git shiplog ls --env prod
-git shiplog show $(git rev-parse refs/_shiplog/journal/prod)
-
-# JSON-only for the latest entry
 git shiplog show --json
-
-# Non-interactive (CI) mode
-# Use `SHIPLOG_BORING=1` to disable interactive prompts
-SHIPLOG_BORING=1 git shiplog write
-
-# Export for your monitoring tools
-  git shiplog export-json --env prod | jq '.'
-
-## Release with Shiplog (MVP)
-
-Dogfood Shiplog to release Shiplog itself:
-
-- Bootstrap trust once (signed `refs/_shiplog/trust/root`), then publish `.shiplog/policy.json` to `refs/_shiplog/policy/current`.
-- Sync the signer roster locally: `./scripts/shiplog-trust-sync.sh`.
-- Capture build/test logs, then write the entry with environment variables and `SHIPLOG_LOG`.
-- Push the journal ref (e.g., `refs/_shiplog/journal/prod`) and let the server hook enforce policy and signatures.
-
-See `docs/runbooks/release.md`:1 for the full step‑by‑step, common failures, and a CI outline.
 ```
 
-### Quick Copy/Paste Commands
+Pipe to tools:
 
-Common one‑liners for inspection and cleanup.
-
-```
-# Latest entry as JSON (pretty or compact)
-git shiplog show --json
-git shiplog show --json-compact
-
-# Count entries in a journal
-git rev-list refs/_shiplog/journal/prod | wc -l
-
-# Filter entries by service (all envs)
-git shiplog export-json | jq -c 'select(.what.service=="web")'
-
-# Force-refresh local Shiplog refs to match origin (safe for local only)
-git fetch origin '+refs/_shiplog/*:refs/_shiplog/*'
-
-# Remove local journal refs (keep trust/policy); re-run write to recreate
-git for-each-ref 'refs/_shiplog/journal/*' --format='%(refname)' | xargs -r -I{} git update-ref -d {}
-
-# Inspect trust/policy files stored in refs
-git show refs/_shiplog/trust/root:.shiplog/trust.json | jq
-git show refs/_shiplog/policy/current:.shiplog/policy.json | jq
-
-# Show/Set ref root (custom vs branch namespace)
-git shiplog refs root show
-git shiplog refs root set refs/heads/_shiplog
+```bash
+git shiplog export-json | jq .
 ```
 
-### GitHub Hosting
+---
 
-Shiplog stores data under custom refs (for example, `refs/_shiplog/journal/prod`), which the GitHub web UI does not display. You can protect these refs with Rulesets or use a branch namespace for full Branch Rules protection. See docs/hosting/github.md.
+## 🔐 Policy & Security
 
-### GitHub Hosting
+Shiplog enforces policy as code, stored in Git itself.
 
-On GitHub.com, Shiplog stores data under custom refs that the web UI doesn’t display. Learn how to view and protect these refs, and how to switch to a branch namespace for full Branch Rules support:
+- `refs/_shiplog/journal/<env>` → append-only logs
+- `refs/_shiplog/policy/current` → signed policy refs
+- Optional strict mode: signed commits per-env (e.g., prod only)
 
-- Guide: docs/hosting/github.md
-- Runbook: docs/runbooks/github-protection.md
+### Example policy (`.shiplog/policy.json`)
 
-## 🛠️ How It Works
-
-Shiplog records deployment events as signed empty-tree commits to a set of hidden Git refs. This makes the ledger tamper-evident and keeps it separate from your main branch history.
-
-- Journals: `refs/_shiplog/journal/<env>` are append-only, fast-forward only logs for each environment.
-- Anchors: `refs/_shiplog/anchors/<env>` can be used to mark a last known good state.
-- Notes: `refs/_shiplog/notes/logs` are optional NDJSON attachments for logs or other metadata.
-
-See docs/features/modes.md:1 for how to run unsigned by default, enable signing via policy, and switch back and forth without rewriting history.
-
-## ⚙️ Core Commands
-
-| Command | Purpose | Example |
-| :--- | :--- | :--- |
-| `git shiplog init` | Setup refspecs & reflog configs | `git shiplog init` |
-| `git shiplog write` | Record a deployment | `git shiplog write` |
-| `git shiplog ls` | List recent entries | `git shiplog ls --env prod --limit 5` |
-| `git shiplog show` | Show entry details | `git shiplog show <commit>` |
-| `git shiplog verify` | Check signatures + author allowlist | `git shiplog verify --env prod` |
-| `git shiplog export-json` | NDJSON export for external tools | `git shiplog export-json \| jq '.'` |
-| `git shiplog validate-trailer` | Validate JSON trailer for an entry | `git shiplog validate-trailer <commit>` |
-| `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
-| `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
-| `git shiplog refs migrate` | Mirror refs between roots | `git shiplog refs migrate --to refs/heads/_shiplog --dry-run` |
-| `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
-| `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
-
-### Environment Reference
-
-See docs/reference/env.md for a compact overview of supported `SHIPLOG_*` variables and defaults.
-
-## 🔐 Security & Policy
-
-Shiplog's security model is based on policy-as-code, stored and enforced within Git itself.
-
-### Policy Lives in Git Itself
-
-- **Canonical ref**: `refs/_shiplog/policy/<env>` are signed commits containing your `.shiplog/policy.yaml` files.
-- **Mirror in main branch**: A copy of the policy file lives on your `main` branch, allowing changes to go through the normal PR review process.
-- **CI sync script**: A script (`scripts/shiplog-sync-policy.sh`) fast-forwards the policy ref after a merge, ensuring the enforced policy is always what's been reviewed and approved.
-
-Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
-### Example Policy File (`.shiplog/policy.json`)
-
-```JSON
+```json
 {
-  "version": 1,
   "require_signed": true,
-  "allow_ssh_signers_file": ".git/allowed_signers",
   "authors": {
-    "default_allowlist": [
-      "deploy-bot@ci",
-      "james@flyingrobots.dev"
-    ],
-    "env_overrides": {
-      "prod": [
-        "deploy-bot@ci",
-        "james@flyingrobots.dev"
-      ]
-    }
+    "prod": ["deploy-bot@ci", "james@flyingrobots.dev"]
   },
   "deployment_requirements": {
-    "prod": {
-      "require_ticket": true,
-      "require_service": true,
-      "require_where": [
-        "cluster",
-        "region",
-        "namespace"
-      ]
-    },
-    "default": {
-      "require_ticket": false
-    }
-  },
-  "ff_only": true,
-  "notes_ref": "refs/_shiplog/notes",
-  "journals_ref_prefix": "refs/_shiplog/journal/",
-  "anchors_ref_prefix": "refs/_shiplog/anchors/"
+    "prod": { "require_ticket": true }
+  }
 }
 ```
 
+---
+
+## ⚙️ Core Commands
+
+| Command |	Purpose |
+|---------|---------|
+| `git shiplog init` |	Setup refs & configs |
+| `git shiplog write` |	Record a deployment |
+| `git shiplog ls` |	List recent entries |
+| `git shiplog show` |	Show entry details |
+| `git shiplog verify` |	Verify signatures/allowlist |
+| `git shiplog export-json` |	Export NDJSON for tools |
+
+---
+
 ## 🧪 Testing
 
-Shiplog uses make and bats to run its test suite.
+> [!WARNING]
+> ⚠️ **Shiplog developers**: Avoid running Shiplog in its own repo path. Shiplog mutates Git refs! By default, tests are configured to run in a Docker container. Use it!
 
-```Bash
-# Unsigned (fast, CI-friendly)
-make test
-
-# Signed (loopback GPG key)
-make test-signing
+```bash
+make test         # Unsigned, fast
+make test-signing # With loopback GPG key
 ```
 
-### Coverage:
+---
 
-- Init wiring (refspecs + reflogs)
-- Write flow + ls/show rendering
-- Export-JSON + notes attachments
-- Verify logic across unsigned/signed entries
-- Fast-forward-only guardrails
+## 📜 License
 
-### Requirements
+MIT © J. Kirby Ross • @flyingrobots
 
-- Git ≥ 2.x (with signing configured)
-- Bash 3.2+ shell
-- jq for JSON processing
-- GPG or SSH signing key
-  
-## License
-
-MIT © J. Kirby Ross • [@flyingrobots](https://github.com/flyingrobots)
-
-_Jenkins was not harmed in the making of this project._
+*Jenkins was not harmed in the making of this project.*
