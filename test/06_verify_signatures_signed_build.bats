@@ -7,6 +7,8 @@ setup() {
     echo "Failed to install shiplog CLI" >&2
     return 1
   }
+  # Work inside an isolated repo so local git config works even on CI runners
+  shiplog_use_sandbox_repo
   git remote remove origin >/dev/null 2>&1 || true
   git config user.name "Shiplog Test"
   git config user.email "shiplog-test@example.local"
@@ -16,6 +18,7 @@ teardown() {
   unset SHIPLOG_SIGN SHIPLOG_ENV SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON
   unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE SHIPLOG_IMAGE SHIPLOG_TAG
   unset SHIPLOG_AUTO_PUSH SHIPLOG_BORING
+  shiplog_cleanup_sandbox_repo
 }
 
 @test "signed commits verify when signing support is enabled" {
