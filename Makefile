@@ -33,3 +33,6 @@ test-signing:
 ## Clean local dangling images/containers (non-destructive)
 clean:
 	@echo "Nothing to clean inside repo. Use docker system prune -f at your own risk."
+progress:
+	@bash scripts/update-task-progress.sh
+	@echo "Progress bars updated."

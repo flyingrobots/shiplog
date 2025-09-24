@@ -25,8 +25,15 @@ if ! command -v bats >/dev/null 2>&1; then
 fi
 
 if command -v timeout >/dev/null 2>&1; then
-  timeout "${TEST_TIMEOUT_SECS}s" bats -r "$SHIPLOG_HOME/test"
+  if [ -n "${BATS_FLAGS:-}" ]; then
+    timeout "${TEST_TIMEOUT_SECS}s" bats $BATS_FLAGS "$SHIPLOG_HOME/test"
+  else
+    timeout "${TEST_TIMEOUT_SECS}s" bats -r "$SHIPLOG_HOME/test"
+  fi
 else
-  # Fallback: run directly if timeout is unavailable (should not happen on Ubuntu base)
-  bats -r "$SHIPLOG_HOME/test"
+  if [ -n "${BATS_FLAGS:-}" ]; then
+    bats $BATS_FLAGS "$SHIPLOG_HOME/test"
+  else
+    bats -r "$SHIPLOG_HOME/test"
+  fi
 fi

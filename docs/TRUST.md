@@ -6,9 +6,7 @@ installations in sync.
 
 ## jq Requirement
 
-All trust and policy validation uses `/usr/local/bin/jq` pinned to version `1.7.1`. Containers, CI, and
-server hooks should install exactly that build (with checksum verification). Running hooks outside the
-container must use the same version to avoid schema drift.
+All trust and policy validation uses `/usr/local/bin/jq` pinned to version `1.7.1`. Containers, CI, and server hooks should install exactly that build (with checksum verification). Running hooks outside the container must use the same version to avoid schema drift.
 
 ```bash
 # Dockerfile snippet
@@ -23,13 +21,11 @@ chmod +x /usr/local/bin/jq
 
 ## One-Time Trust Bootstrap
 
-Bootstrap is the only moment you may bypass quorum checks. After the initial push, every update to
-`refs/_shiplog/trust/root` must be fast-forward and co-signed by the current threshold of maintainers.
+Bootstrap is the only moment you may bypass quorum checks. After the initial push, every update to `refs/_shiplog/trust/root` must be fast-forward and co-signed by the current threshold of maintainers.
 
 ### Fast Path: `scripts/shiplog-bootstrap-trust.sh`
 
-Run the helper to collect maintainer metadata, generate `.shiplog/trust.json` and
-`.shiplog/allowed_signers`, create the signed genesis commit, and optionally push it to origin:
+Run the helper to collect maintainer metadata, generate `.shiplog/trust.json` and `.shiplog/allowed_signers`, create the signed genesis commit, and optionally push it to origin:
 
 ```bash
 ./scripts/shiplog-bootstrap-trust.sh           # prompts for maintainer roster and SSH keys
@@ -44,9 +40,7 @@ The script will:
 4. Create and sign the genesis commit for `refs/_shiplog/trust/root`.
 5. Offer to push the new ref to `origin`.
 
-After the script completes (and you push the ref, if desired), distribute the roster with
-`./scripts/shiplog-trust-sync.sh` so every workstation and CI runner receives the generated
-`allowed_signers` file.
+After the script completes (and you push the ref, if desired), distribute the roster with `./scripts/shiplog-trust-sync.sh` so every workstation and CI runner receives the generated `allowed_signers` file.
 
 ### Manual Bootstrap (detailed)
 
@@ -80,23 +74,18 @@ git update-ref refs/_shiplog/trust/root "$GENESIS"
 git push origin refs/_shiplog/trust/root
 ```
 
-After bootstrap, the server hook must reject any trust update that is not a fast-forward or lacks the
-required number of maintainer signatures. Document this expectation in your repo policies so nobody
-attempts another bypass.
+After bootstrap, the server hook must reject any trust update that is not a fast-forward or lacks the required number of maintainer signatures. Document this expectation in your repo policies so nobody attempts another bypass.
 
 ## Keeping Clients in Sync
 
-Use the helper script to materialise the allowed signers from the trust ref and teach Git where to find
-it. This avoids copying unsigned files or relying on repository checkout state.
+Use the helper script to materialize the allowed signers from the trust ref and teach Git where to find it. This avoids copying unsigned files or relying on repository checkout state.
 
 ```bash
 ./scripts/shiplog-trust-sync.sh                    # defaults to refs/_shiplog/trust/root → .shiplog/allowed_signers
 ./scripts/shiplog-trust-sync.sh refs/_shiplog/trust/root ~/.config/shiplog/allowed_signers
 ```
 
-The script fetches the latest trust ref (you still need `git fetch` beforehand), reads
-`allowed_signers` from the signed commit, writes it to the chosen destination, and sets
-`gpg.ssh.allowedSignersFile` to point at that file.
+The script fetches the latest trust ref (you still need `git fetch` beforehand), reads `allowed_signers` from the signed commit, writes it to the chosen destination, and sets `gpg.ssh.allowedSignersFile` to point at that file.
 
 ## Server Enforcement Checklist
 

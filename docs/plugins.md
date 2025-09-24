@@ -6,7 +6,7 @@ Plugins let you customize Shiplog without patching the core scripts. At the mome
 
 Shiplog looks for executable scripts under `.shiplog/plugins/<stage>.d/`. For example:
 
-```
+```bash
 .shiplog/
   plugins/
     pre-commit-message.d/
@@ -22,12 +22,14 @@ Scripts receive the stage name as `$1` and the current payload on `stdin`. They 
 
 Example scrubber:
 
+> [!WARNING]
+>  This is a trivial example. Real secret detection requires comprehensive patterns for AWS keys, GitHub tokens, API keys, etc.
+
+```bash
 #!/usr/bin/env bash
 set -euo pipefail
-
-# WARNING: This is a trivial example. Real secret detection requires
-# comprehensive patterns for AWS keys, GitHub tokens, API keys, etc.
 awk '{ gsub(/secret-[A-Za-z0-9]+/, "[REDACTED]"); print }'
+```
 
 Place this script at `.shiplog/plugins/pre-commit-message.d/10-scrub.sh`, make it executable (`chmod +x`), and Shiplog will run it before writing the journal entry.
 
@@ -41,7 +43,7 @@ Place this script at `.shiplog/plugins/pre-commit-message.d/10-scrub.sh`, make i
 
 Set `SHIPLOG_PLUGINS_DIR` to override the default `.shiplog/plugins`. This is handy if you need to share a central plugin repository across multiple repos.
 
-```
+```bash
 export SHIPLOG_PLUGINS_DIR="$HOME/.config/shiplog/plugins"
 ```
 

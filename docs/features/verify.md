@@ -12,14 +12,15 @@ git shiplog verify [ENV]
 - `ENV` (optional): journal environment to verify (for example `prod`, `staging`, `dev`). When omitted, the command uses the resolved default environment (`SHIPLOG_ENV` or `prod`).
 
 ## Behavior
-- Resolves policy inputs from multiple sources in order of precedence: environment variables, git config, working tree, then policy ref (a git reference like a branch or tag that contains policy configuration files).
-- Uses `git verify-commit` (with `GIT_SSH_ALLOWED_SIGNERS` when provided) to check signatures when required.
-- Exits immediately (code 1) when encountering unauthorized authors or missing required signatures, otherwise provides a summary report suitable for human reading or machine parsing.
+- Resolves policy inputs from multiple sources in order of precedence: environment variables, git config, working tree, then policy ref.
+- Uses `git verify-commit` (with `GIT_SSH_ALLOWED_SIGNERS` when provided) to check signatures when required by policy.
+- Scans all entries and prints a summary: `Verified: OK=<n>, BadSig=<n>, Unauthorized=<n>`.
+- Exit code is non‑zero if any bad signatures or unauthorized authors are found; zero otherwise.
 
 ## Related Code
-- `lib/commands.sh` - Main verify command implementation
-- `lib/git.sh` - Git signature verification utilities
-- `lib/policy.sh` - Policy resolution and validation logic
+- `lib/commands.sh` — `cmd_verify()`
+- `lib/git.sh` — `ensure_signed_on_verify()`, `author_allowed()`
+- `lib/policy.sh` — policy resolution
 
 ## Tests
 - `test/05_verify_authors.bats:22`

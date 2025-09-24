@@ -5,7 +5,12 @@ The setup wizard helps you choose how strict Shiplog should be for this reposito
 ## Usage
 
 ```
-git shiplog setup [--auto-push] [--strict-envs "prod staging"] [--authors "a@x b@y"] [--dry-run]
+git shiplog setup \
+  [--strictness open|balanced|strict] \
+  [--authors "a@x b@y"] \
+  [--strict-envs "prod staging"] \
+  [--auto-push|--no-auto-push] \
+  [--dry-run]
 
 # Non-interactive (env-driven)
 SHIPLOG_SETUP_STRICTNESS=balanced \
@@ -56,11 +61,11 @@ Notes:
 
 ## Dry Run
 
-- Use `--dry-run` (or `SHIPLOG_SETUP_DRY_RUN=1`) to preview changes to `.shiplog/policy.json` without writing, syncing, or pushing. The wizard prints a unified diff (or a full file preview if creating fresh).
+- Use `--dry-run` (or `SHIPLOG_SETUP_DRY_RUN=1`) to preview changes to `.shiplog/policy.json` without writing, syncing, or pushing. The wizard shows a semantic no‑op if only formatting changes would occur.
 
 ## Auto‑Push
 
-- `--auto-push` (or `SHIPLOG_SETUP_AUTO_PUSH=1`) pushes the policy ref to origin after syncing.
+- `--auto-push` (or `SHIPLOG_SETUP_AUTO_PUSH=1`) pushes the policy ref to origin after syncing; `--no-auto-push` disables.
 - In Strict mode, if trust was bootstrapped non‑interactively and origin is configured, the wizard also pushes the trust ref.
 
 ## Server Guidance
@@ -78,4 +83,4 @@ Notes:
 
 ## Safety: Backups and Diffs
 
-- When the wizard updates an existing `.shiplog/policy.json`, it creates a timestamped backup (`.shiplog/policy.json.bak.YYYYMMDDHHMMSS`) and shows a unified diff of changes. If there’s no change, it says so and leaves the file untouched.
+- When updating `.shiplog/policy.json`, the wizard creates a timestamped backup (`.shiplog/policy.json.bak.YYYYMMDDHHMMSS`) and shows a unified diff. If the JSON is semantically unchanged (ignoring formatting or key order), it treats the update as a no‑op to avoid churn.
