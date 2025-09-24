@@ -30,4 +30,35 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 - Always run tests inside Docker; host execution is unsupported and may skip required setup.
 
 ## Troubleshooting
-- If you see this error:
+
+- “RUN THESE ONLY IN DOCKER YOU FOOL”
+  - You tried to run `test.sh` on the host. Always use `make test` (Dockerized).
+
+- Author identity unknown / “fatal: unable to auto‑detect email address”
+  - Tests create temp repos and set identity automatically, but if you run ad‑hoc:
+    - Inside the temp repo: `git config user.name "Shiplog Test" && git config user.email "shiplog-test@example.local"`
+
+- Bosun UI issues or unexpected colors
+  - Force plain mode: `SHIPLOG_BORING=1 git shiplog <cmd>`
+  - In non‑TTY, Bosun does not prompt; tests run with safe fallbacks.
+
+- Hanging or very slow tests
+  - Use timeouts: `TEST_TIMEOUT_SECS=180 BATS_FLAGS="--print-output-on-failure -T" make test`
+  - Local sandbox (no network clones) is default: `SHIPLOG_USE_LOCAL_SANDBOX=1` (set to `0` only if required).
+
+- “Signing support not enabled” or skipped signing tests
+  - Default runs disable signing. Use `make test-signing` to enable signing paths (generates a throw‑away key in the container).
+
+- “ssh-keygen: command not found” (matrix containers)
+  - The CI matrix images install an SSH client/keygen. If you see this in a custom image, add the package (e.g., `openssh-client` on Debian/Ubuntu; `openssh-clients` on Fedora; `openssh-keygen` on Alpine).
+
+- “fatal: not in a git directory” during setup/teardown in tests
+  - Ensure helper functions are used (`shiplog_use_sandbox_repo` in setup, `shiplog_cleanup_sandbox_repo` in teardown) before calling `git config`.
+
+- Local repo contains test journals (refs/_shiplog/journal/*)
+  - Tests should never write to your project repo, but if it happened historically:
+    - Remove local journals: `git for-each-ref 'refs/_shiplog/journal/*' --format='%(refname)' | xargs -r -I{} git update-ref -d {}`
+    - Force‑refresh local refs to match origin: `git fetch origin '+refs/_shiplog/*:refs/_shiplog/*'`
+
+- Run a single test with verbosity
+  - `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`
