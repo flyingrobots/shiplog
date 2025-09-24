@@ -685,8 +685,8 @@ cmd_setup() {
         [ -n "$authors_input" ] || authors_input="$default_authors"
       fi
     fi
-    # Normalize separators to spaces
-    authors_input=$(printf '%s\n' "$authors_input" | tr ',;' '  ')
+    # Normalize separators to single spaces and squeeze repeats
+    authors_input=$(printf '%s\n' "$authors_input" | tr ',;' ' ' | tr -s ' ')
     # Include self by default if not present
     if [ -n "$self_email" ] && ! printf ' %s ' " $authors_input " | grep -q " $self_email "; then
       authors_input="$self_email ${authors_input}" 
@@ -818,7 +818,7 @@ cmd_setup() {
     if [ -x "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" ]; then
       # Detect non-interactive intent via SHIPLOG_TRUST_COUNT
       if [ -n "${SHIPLOG_TRUST_COUNT:-}" ] || is_boring; then
-        SHIPLOG_ASSUME_YES=${SHIPLOG_ASSUME_YES:-1} SHIPLOG_PLAIN=${SHIPLOG_PLAIN:-1} \
+        env SHIPLOG_ASSUME_YES="${SHIPLOG_ASSUME_YES:-1}" SHIPLOG_PLAIN="${SHIPLOG_PLAIN:-1}" \
           "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh --no-push || die "shiplog: trust bootstrap failed"
         # Auto-push trust ref if requested
         if [ "$auto_push" -eq 1 ] && has_remote_origin; then

@@ -112,6 +112,58 @@ The script fetches the latest trust ref (you still need `git fetch` beforehand),
   * Compare `trust_oid` to the current server trust tip to prevent stale-trust replays.
 * Mirror `refs/_shiplog/{trust,policy,journal}` to a second remote or WORM storage for recovery.
 
+## Solo Maintainer Trust Setup
+
+When you are the only maintainer, avoid a single point of failure by creating multiple, independent signing identities that you control and using a threshold greater than 1:
+
+- Primary SSH signing key on your laptop (passphrase‑protected).
+- Hardware token SSH signing key (e.g., YubiKey) as a second factor.
+- CI SSH signing key stored in a protected GitHub Environment as a third identity.
+
+Set `threshold` to 2 (2‑of‑3). This allows signing in CI even if your laptop is offline, and vice versa, and enables quick rotation if a key is compromised.
+
+Example maintainer entries in `trust.json`:
+
+```
+{
+  "version": 1,
+  "id": "shiplog-trust-root",
+  "threshold": 2,
+  "maintainers": [
+    { "name": "Maintainer", "email": "you@example.com", "pgp_fpr": "<40-hex or null>", "role": "root", "revoked": false },
+    { "name": "CI",         "email": "ci@example.com",  "pgp_fpr": null,           "role": "root", "revoked": false },
+    { "name": "YubiKey",    "email": "you@example.com", "pgp_fpr": null,           "role": "root", "revoked": false }
+  ]
+}
+```
+
+The corresponding `allowed_signers` should include one line per SSH key (principal + key).
+
+Notes:
+- Use real, monitored email addresses. Avoid placeholders.
+- Prefer SSH signing for CI and hardware tokens. Provide a PGP fingerprint only when you actually use PGP to sign.
+- Document where these keys live, how to unlock them, and who is allowed to rotate them.
+
+## Emergency Recovery
+
+If you lose access to one or more keys or need to rotate quickly:
+
+- Add a new maintainer/key:
+  - Update `trust.json` and `allowed_signers` with the new key/principal.
+  - Create a new trust commit (fast‑forward) and push `refs/_shiplog/trust/root`.
+
+- Remove or revoke a compromised maintainer/key:
+  - Either remove the maintainer entry, or set `revoked: true` and remove its line from `allowed_signers`.
+  - Create and push a trust update as above.
+
+- Change the threshold:
+  - Edit `threshold` in `trust.json`, then create and push a trust update.
+
+- Out‑of‑band update (bare repo admin only):
+  - In rare cases (e.g., all keys lost), an admin on the bare repository can write a new trust commit directly with `git --git-dir … update-ref`. Use this sparingly, record the reason in your audit log, and immediately re‑establish a healthy threshold and signer set.
+
+Always follow up with `./scripts/shiplog-trust-sync.sh` on all workstations and runners to install the updated `allowed_signers` and point `gpg.ssh.allowedSignersFile` to it.
+
 ## Recommended Runbook Entries
 
 See also `docs/runbooks/release.md`:1 for an end‑to‑end “use Shiplog to release Shiplog” flow including common failure paths and a CI outline.

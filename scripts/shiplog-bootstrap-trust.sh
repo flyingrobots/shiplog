@@ -123,7 +123,14 @@ done
 
 need git
 need jq
-SIGN_TRUST="${SHIPLOG_SIGN_TRUST:-1}"
+SIGN_TRUST_RAW="${SHIPLOG_SIGN_TRUST:-${SHIPLOG_TRUST_SIGN:-1}}"
+# Normalize SIGN_TRUST to 1/0 and validate
+case "$(printf '%s' "$SIGN_TRUST_RAW" | tr '[:upper:]' '[:lower:]' | sed -e 's/^\s*//' -e 's/\s*$//')" in
+  1|true|yes|on) SIGN_TRUST=1 ;;
+  0|false|no|off) SIGN_TRUST=0 ;;
+  "") SIGN_TRUST=1 ;;
+  *) echo "WARN: invalid SHIPLOG_SIGN_TRUST='$SIGN_TRUST_RAW'; defaulting to 1" >&2; SIGN_TRUST=1 ;;
+esac
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "run this script inside a git repository"

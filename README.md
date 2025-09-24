@@ -102,30 +102,32 @@ export PATH="$SHIPLOG_HOME/bin:$PATH"
 
 ## Setup Wizard (Recommended)
 
-Use the built‑in wizard to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per‑environment enforcement:
+Use the built-in wizard to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per-environment enforcement:
 
 ```bash
 # Interactive
 git shiplog setup
 
-# Non‑interactive (examples)
+# Non-interactive (examples)
 SHIPLOG_SETUP_STRICTNESS=balanced \
 SHIPLOG_SETUP_AUTHORS="you@example.com teammate@example.com" \
-  git shiplog setup --authors "you@example.com teammate@example.com"
+git shiplog setup
 
 SHIPLOG_SETUP_STRICTNESS=strict \
 SHIPLOG_SETUP_STRICT_ENVS="prod" \
-  git shiplog setup --strict-envs "prod"
+git shiplog setup
 
-# Auto‑push policy ref when origin is configured
-git shiplog setup --auto-push
+# Auto-push policy ref when origin is configured
+SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup
 ```
 
-- Open: unsigned by default, fast adoption.
-- Balanced: unsigned plus an author allowlist.
-- Strict: require signatures globally or per‑environment (e.g., prod only).
+### Setup Modes
 
-See docs/features/setup.md:1 and docs/features/modes.md:1 for details.
+- Open: Unsigned by default for fast adoption.
+- Balanced: Unsigned plus an author allowlist (provide emails).
+- Strict: Require signatures globally or per-environment (e.g., prod only).
+
+See docs/features/setup.md and docs/features/modes.md for details.
 
 ## Basic Usage
 
