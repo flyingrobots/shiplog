@@ -118,3 +118,22 @@ teardown() {
   run git --git-dir="$ORIGIN2_DIR" rev-parse --verify refs/_shiplog/trust/root
   [ "$status" -eq 0 ]
 }
+
+@test "setup backups and diffs policy on overwrite" {
+  mkdir -p .shiplog
+  rm -f .shiplog/policy.json.bak.*
+  printf '{"version":1,"require_signed":true}' > .shiplog/policy.json
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  [ "$status" -eq 0 ]
+  run ls .shiplog/policy.json.bak.*
+  [ "$status" -eq 0 ]
+  run jq -r '.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "false" ]
+  # Running again with same settings should not create another backup
+  before_count=$(ls -1 .shiplog/policy.json.bak.* | wc -l | tr -d ' ')
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  [ "$status" -eq 0 ]
+  after_count=$(ls -1 .shiplog/policy.json.bak.* | wc -l | tr -d ' ')
+  [ "$before_count" -eq "$after_count" ]
+}

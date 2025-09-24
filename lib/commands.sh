@@ -75,6 +75,44 @@ maybe_sync_shiplog_ref() {
   esac
 }
 
+policy_install_file() {
+  local new_file="$1" dest_file="$2"
+  if [ ! -f "$dest_file" ]; then
+    mv "$new_file" "$dest_file"
+    return 0
+  fi
+  if cmp -s "$new_file" "$dest_file" 2>/dev/null; then
+    rm -f "$new_file"
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Policy" -- "No changes to $dest_file"
+    else
+      printf 'No changes to %s\n' "$dest_file"
+    fi
+    return 0
+  fi
+  local ts backup diffout
+  ts="$(date +%Y%m%d%H%M%S)"
+  backup="${dest_file}.bak.${ts}"
+  cp "$dest_file" "$backup"
+  if command -v git >/dev/null 2>&1; then
+    diffout="$(git --no-pager diff --no-index --color=never -- "$dest_file" "$new_file" 2>/dev/null || true)"
+  else
+    diffout="$(diff -u "$dest_file" "$new_file" 2>/dev/null || true)"
+  fi
+  mv "$new_file" "$dest_file"
+  if shiplog_can_use_bosun; then
+    local bosun; bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Policy Backup" -- "Saved previous policy to $backup"
+    if [ -n "$diffout" ]; then
+      "$bosun" style --title "Policy Diff" -- "$diffout"
+    fi
+  else
+    printf 'Backed up previous policy to %s\n' "$backup"
+    [ -n "$diffout" ] && printf '%s\n' "$diffout"
+  fi
+}
+
 cmd_version() {
   printf 'shiplog %s\n' "$(shiplog_version)"
 }
@@ -432,7 +470,7 @@ cmd_policy() {
       else
         printf '{"version":1,"require_signed":%s}\n' "$val" >"$tmp"
       fi
-      mv "$tmp" "$policy_file"
+      policy_install_file "$tmp" "$policy_file"
       if shiplog_can_use_bosun; then
         local bosun; bosun=$(shiplog_bosun_bin)
         "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
@@ -648,7 +686,7 @@ cmd_setup() {
         ;;
     esac
   fi
-  mv "$tmp" "$policy_file"
+  policy_install_file "$tmp" "$policy_file"
 
   if shiplog_can_use_bosun; then
     local bosun; bosun=$(shiplog_bosun_bin)

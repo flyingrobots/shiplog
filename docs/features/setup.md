@@ -48,3 +48,6 @@ SHIPLOG_SETUP_AUTO_PUSH=1 \
 - Use `git shiplog policy require-signed <true|false>` or `git shiplog policy toggle` to flip signing later, then push the policy ref.
 - See docs/runbooks/toggle-signing.md:1 for a full runbook.
 
+## Safety: Backups and Diffs
+
+- When the wizard updates an existing `.shiplog/policy.json`, it creates a timestamped backup (`.shiplog/policy.json.bak.YYYYMMDDHHMMSS`) and shows a unified diff of changes. If there’s no change, it says so and leaves the file untouched.
