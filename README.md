@@ -1,53 +1,35 @@
 # SHIPLOG • 🚢🪵
 
-The pager goes off at 3:17 a.m.
-The intern is frozen, hands hovering over the keyboard like it’s wired with C4.
-And of course, you picked this week to quit smoking.
+The pager goes off at 3:17 a.m. The intern is frozen, hands hovering over the keyboard like it’s wired with C4. And of course, you picked this week to quit smoking.
 
-The coffee pot’s empty. Of course it is. You quit coffee too, because you’re a genius.
 The dashboards are bleeding red.
 Slack is twelve parallel arguments, all noise, no answers.
 
-The monitoring alert reads like a ransom note — all caps, no punctuation, and somehow it knows your name.
-The runbook is 400 pages long. Step one: panic.
+The monitoring alert reads like a ransom note — all caps, no punctuation, and somehow it knows your name. The runbook is 400 pages long. Step one: panic.
 
-Bob mutters, “It worked on my laptop.”
-Bob’s laptop hasn’t been patched since the Obama administration.
+Bob mutters, “It worked on my laptop.” Bob’s laptop hasn’t been patched since the Obama administration.
 
-The Jira ticket’s still “In Review.”
-That’s funny, because prod isn’t.
+The Jira ticket’s still “In Review.” That’s funny, because prod isn’t.
 
-The CI logs stop mid-sentence.
-Last line: “Deploying…” Nothing else. Just static.
+The CI logs stop mid-sentence. Last line: “Deploying…” Nothing else. Just static.
 
-And in the corner, Jenkins is whispering again.
-He’s been mumbling the same cronjob lullaby since 2019.
-Nobody listens — until prod catches fire, and suddenly the old man’s a suspect.
+And in the corner, Jenkins is whispering again. He’s been mumbling the same cronjob lullaby since 2019. Nobody listens until prod catches fire, and suddenly the old man’s a suspect.
 
 Stop blaming the ghost. Stop digging through rubble.
 
 All of the ship is logged in Git.
 
-Zero infra. No new tools.
-Lives by your code.
+Zero infra. No new tools. Lives by your code. No archaeology. No copy/paste. No 2FA hopscotch through three dashboards.
 
-No archaeology.
-No copy/paste.
-No 2FA hopscotch through three dashboards.
-
-Just clarity.
-And the truth.
+Just clarity. And the truth.
 
 *INT. WAR ROOM – DAWN*
 
-The intern finally exhales, hands unclenched.
-Slack arguments dissolve into praise.
-Bob swears he’ll upgrade Jenkins — “just in case.”
+The intern finally exhales, hands unclenched. Slack arguments dissolve into praise. Bob swears he’ll upgrade Jenkins — “just in case.”
 
 Yeah, right.
 
-The room is calm again.
-The intern looks at you, wide-eyed:
+The room is calm again. The intern looks at you, wide-eyed:
 
 “How’d you figure it out so fast?”
 
@@ -118,6 +100,60 @@ export PATH="$SHIPLOG_HOME/bin:$PATH"
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
 ```
 
+## Setup (Recommended)
+
+Use the built-in setup wrapper to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per-environment enforcement. The wrapper is non-interactive and file-first: it writes `.shiplog/policy.json`, syncs the local policy ref, and only pushes if you ask it to.
+
+```bash
+# Defaults to open (unsigned)
+git shiplog setup
+
+# Balanced (add author allowlist)
+git shiplog setup \
+  --strictness balanced \
+  --authors "you@example.com teammate@example.com"
+
+# Strict per-environment (e.g., prod only)
+git shiplog setup \
+  --strictness strict \
+  --strict-envs "prod"
+
+# Auto-push policy/trust refs when origin is configured
+git shiplog setup --auto-push
+
+# Env-style equivalents (useful in CI)
+SHIPLOG_SETUP_STRICTNESS=strict \
+SHIPLOG_SETUP_STRICT_ENVS="prod staging" \
+SHIPLOG_SETUP_AUTO_PUSH=1 \
+git shiplog setup
+
+What it does
+- Writes `.shiplog/policy.json` deterministically (backs up previous policy with a timestamp and shows a diff).
+- Syncs the local policy ref `refs/_shiplog/policy/current` (no push by default).
+- For `--strictness strict`, bootstraps a trust ref locally using `scripts/shiplog-bootstrap-trust.sh --no-push` (expects `SHIPLOG_TRUST_*` vars in CI).
+
+Next steps (suggested commands)
+- Configure local signing (optional):
+  - `git config --local user.name "Your Name"`
+  - `git config --local user.email "you@example.com"`
+  - `git config --local gpg.format ssh`
+  - `git config --local user.signingkey ~/.ssh/your_signing_key.pub`
+  - `git config --local commit.gpgSign true`
+- Publish refs when ready (if not using `--auto-push`):
+  - `git push origin refs/_shiplog/policy/current`
+  - `[if created] git push origin refs/_shiplog/trust/root`
+- Inspect effective policy:
+  - `git shiplog policy show --json`
+```
+
+### Setup Modes
+
+- Open: Unsigned by default for fast adoption.
+- Balanced: Unsigned plus an author allowlist (provide emails).
+- Strict: Require signatures globally or per-environment (e.g., prod only).
+
+See docs/features/setup.md and docs/features/modes.md for details.
+
 ## Basic Usage
 
 Once installed, you can initialize a repo and start recording deployments.
@@ -142,6 +178,17 @@ SHIPLOG_BORING=1 git shiplog write
 
 # Export for your monitoring tools
 git shiplog export-json --env prod | jq '.'
+
+## Release with Shiplog (MVP)
+
+Dogfood Shiplog to release Shiplog itself:
+
+- Bootstrap trust once (signed `refs/_shiplog/trust/root`), then publish `.shiplog/policy.json` to `refs/_shiplog/policy/current`.
+- Sync the signer roster locally: `./scripts/shiplog-trust-sync.sh`.
+- Capture build/test logs, then write the entry with environment variables and `SHIPLOG_LOG`.
+- Push the journal ref (e.g., `refs/_shiplog/journal/prod`) and let the server hook enforce policy and signatures.
+
+See `docs/runbooks/release.md`:1 for the full step‑by‑step, common failures, and a CI outline.
 ```
 
 ## 🛠️ How It Works
@@ -151,6 +198,8 @@ Shiplog records deployment events as signed empty-tree commits to a set of hidde
 - Journals: `refs/_shiplog/journal/<env>` are append-only, fast-forward only logs for each environment.
 - Anchors: `refs/_shiplog/anchors/<env>` can be used to mark a last known good state.
 - Notes: `refs/_shiplog/notes/logs` are optional NDJSON attachments for logs or other metadata.
+
+See docs/features/modes.md:1 for how to run unsigned by default, enable signing via policy, and switch back and forth without rewriting history.
 
 ## ⚙️ Core Commands
 
@@ -173,6 +222,7 @@ Shiplog's security model is based on policy-as-code, stored and enforced within 
 - **Mirror in main branch**: A copy of the policy file lives on your `main` branch, allowing changes to go through the normal PR review process.
 - **CI sync script**: A script (`scripts/shiplog-sync-policy.sh`) fast-forwards the policy ref after a merge, ensuring the enforced policy is always what's been reviewed and approved.
 
+Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
 ### Example Policy File (`.shiplog/policy.json`)
 
 ```JSON

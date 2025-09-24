@@ -2,7 +2,25 @@
 
 **NEVER RUN SHIPLOG TESTS LOCALLY OR DIRECTLY**
 
-Shiplog tests manipulate Git repositories and can cause irreversible damage to your working repository if run outside the controlled Docker environment. Always use the designated test commands.
+Shiplog tests manipulate Git repositories and can cause irreversible damage to your working repository if run outside the controlled Docker environment.
+
+How to run tests safely (Dockerized):
+
+- Use `make test` from the repo root. This spins up Docker and runs the full Bats suite in an isolated container.
+- Do not invoke Bats or individual test files directly on the host.
+- CI runs the same flow via the bash matrix. If you need distro-specific runs locally, use `ci-matrix/run-all.sh`.
+ - Tests default to `SHIPLOG_USE_LOCAL_SANDBOX=1` (no network clones); set to `0` only if you explicitly need to hit the remote sandbox repo.
+
+## Test Timeouts (Required)
+
+- Always wrap local test runs with a timeout to prevent hangs:
+  - Linux: `timeout 180s make test`
+  - macOS (coreutils): `gtimeout 180s make test`
+- For signing-enabled runs, you may extend to 360s if needed.
+- In GitHub Actions, prefer the job/step timeout or wrap the command: `timeout 180s ./test.sh`.
+- If a timeout occurs, capture and attach logs from `ci-logs/*` or the container output for debugging.
+
+Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, default 180) and disables network clones by default (`SHIPLOG_USE_LOCAL_SANDBOX=1`) to keep runs bounded and deterministic.
 # Git Workflow Guidelines
 
 ## Quick Reminders
@@ -49,7 +67,17 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 - Ran `make test` in Docker (pass) and noted `ci-matrix/run-all.sh` still needs an arm64-friendly Arch base image.
 - Updated this worklog (86% complete) and marked “Enforce trust workflow in hooks and tests” plus “Finish sandboxed test migration and isolation” as done.
 
-- [ ] Add GitHub Actions bash matrix workflow
+### Daily Log – 2025-09-24
+
+- Fixed Bosun non-TTY input hang: scripts/bosun now properly handles empty stdin in non-interactive environments by implementing timeout-based input detection (resolves issue where CI pipelines would hang indefinitely).
+- Completed setup wizard (Open/Balanced/Strict) with per-env strictness, non-interactive flags, backups/diffs, and --dry-run.
+- Implemented per-environment `require_signed` in CLI and hook; policy show includes per-env mapping (plain + JSON).
+- Hardened trust bootstrap (env-driven, removed stray prompt loop, repo-root paths, wizard uses --no-push).
+- Synced policy ref layout to `.shiplog/policy.json` in the policy ref tree.
+- Test harness: local sandbox option, remove upstream origin, non-interactive SSH signing; added wizard/per-env tests.
+- Aligned CI artifact paths; added cross-distro bash matrix workflow.
+- Full Dockerized test suite passes: all 40 Bats test cases complete successfully across Docker environments.
+- [x] Add GitHub Actions bash matrix workflow
 ```yaml
 priority: P1
 impact: ensures ./test.sh runs across Debian/Ubuntu/Fedora/Alpine/Arch on every push/PR
@@ -88,7 +116,7 @@ notes:
   - cleanup includes updating release packaging and CI images
 ```
 
-- [ ] Harden scripts/bosun runtime safety
+- [x] Harden scripts/bosun runtime safety
 ```yaml
 priority: P1
 impact: prevents malformed docs paths and ANSI/TSV parsing bugs
@@ -114,7 +142,7 @@ notes:
   - harness now provisions sandbox remotes with trust/policy refs; stale-trust cases validated in test/11
 ```
 
-- [ ] Document signing workflow and add failure-path coverage
+- [x] Document signing workflow and add failure-path coverage
 ```yaml
 priority: P1
 impact: clarifies operations and prevents silent misconfigurations
@@ -139,7 +167,8 @@ steps:
 blocked_by: []
 notes:
   - cross-validate against docs/TRUST.md examples
-```
+  - DONE: per-env require_signed resolution - environments can independently enforce/skip signature validation (implemented in CLI commands and pre-receive hook)
+  - DONE: sync-policy writes `.shiplog/policy.json` in the policy ref tree
 
 - [ ] Refactor installers and uninstallers for path safety
 ```yaml
@@ -355,6 +384,14 @@ notes:
 - Structured output (Bosun tables) should be constructed column-by-column to avoid shell quoting surprises; use `$'\t'` concatenation rather than embedding literal tabs in a single string.
 - Plugin scripts run with full privileges—enforce canonical path checks and clear execution contracts so extensions can’t escape the sandbox. Document the security expectations alongside hooks.
 
+## New/Updated Tasks
+
+- [x] Align CI artifact paths to test/** and ci-logs/* (updated .github/workflows/ci.yml)
+- [x] Setup wizard (Phase 2): per-env strictness, --authors, --dry-run, backups/diffs, --auto-push
+- [x] Per-env signing enforcement: CLI + hook; policy show per-env mapping (plain+JSON)
+- [x] Non-interactive trust bootstrap: env-driven, no stray prompts; wizard uses --no-push
+- [x] Test hardening: local sandbox mode; remove upstream origin; SSH signing helper; new wizard/per-env tests; all green
+
 - [x] Extract `.devcontainer` postCreateCommand into `.devcontainer/post-create.sh` and call it from the JSON.
 - [x] Harden `scripts/install-shiplog.sh`: safe `run()`, validate install dir, detect remote default branch, sync `_shiplog/*` fetch.
 - [x] Harden `scripts/uninstall-shiplog.sh`: warn on unpushed refs (`--force` override), safe profile cleanup with portable guard.
@@ -407,3 +444,62 @@ notes:
 
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
 - Keep runtime/test dependencies to stock POSIX tools plus `jq`; avoid introducing other external binaries.
+- [ ] Setup wizard refinements (Phase 3)
+```yaml
+priority: P1
+impact: simplifies initial configuration and reduces lock-in/friction
+steps:
+  - Add per-environment strictness option (e.g., Strict for prod only)
+  - Offer to auto-push policy/trust refs when origin is configured
+  - Add non-interactive flags for all setup inputs (authors, envs) and print exact commands
+  - Detect and suggest relaxed hook envs if trust/policy missing on server
+  - Add rollback safety: backup existing .shiplog/policy.json before overwrite and show diff
+blocked_by: []
+notes:
+  - integrate with `shiplog-bootstrap-trust.sh` env mode and support multiple maintainers
+```
+
+- [ ] Tests for setup wizard and per-env policy
+```yaml
+priority: P1
+impact: prevent regressions in user-guided flows
+steps:
+  - Test `git shiplog setup` open/balanced/strict (env-driven) creates expected policy and refs
+  - Test per-env `require_signed` enforcement: staging accepts unsigned, prod rejects (pre-receive harness)
+  - Test `git shiplog policy show --json` emits expected fields and types
+  - Test `git shiplog policy toggle` flips require_signed and syncs ref without push
+blocked_by: []
+notes:
+  - Keep all tests Docker-only; use sandbox harness and fake SSH key files
+```
+### P0 – Production Trust + Docs Hardening
+
+- Replace placeholder trust root contact
+  - Update `.shiplog/trust.json` maintainer entries with real, monitored emails; set valid `pgp_fpr` (40‑hex) or document why `null` is used; confirm `role` and `revoked` fields.
+  - Validate keys, update docs/processes referencing trust contacts.
+
+- Raise trust threshold and add maintainers
+  - Increase `threshold` (≥2 or majority). Add at least two additional maintainers with keys; validate and document rotation + emergency recovery procedures.
+
+- Fix placeholder `pgp_fpr: null`
+  - Replace with real PGP fingerprint or remove the maintainer entry; ensure valid JSON and rerun validation tooling.
+
+- Normalize README Setup Wizard section
+  - Standardize hyphenation (built-in, Non-interactive, Auto-push), tidy examples (env-only for non-interactive), consistent code blocks and comments, remove line-number suffixes in doc links, add a clear “Setup Modes” subsection with concrete one‑liners.
+
+- Normalize separator parsing in setup
+  - In `lib/commands.sh`, use `tr -s` to squeeze spaces after replacing `,;` to avoid empty elements.
+
+- Refactor policy show raw-policy loader
+  - Extract shared logic (load_raw_policy) to avoid duplication between JSON/plain branches; prefer policy ref over working file; return empty on errors.
+
+- Harden env passing to trust bootstrap
+  - Call bootstrap via `env SHIPLOG_ASSUME_YES=1 SHIPLOG_PLAIN=1 ... --no-push` to avoid leaking env into parent.
+
+- Validate `SIGN_TRUST` env in bootstrap
+  - Accept only boolean-ish values (1/0/true/false/yes/no, case-insensitive), normalize to 1/0; warn or fail on invalid; trim whitespace.
+
+- Remove duplicate git identity config in tests
+  - Consolidate `git config user.name/email` to the sandbox setup only.
+
+Owner: core + docs; Priority: P0; Target: MVP follow-up PR

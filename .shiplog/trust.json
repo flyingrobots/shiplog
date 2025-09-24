@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "shiplog-trust-root",
+  "threshold": 2,
+  "maintainers": [
+    {
+      "name": "James Ross",
+      "email": "james@flyingrobots.dev",
+      "pgp_fpr": "01A63D8E9DBEEDE32918AF9C39560E0406CA9135",
+      "role": "root",
+      "revoked": false
+    },
+    {
+      "name": "Sea Eye",
+      "email": "ci@flyingrobots.dev",
+      "pgp_fpr": null,
+      "role": "root",
+      "revoked": false
+    }
+  ]
+}

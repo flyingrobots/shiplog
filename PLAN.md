@@ -32,3 +32,7 @@
 6. **Clean up test dependencies**
    - Remove remaining hard UI dependencies from test/Docker stubs
    - Acceptance: Tests run without external prompt tooling installed
+7. **Add policy toggle helper**
+   - Implement `git shiplog policy require-signed <true|false>` and `git shiplog policy toggle`
+   - Update `.shiplog/policy.json` and sync `refs/_shiplog/policy/current` (no signing by default)
+   - Acceptance: One-liners exist to switch unsigned ↔ signed and publish

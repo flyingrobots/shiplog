@@ -59,6 +59,6 @@ jobs:
         with:
           name: test-artifacts-signing-${{ matrix.signing }}
           path: |
-            tests/output/**
-            tests/**/*.log
+            test/**/*.log
+            ci-logs/*.log
           if-no-files-found: ignore

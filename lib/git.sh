@@ -151,7 +151,7 @@ EOF
 sign_commit() {
   local tree="$1"; shift
   resolve_policy
-  local sign_mode="${SHIPLOG_SIGN_EFFECTIVE:-1}"
+  local sign_mode="${SHIPLOG_SIGN_EFFECTIVE:-0}"
   GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-${SHIPLOG_AUTHOR_NAME:-$(git config user.name || echo 'Shiplog Bot')}}"
   GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-${SHIPLOG_AUTHOR_EMAIL:-$(git config user.email || echo 'shiplog-bot@local')}}"
   local signer_flag=()
@@ -173,7 +173,7 @@ ensure_signed_on_verify() {
   local commit="$1"
   resolve_policy
 
-  case "${SHIPLOG_SIGN_EFFECTIVE:-1}" in
+  case "${SHIPLOG_SIGN_EFFECTIVE:-0}" in
     0|false|no|off) return 0 ;;
   esac
 
@@ -229,7 +229,7 @@ require_allowed_author() {
 
 require_allowed_signer() {
   resolve_policy
-  case "${SHIPLOG_SIGN_EFFECTIVE:-1}" in
+  case "${SHIPLOG_SIGN_EFFECTIVE:-0}" in
     0|false|no|off) return 0 ;;
   esac
 

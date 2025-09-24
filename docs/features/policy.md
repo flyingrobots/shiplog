@@ -5,7 +5,9 @@ Shiplog layers policy data from several sources to produce the effective allowli
 
 ## Usage
 ```bash
-git shiplog policy [show|validate] [--boring]
+git shiplog policy [show|validate] [--boring|--json]
+git shiplog policy require-signed <true|false>
+git shiplog policy toggle
 ```
 
 ## Resolution Order
@@ -14,7 +16,7 @@ Shiplog evaluates inputs in the following order (higher entries win when they pr
 2. Repository Git configuration (`shiplog.policy.allowedAuthors`, `shiplog.policy.allowedSignersFile`, `shiplog.policy.requireSigned`).
 3. Policy commit referenced by `refs/_shiplog/policy/current` (default) or the ref supplied via `SHIPLOG_POLICY_REF`/`--policy-ref`.
 4. Working-tree fallback `.shiplog/policy.json`.
-5. Built-in defaults (signing enabled, authors unrestricted, notes ref `refs/_shiplog/notes/logs`).
+5. Built-in defaults (signing disabled, authors unrestricted, notes ref `refs/_shiplog/notes/logs`).
 
 ### Merge Rules
 - **Authors**: the policy union merges `authors.default_allowlist`, `authors.env_overrides.default`, and `authors.env_overrides[ENV]` (duplicates removed). CLI env or Git config supply a complete replacement rather than merging.
@@ -31,7 +33,11 @@ Allowed Signers File: /repo/.shiplog/allowed_signers
 Notes Ref: refs/_shiplog/notes/logs
 ```
 
-Run `git shiplog policy --boring` for plain-text output or `--json` (planned) to integrate with tooling.
+Run `git shiplog policy --boring` for plain-text output or `--json` to integrate with tooling.
+
+**Output Formats:**
+- **Plain text (human)**: Shows effective require_signed, and when present, per-environment rows like `Require Signed (prod): true`.
+- **JSON**: Includes `env_require_signed` mapping for any environments defined in `deployment_requirements`.
 
 ## Policy File Examples
 
@@ -63,9 +69,14 @@ Run `git shiplog policy --boring` for plain-text output or `--json` (planned) to
       "require_ticket": false
     },
     "prod": {
+      "require_signed": true,
       "require_ticket": true,
       "require_service": true,
       "require_where": ["region", "cluster", "namespace"]
+    },
+    "staging": {
+      "require_signed": false,
+      "require_ticket": false
     }
   },
   "notes_ref": "refs/_shiplog/notes/logs",

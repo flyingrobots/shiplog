@@ -13,15 +13,15 @@ RUN case "$DISTRO_FAMILY" in \
       debian) \
         apt-get update && \
         apt-get install -y --no-install-recommends \
-          git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg && \
+          git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg openssh-client && \
         apt-get clean && rm -rf /var/lib/apt/lists/* ;; \
       fedora) \
-        dnf install -y git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg && \
+        dnf install -y git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg openssh-clients && \
         dnf clean all ;; \
       alpine) \
-        apk add --no-cache git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg ;; \
+        apk add --no-cache git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg openssh-client openssh-keygen ;; \
       arch) \
-        pacman -Sy --noconfirm git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg && \
+        pacman -Sy --noconfirm git jq bash coreutils grep gawk sed findutils ca-certificates curl bats gnupg openssh && \
         pacman -Scc --noconfirm ;; \
       *) echo "Unsupported DISTRO_FAMILY: $DISTRO_FAMILY" >&2 && exit 1 ;; \
     esac

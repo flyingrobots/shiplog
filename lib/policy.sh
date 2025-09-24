@@ -8,10 +8,10 @@ validate_jq_and_file() {
 }
 
 extract_policy_fields() {
-  local src="$1"
-  jq -r '
+  local src="$1" env="$2"
+  jq -r --arg env "$env" '
     {
-      require_signed: .require_signed,
+      require_signed: (.deployment_requirements[$env].require_signed // .require_signed),
       allowed_signers_file: .allow_ssh_signers_file,
       notes_ref: .notes_ref,
       journals_prefix: .journals_ref_prefix,
@@ -75,7 +75,7 @@ parse_policy_json() {
   validate_jq_and_file "$src" || return 1
 
   local fields authors
-  if ! fields=$(extract_policy_fields "$src"); then
+  if ! fields=$(extract_policy_fields "$src" "$env"); then
     echo "ERROR: failed to parse policy fields from $src" >&2
     return 1
   fi
@@ -157,7 +157,7 @@ resolve_policy() {
   SHIPLOG_SIGN_EFFECTIVE="${SHIPLOG_SIGN:-}"
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    [ -z "$SHIPLOG_SIGN_EFFECTIVE" ] && SHIPLOG_SIGN_EFFECTIVE=1
+    [ -z "$SHIPLOG_SIGN_EFFECTIVE" ] && SHIPLOG_SIGN_EFFECTIVE=0
     return
   fi
 
@@ -181,12 +181,6 @@ resolve_policy() {
     SIGNERS_FILE_EFFECTIVE="$ALLOWED_SIGNERS_FILE"
   fi
 
-  if [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
-    if ! SIGNERS_FILE_EFFECTIVE=$(resolve_signers_path "$SIGNERS_FILE_EFFECTIVE"); then
-      die "shiplog: unable to resolve allowed signers path from '$SIGNERS_FILE_EFFECTIVE'"
-    fi
-  fi
-
   local sign_mode="${SHIPLOG_SIGN:-}"
   if [ -z "$sign_mode" ]; then
     if [ -n "$POLICY_REQUIRE_SIGNED" ]; then
@@ -200,11 +194,16 @@ resolve_policy() {
   case "$sign_mode" in
     0|false|no|off) SHIPLOG_SIGN_EFFECTIVE=0 ;;
     1|true|yes|on) SHIPLOG_SIGN_EFFECTIVE=1 ;;
-    "") SHIPLOG_SIGN_EFFECTIVE=1 ;;
-    *) SHIPLOG_SIGN_EFFECTIVE=1 ;;
+    "") SHIPLOG_SIGN_EFFECTIVE=0 ;;
+    *) SHIPLOG_SIGN_EFFECTIVE=0 ;;
   esac
 
   if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" != "0" ]; then
+    if [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
+      if ! SIGNERS_FILE_EFFECTIVE=$(resolve_signers_path "$SIGNERS_FILE_EFFECTIVE"); then
+        die "shiplog: unable to resolve allowed signers path from '$SIGNERS_FILE_EFFECTIVE'"
+      fi
+    fi
     if [ -z "$SIGNERS_FILE_EFFECTIVE" ]; then
       die "shiplog: signing is required but no allowed signers file is configured"
     fi

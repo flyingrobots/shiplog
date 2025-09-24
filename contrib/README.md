@@ -48,4 +48,15 @@ git push origin refs/_shiplog/policy/current
 2. Run `scripts/shiplog-sync-policy.sh` (in CI or locally) after merge to bump `refs/_shiplog/policy/current`.
 3. The pre-receive hook validates writes to the Shiplog refs using that policy.
 
+### Optional: Relaxed Mode (no trust/policy during bootstrap)
+
+By default, the hook requires both trust and policy refs. If you want to allow journal pushes before those are set up (for example, while bootstrapping), you can set these environment variables for the hook user:
+
+- `SHIPLOG_ALLOW_MISSING_POLICY=1` – allow missing policy ref; defaults to an open policy (`require_signed=false`, empty author allowlist).
+- `SHIPLOG_ALLOW_MISSING_TRUST=1` – allow missing trust ref; skips `trust_oid` equality checks when policy does not require signatures.
+
+Keep `SHIPLOG_REQUIRE_SEPARATE_SIGNERS=1` unless you intentionally want to permit trust commits without an `allowed_signers` blob.
+
+Note: If your policy sets `require_signed=true`, the hook still requires trust to verify signatures; the relaxations only apply when signatures are not required.
+
 Feel free to adapt these assets to match your infrastructure (GitHub, GitLab, Gitea, etc.).
