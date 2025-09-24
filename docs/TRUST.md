@@ -114,5 +114,7 @@ The script fetches the latest trust ref (you still need `git fetch` beforehand),
 
 ## Recommended Runbook Entries
 
+See also `docs/runbooks/release.md`:1 for an end‑to‑end “use Shiplog to release Shiplog” flow including common failure paths and a CI outline.
+
 See the runbook appendix in the README for detailed “what if” responses covering key loss, trust rotation,
 and mirror recovery.

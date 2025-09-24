@@ -5,6 +5,10 @@ JQ_BIN="${SHIPLOG_JQ_BIN:-/usr/local/bin/jq}"
 TRUST_REF="${SHIPLOG_TRUST_REF:-refs/_shiplog/trust/root}"
 POLICY_REF="${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}"
 REQUIRE_SEPARATE_SIGNERS="${SHIPLOG_REQUIRE_SEPARATE_SIGNERS:-1}"
+# Optional relaxations: allow missing trust/policy when signatures are not required.
+# Defaults keep strict behavior for CI/tests.
+ALLOW_MISSING_TRUST="${SHIPLOG_ALLOW_MISSING_TRUST:-0}"
+ALLOW_MISSING_POLICY="${SHIPLOG_ALLOW_MISSING_POLICY:-0}"
 
 if ! command -v "$JQ_BIN" >/dev/null 2>&1; then
   if command -v jq >/dev/null 2>&1; then
@@ -57,7 +61,7 @@ load_policy_state() {
   local commit="$1"
   [ -n "$commit" ] || return 0
   CURRENT_POLICY_JSON=$(git show "$commit:.shiplog/policy.json" 2>/dev/null || true)
-  [ -n "$CURRENT_POLICY_JSON" ] || error "policy ref $POLICY_REF missing .shiplog/policy.json"
+  [ -n "$CURRENT_POLICY_JSON" ] || return 0
   "$JQ_BIN" -e '
     .version == 1 and (.require_signed | type == "boolean")
   ' <<<"$CURRENT_POLICY_JSON" >/dev/null 2>&1 || error "policy.json failed validation"
@@ -162,7 +166,14 @@ validate_journal_commit() {
   status=$("$JQ_BIN" -r '.status // empty' <<<"$json")
 
   [ "$declared_env" = "$env" ] || error "commit $commit declares env $declared_env but ref is $env"
-  [ "$trust_oid" = "$CURRENT_TRUST_TIP" ] || error "commit $commit trust_oid $trust_oid does not match current trust $CURRENT_TRUST_TIP"
+  if [ -n "$CURRENT_TRUST_TIP" ]; then
+    [ "$trust_oid" = "$CURRENT_TRUST_TIP" ] || error "commit $commit trust_oid $trust_oid does not match current trust $CURRENT_TRUST_TIP"
+  else
+    # If trust is missing and allowed, do not enforce trust_oid equality.
+    if [ "$ALLOW_MISSING_TRUST" != "1" ]; then
+      error "trust ref $TRUST_REF missing"
+    fi
+  fi
   [[ "$seq" =~ ^[0-9]+$ ]] || error "commit $commit has invalid seq"
   [ -n "$status" ] || error "commit $commit missing status"
 
@@ -196,12 +207,19 @@ validate_journal_commit() {
 
 validate_journal_updates() {
   local env="$1" old="$2" new="$3"
-  [ -n "$CURRENT_TRUST_TIP" ] || error "trust ref $TRUST_REF missing"
-  [ -n "$CURRENT_POLICY_JSON" ] || error "policy ref $POLICY_REF missing"
   ensure_fast_forward "$old" "$new" "refs/_shiplog/journal/$env"
   local require_signed allowlist
-  require_signed=$(get_policy_require_signed)
-  allowlist=$(get_policy_authors "$env")
+  if [ -n "$CURRENT_POLICY_JSON" ]; then
+    require_signed=$(get_policy_require_signed)
+    allowlist=$(get_policy_authors "$env")
+  else
+    if [ "$ALLOW_MISSING_POLICY" = "1" ]; then
+      require_signed=false
+      allowlist=""
+    else
+      error "policy ref $POLICY_REF missing"
+    fi
+  fi
 
   local range
   if [ "$old" = "0000000000000000000000000000000000000000" ]; then

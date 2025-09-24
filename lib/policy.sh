@@ -157,7 +157,7 @@ resolve_policy() {
   SHIPLOG_SIGN_EFFECTIVE="${SHIPLOG_SIGN:-}"
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    [ -z "$SHIPLOG_SIGN_EFFECTIVE" ] && SHIPLOG_SIGN_EFFECTIVE=1
+    [ -z "$SHIPLOG_SIGN_EFFECTIVE" ] && SHIPLOG_SIGN_EFFECTIVE=0
     return
   fi
 
@@ -200,8 +200,8 @@ resolve_policy() {
   case "$sign_mode" in
     0|false|no|off) SHIPLOG_SIGN_EFFECTIVE=0 ;;
     1|true|yes|on) SHIPLOG_SIGN_EFFECTIVE=1 ;;
-    "") SHIPLOG_SIGN_EFFECTIVE=1 ;;
-    *) SHIPLOG_SIGN_EFFECTIVE=1 ;;
+    "") SHIPLOG_SIGN_EFFECTIVE=0 ;;
+    *) SHIPLOG_SIGN_EFFECTIVE=0 ;;
   esac
 
   if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" != "0" ]; then

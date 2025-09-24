@@ -25,18 +25,23 @@ Bootstraps the signer roster for refs/_shiplog/trust/root by gathering maintaine
 writing .shiplog/trust.json and .shiplog/allowed_signers, building the genesis commit, and
 (optionally) pushing it to origin.
 
-Usage: shiplog-bootstrap-trust.sh [--force] [--no-push]
+Usage: shiplog-bootstrap-trust.sh [--force] [--no-push] [--yes] [--plain]
 
 Options:
   --force     overwrite existing trust files or refs/_shiplog/trust/root
   --no-push   generate the trust commit but skip the final git push
+  --yes       assume yes for confirmations (or set SHIPLOG_ASSUME_YES=1)
+  --plain     disable Bosun UI; use plain prompts (or set SHIPLOG_PLAIN=1)
   -h, --help  show this help and exit
 USAGE
 }
 
+ASSUME_YES="${SHIPLOG_ASSUME_YES:-0}"
+PLAIN_UI="${SHIPLOG_PLAIN:-0}"
+
 prompt_input() {
   local prompt="$1" default="${2:-}" value=""
-  if [ "$BOSUN_AVAILABLE" -eq 1 ] && [ -t 0 ] && [ -t 1 ]; then
+  if [ "$PLAIN_UI" -ne 1 ] && [ "$BOSUN_AVAILABLE" -eq 1 ] && [ -t 0 ] && [ -t 1 ]; then
     value=$("$BOSUN_BIN" input --placeholder "$prompt" --value "$default")
   else
     if [ -n "$default" ]; then
@@ -54,9 +59,12 @@ prompt_input() {
 
 prompt_confirm() {
   local prompt="$1" default_yes="${2:-1}"
-  if [ "$BOSUN_AVAILABLE" -eq 1 ] && [ -t 0 ] && [ -t 1 ]; then
+  if [ "$ASSUME_YES" -eq 1 ]; then
+    return 0
+  fi
+  if [ "$PLAIN_UI" -ne 1 ] && [ "$BOSUN_AVAILABLE" -eq 1 ] && [ -t 0 ] && [ -t 1 ]; then
     if [ "$default_yes" -eq 1 ]; then
-      "$BOSUN_BIN" confirm --yes "$prompt"
+      "$BOSUN_BIN" confirm --default-yes "$prompt"
     else
       "$BOSUN_BIN" confirm "$prompt"
     fi
@@ -99,6 +107,9 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --force) FORCE=1 ;;
     --no-push) DO_PUSH=0 ;;
+    --yes|-y) ASSUME_YES=1 ;;
+    --plain) PLAIN_UI=1 ;;
+    --no-color) NO_COLOR=1 ;;
     -h|--help)
       usage
       exit 0
@@ -123,9 +134,160 @@ if git show-ref --verify --quiet "$TRUST_REF" && [ "$FORCE" -ne 1 ]; then
   die "$TRUST_REF already exists. Use --force to overwrite it."
 fi
 
-if ! prompt_confirm "Proceed with interactive trust bootstrap?" 1; then
-  echo "Aborted." >&2
-  exit 1
+# Optional non-interactive mode via env vars
+
+non_interactive_bootstrap="0"
+if [ -n "${SHIPLOG_TRUST_COUNT:-}" ]; then
+  if printf '%s' "$SHIPLOG_TRUST_COUNT" | grep -Eq '^[1-9][0-9]*$'; then
+    non_interactive_bootstrap="1"
+  else
+    die "SHIPLOG_TRUST_COUNT must be a positive integer"
+  fi
+fi
+
+trust_id=""
+declare -a maint_names maint_emails maint_roles maint_fprs maint_revoked maint_principals maint_keys
+threshold=""
+commit_message=""
+
+if [ "$non_interactive_bootstrap" = "1" ]; then
+  trust_id="${SHIPLOG_TRUST_ID:-shiplog-trust-root}"
+  count="$SHIPLOG_TRUST_COUNT"
+  i=1
+  while [ "$i" -le "$count" ]; do
+    name_var="SHIPLOG_TRUST_${i}_NAME"
+    email_var="SHIPLOG_TRUST_${i}_EMAIL"
+    role_var="SHIPLOG_TRUST_${i}_ROLE"
+    fpr_var="SHIPLOG_TRUST_${i}_PGP_FPR"
+    key_path_var="SHIPLOG_TRUST_${i}_SSH_KEY_PATH"
+    principal_var="SHIPLOG_TRUST_${i}_PRINCIPAL"
+    revoked_var="SHIPLOG_TRUST_${i}_REVOKED"
+
+    eval name_val="\${$name_var:-}"
+    eval email_val="\${$email_var:-}"
+    eval role_val="\${$role_var:-root}"
+    eval fpr_val="\${$fpr_var:-}"
+    eval key_path_val="\${$key_path_var:-}"
+    eval principal_val="\${$principal_var:-}"
+    eval revoked_val="\${$revoked_var:-no}"
+
+    [ -n "$name_val" ]   || die "missing $name_var"
+    [ -n "$email_val" ]  || die "missing $email_var"
+    [ -n "$key_path_val" ] || die "missing $key_path_var (path to SSH .pub)"
+    [ -r "$key_path_val" ] || die "cannot read SSH key: $key_path_val"
+    key_line=$(awk 'NR==1 {print; exit}' "$key_path_val")
+    [ -n "$key_line" ] || die "empty SSH key: $key_path_val"
+    if [ -z "$principal_val" ]; then
+      principal_val="$email_val"
+    fi
+    case "$revoked_val" in
+      y|Y|yes|YES|true|TRUE|1) revoked_val=true ;;
+      *) revoked_val=false ;;
+    esac
+
+    maint_names+=("$name_val")
+    maint_emails+=("$email_val")
+    maint_roles+=("$role_val")
+    maint_fprs+=("$fpr_val")
+    maint_revoked+=("$revoked_val")
+    maint_principals+=("$principal_val")
+    maint_keys+=("$key_line")
+    i=$((i+1))
+  done
+  threshold="${SHIPLOG_TRUST_THRESHOLD:-$count}"
+  if ! printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$' || [ "$threshold" -gt "$count" ]; then
+    die "invalid SHIPLOG_TRUST_THRESHOLD: $threshold (count=$count)"
+  fi
+  commit_message="${SHIPLOG_TRUST_COMMIT_MESSAGE:-shiplog: trust root v1 (GENESIS)}"
+else
+  if ! prompt_confirm "Proceed with interactive trust bootstrap?" 1; then
+    echo "Aborted." >&2
+    exit 1
+  fi
+
+  maint_count=""
+  while :; do
+    maint_count=$(prompt_input "Number of maintainers" "2")
+    if printf '%s' "$maint_count" | grep -Eq '^[1-9][0-9]*$'; then
+      break
+    fi
+    echo "Please enter a positive integer." >&2
+  done
+
+  trust_id=$(prompt_input "Trust identifier" "shiplog-trust-root")
+
+  index=1
+  while [ "$index" -le "$maint_count" ]; do
+    echo "--- Maintainer $index ---"
+    name=""
+    while [ -z "$name" ]; do
+      name=$(prompt_input "Full name" "")
+      [ -n "$name" ] || echo "Name cannot be empty" >&2
+    done
+
+    email=""
+    while [ -z "$email" ]; do
+      email=$(prompt_input "Email address" "")
+      [ -n "$email" ] || echo "Email cannot be empty" >&2
+    done
+
+    role=$(prompt_input "Role" "root")
+    fpr=$(prompt_input "OpenPGP fingerprint (optional)" "")
+
+    key_line=""
+    while [ -z "$key_line" ]; do
+      key_path=$(prompt_input "SSH public key path" "")
+      if [ -z "$key_path" ]; then
+        echo "Path cannot be empty" >&2
+        continue
+      fi
+      if [ ! -f "$key_path" ]; then
+        echo "File not found: $key_path" >&2
+        continue
+      fi
+      key_line=$(awk 'NR==1 {print; exit}' "$key_path")
+      if [ -z "$key_line" ]; then
+        echo "Unable to read SSH key from $key_path" >&2
+      fi
+    done
+
+    principal=""
+    while [ -z "$principal" ]; do
+      principal=$(prompt_input "Signer principal" "$email")
+      [ -n "$principal" ] || echo "Principal cannot be empty" >&2
+    done
+
+    revoked_answer=$(prompt_input "Revoked? (yes/no)" "no")
+    case "$revoked_answer" in
+      y|Y|yes|YES|true|TRUE) revoked=true ;;
+      *) revoked=false ;;
+    esac
+
+    maint_names+=("$name")
+    maint_emails+=("$email")
+    maint_roles+=("$role")
+    maint_fprs+=("$fpr")
+    maint_revoked+=("$revoked")
+    maint_principals+=("$principal")
+    maint_keys+=("$key_line")
+
+    index=$((index + 1))
+  done
+
+  threshold=""
+  while :; do
+    threshold=$(prompt_input "Signature threshold" "$maint_count")
+    if printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$'; then
+      if [ "$threshold" -le "$maint_count" ]; then
+        break
+      fi
+      echo "Threshold cannot exceed maintainer count ($maint_count)." >&2
+    else
+      echo "Please enter a positive integer." >&2
+    fi
+  done
+
+  commit_message=$(prompt_input "Trust genesis commit message" "shiplog: trust root v1 (GENESIS)")
 fi
 
 maint_count=""
@@ -137,82 +299,7 @@ while :; do
   echo "Please enter a positive integer." >&2
 done
 
-trust_id=$(prompt_input "Trust identifier" "shiplog-trust-root")
-
-declare -a maint_names maint_emails maint_roles maint_fprs maint_revoked maint_principals maint_keys
-
-index=1
-while [ "$index" -le "$maint_count" ]; do
-  echo "--- Maintainer $index ---"
-  name=""
-  while [ -z "$name" ]; do
-    name=$(prompt_input "Full name" "")
-    [ -n "$name" ] || echo "Name cannot be empty" >&2
-  done
-
-  email=""
-  while [ -z "$email" ]; do
-    email=$(prompt_input "Email address" "")
-    [ -n "$email" ] || echo "Email cannot be empty" >&2
-  done
-
-  role=$(prompt_input "Role" "root")
-  fpr=$(prompt_input "OpenPGP fingerprint (optional)" "")
-
-  key_line=""
-  while [ -z "$key_line" ]; do
-    key_path=$(prompt_input "SSH public key path" "")
-    if [ -z "$key_path" ]; then
-      echo "Path cannot be empty" >&2
-      continue
-    fi
-    if [ ! -f "$key_path" ]; then
-      echo "File not found: $key_path" >&2
-      continue
-    fi
-    key_line=$(awk 'NR==1 {print; exit}' "$key_path")
-    if [ -z "$key_line" ]; then
-      echo "Unable to read SSH key from $key_path" >&2
-    fi
-  done
-
-  principal=""
-  while [ -z "$principal" ]; do
-    principal=$(prompt_input "Signer principal" "$email")
-    [ -n "$principal" ] || echo "Principal cannot be empty" >&2
-  done
-
-  revoked_answer=$(prompt_input "Revoked? (yes/no)" "no")
-  case "$revoked_answer" in
-    y|Y|yes|YES|true|TRUE) revoked=true ;;
-    *) revoked=false ;;
-  esac
-
-  maint_names+=("$name")
-  maint_emails+=("$email")
-  maint_roles+=("$role")
-  maint_fprs+=("$fpr")
-  maint_revoked+=("$revoked")
-  maint_principals+=("$principal")
-  maint_keys+=("$key_line")
-
-  index=$((index + 1))
-done
-
-threshold=""
-while :; do
-  threshold=$(prompt_input "Signature threshold" "$maint_count")
-  if printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$'; then
-    if [ "$threshold" -le "$maint_count" ]; then
-      break
-    fi
-    echo "Threshold cannot exceed maintainer count ($maint_count)." >&2
-  else
-    echo "Please enter a positive integer." >&2
-  fi
-done
-
-commit_message=$(prompt_input "Trust genesis commit message" "shiplog: trust root v1 (GENESIS)")
+# End non-interactive/interactive branching
 
 summary="Trust ID: $trust_id\nThreshold: $threshold\nMaintainers:"
 for i in "${!maint_names[@]}"; do

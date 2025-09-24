@@ -339,10 +339,10 @@ cmd_policy() {
         boring=1
         shift
         ;;
-      show|validate)
+      show|validate|require-signed|toggle)
         action="$1"
         shift
-        break
+        # fall through to capture any additional args for actions
         ;;
       *)
         action="$1"
@@ -382,10 +382,180 @@ cmd_policy() {
     validate)
       printf '%s\n' "Policy source: ${POLICY_SOURCE:-default}" >&2
       ;;
+    require-signed)
+      local val="${1:-}"
+      case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) val=true ;;
+        0|false|no|off) val=false ;;
+        *) die "Usage: git shiplog policy require-signed <true|false>" ;;
+      esac
+      mkdir -p .shiplog
+      local policy_file=".shiplog/policy.json" tmp
+      tmp=$(mktemp)
+      if [ -f "$policy_file" ]; then
+        if ! jq \
+          --argjson rs "$val" \
+          '(.version // 1) as $v | .version=$v | .require_signed=$rs' \
+          "$policy_file" >"$tmp" 2>/dev/null; then
+          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+        fi
+      else
+        printf '{"version":1,"require_signed":%s}\n' "$val" >"$tmp"
+      fi
+      mv "$tmp" "$policy_file"
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
+      else
+        printf 'Set require_signed to %s in %s\n' "$val" "$policy_file"
+      fi
+      if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
+        SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
+        if shiplog_can_use_bosun; then
+          local bosun; bosun=$(shiplog_bosun_bin)
+          "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
+        else
+          printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
+        fi
+      else
+        printf 'Note: sync helper missing; commit and publish policy manually.\n'
+      fi
+      ;;
+    toggle)
+      # Toggle require_signed based on effective policy value
+      local current="${SHIPLOG_SIGN_EFFECTIVE:-0}"
+      local new="false"
+      [ "$current" = "0" ] && new=true || new=false
+      cmd_policy require-signed "$new"
+      ;;
     *)
       die "Unknown policy subcommand: $action"
       ;;
   esac
+}
+
+cmd_setup() {
+  ensure_in_repo
+  resolve_policy
+
+  local strictness="${SHIPLOG_SETUP_STRICTNESS:-}"
+  local authors_input="${SHIPLOG_SETUP_AUTHORS:-}"
+  local include_self=1
+  local self_email
+  self_email="$(git config user.email 2>/dev/null || echo)"
+
+  if [ -z "$strictness" ] && ! is_boring; then
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Setup" -- "Choose a starting mode. You can change this later."
+      local choice
+      choice=$("$bosun" choose --header "Security mode" --default "Open (unsigned)" \
+        "Open (unsigned)" \
+        "Balanced (unsigned + allowlist)") || true
+      case "$choice" in
+        "Balanced (unsigned + allowlist)") strictness=balanced ;;
+        *) strictness=open ;;
+      esac
+    else
+      printf 'Select security mode [open/balanced]: ' >&2
+      read -r strictness || strictness="open"
+      case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
+        balanced) strictness=balanced ;;
+        *) strictness=open ;;
+      esac
+    fi
+  fi
+
+  strictness="${strictness:-open}"
+  case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
+    open) strictness=open ;;
+    balanced) strictness=balanced ;;
+    *) die "Unknown strictness: $strictness (expected: open|balanced)" ;;
+  esac
+
+  if [ "$strictness" = "balanced" ]; then
+    if [ -z "$authors_input" ] && ! is_boring; then
+      local default_authors
+      default_authors="$self_email"
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        authors_input=$("$bosun" input --placeholder "Author emails (space or comma separated)" --value "$default_authors")
+      else
+        printf 'Author emails (space or comma separated) [%s]: ' "$default_authors" >&2
+        read -r authors_input || authors_input="$default_authors"
+        [ -n "$authors_input" ] || authors_input="$default_authors"
+      fi
+    fi
+    # Normalize separators to spaces
+    authors_input=$(printf '%s\n' "$authors_input" | tr ',;' '  ')
+    # Include self by default if not present
+    if [ -n "$self_email" ] && ! printf ' %s ' " $authors_input " | grep -q " $self_email "; then
+      authors_input="$self_email ${authors_input}" 
+    fi
+  fi
+
+  mkdir -p .shiplog
+  local policy_file=".shiplog/policy.json" tmp
+  tmp=$(mktemp)
+
+  if [ -f "$policy_file" ]; then
+    case "$strictness" in
+      open)
+        if ! jq '(.version // 1) as $v | .version=$v | .require_signed=false' "$policy_file" >"$tmp" 2>/dev/null; then
+          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+        fi
+        ;;
+      balanced)
+        # Build authors JSON array from input
+        local authors_json
+        authors_json=$(printf '%s\n' $authors_input | jq -R -s 'split("\n") | map(select(length>0)) | unique')
+        if ! jq --argjson arr "$authors_json" '(.version // 1) as $v | .version=$v | .require_signed=false | .authors = (.authors // {}) | .authors.default_allowlist = $arr' "$policy_file" >"$tmp" 2>/dev/null; then
+          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
+        fi
+        ;;
+    esac
+  else
+    case "$strictness" in
+      open)
+        printf '{"version":1,"require_signed":false}\n' >"$tmp"
+        ;;
+      balanced)
+        local authors_json
+        authors_json=$(printf '%s\n' $authors_input | jq -R -s 'split("\n") | map(select(length>0)) | unique')
+        jq -n --argjson arr "$authors_json" '{version:1, require_signed:false, authors:{default_allowlist:$arr}}' >"$tmp"
+        ;;
+    esac
+  fi
+  mv "$tmp" "$policy_file"
+
+  if shiplog_can_use_bosun; then
+    local bosun; bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Policy" -- "Wrote $policy_file for '$strictness' mode"
+  else
+    printf 'Wrote %s for "%s" mode\n' "$policy_file" "$strictness"
+  fi
+
+  # Sync policy ref locally (no push)
+  if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
+    SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
+    else
+      printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
+    fi
+  fi
+
+  # Server guidance (hook install + relaxed mode)
+  local hook_path="$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog"
+  if [ -r "$hook_path" ]; then
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Server" -- "Install pre-receive hook on your bare repo and (optionally) set SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 during bootstrap. See contrib/README.md."
+    else
+      printf 'Server: install contrib/hooks/pre-receive.shiplog on your bare repo. Optional during bootstrap: export SHIPLOG_ALLOW_MISSING_POLICY=1 SHIPLOG_ALLOW_MISSING_TRUST=1 (see contrib/README.md).\n'
+    fi
+  fi
 }
 
 cmd_trust() {
@@ -427,6 +597,10 @@ Commands:
   export-json [ENV]    Export entries as JSON lines
   trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
   policy [show]        Show current policy configuration
+  policy require-signed <true|false>
+                       Set signing requirement in .shiplog/policy.json and sync policy ref
+  policy toggle        Toggle signing requirement (unsigned ↔ signed) and sync policy ref
+  setup                Interactive setup wizard (Open/Balanced) to write policy and sync ref
 
 Global Options:
   --env ENV            Target environment (default: $DEFAULT_ENV)
@@ -464,6 +638,7 @@ run_command() {
     export-json)   cmd_export_json "$@";;
     trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
+    setup)         cmd_setup "$@";;
     *)             usage; exit 1;;
   esac
 }

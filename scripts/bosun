@@ -85,7 +85,12 @@ show_doc() {
 }
 
 # ---- TTY & Color ------------------------------------------------------------
-is_tty() { [ -t 1 ]; }
+is_tty() {
+  if [ "${BOSUN_FORCE_TTY:-0}" = "1" ]; then
+    return 0
+  fi
+  [ -t 0 ] && [ -t 1 ]
+}
 ansi() {
   local on="${BOSUN_NO_COLOR:-0}"
   [ -n "${NO_COLOR:-}" ] && on=1
@@ -165,10 +170,11 @@ draw_box() {
 
 # ---- Commands ---------------------------------------------------------------
 cmd_confirm() {
-  local yes=0 json=0
+  local yes=0 json=0 def_yes=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes|-y) yes=1 ;;
+      --default-yes) def_yes=1 ;;
       --json) json=1 ;;
       --no-color) BOSUN_NO_COLOR=1 ;;
       --) shift; break ;;
@@ -176,18 +182,28 @@ cmd_confirm() {
     esac; shift
   done
   local prompt="${*:-Are you sure?}"
-  if [ "$yes" -eq 1 ] || ! is_tty; then
-    [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"
-    return 0
+  if [ "$yes" -eq 1 ]; then
+    [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0
   fi
+  if ! is_tty; then
+    if [ "$def_yes" -eq 1 ]; then
+      [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0
+    else
+      [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no"; return 1
+    fi
+  fi
+  local hint="[y/N]"; [ "$def_yes" -eq 1 ] && hint="[Y/n]"
   local prompt_col
-  prompt_col=$(color '1;36' "$prompt")
-  read -r -p "$prompt_col [y/N] " ans || true
-  # Trim whitespace safely
-  ans="$(printf '%s' "$ans" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  prompt_col=$(color '1;36' "$prompt $hint ")
+  printf '%s' "$prompt_col"
+  local ans=""
+  IFS= read -r -n 1 ans || true
+  printf '\n'
   case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
-    y|yes) [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0 ;;
-    *)     [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no";  return 1 ;;
+    y) [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0 ;;
+    n) [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no"; return 1 ;;
+    "") if [ "$def_yes" -eq 1 ]; then [ "$json" -eq 1 ] && emit_json_kv ok true || echo "yes"; return 0; else [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no"; return 1; fi ;;
+    *) [ "$json" -eq 1 ] && emit_json_kv ok false || echo "no"; return 1 ;;
   esac
 }
 
@@ -207,8 +223,9 @@ cmd_input() {
   local out
   if is_tty; then
     local prompt_col
-    prompt_col=$(color '1;33' "$prompt")
-    read -r -p "$prompt_col " out || true
+    prompt_col=$(color '1;33' "$prompt ")
+    printf '%s' "$prompt_col"
+    read -r out || true
   else
     out="$(cat - 2>/dev/null || true)"
   fi
@@ -252,7 +269,8 @@ cmd_choose() {
   local sel
   local prompt_arrow
   prompt_arrow=$(color '1;33' '> ')
-  read -r -p "$prompt_arrow" sel || true
+  printf '%s' "$prompt_arrow"
+  read -r sel || true
   if [[ "$sel" =~ ^[1-9][0-9]*$|^[1-9]$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le ${#opts[@]} ]; then
     local pick="${opts[$((sel-1))]}"
     [ "$json" -eq 1 ] && emit_json_kv value "$pick" || echo "$pick"

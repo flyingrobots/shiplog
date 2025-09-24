@@ -124,6 +124,17 @@ SHIPLOG_BORING=1 git shiplog write
 
 # Export for your monitoring tools
 git shiplog export-json --env prod | jq '.'
+
+## Release with Shiplog (MVP)
+
+Dogfood Shiplog to release Shiplog itself:
+
+- Bootstrap trust once (signed `refs/_shiplog/trust/root`), then publish `.shiplog/policy.json` to `refs/_shiplog/policy/current`.
+- Sync the signer roster locally: `./scripts/shiplog-trust-sync.sh`.
+- Capture build/test logs, then write the entry with environment variables and `SHIPLOG_LOG`.
+- Push the journal ref (e.g., `refs/_shiplog/journal/prod`) and let the server hook enforce policy and signatures.
+
+See `docs/runbooks/release.md`:1 for the full step‑by‑step, common failures, and a CI outline.
 ```
 
 ## 🛠️ How It Works
@@ -133,6 +144,8 @@ Shiplog records deployment events as signed empty-tree commits to a set of hidde
 - Journals: `refs/_shiplog/journal/<env>` are append-only, fast-forward only logs for each environment.
 - Anchors: `refs/_shiplog/anchors/<env>` can be used to mark a last known good state.
 - Notes: `refs/_shiplog/notes/logs` are optional NDJSON attachments for logs or other metadata.
+
+See docs/features/modes.md:1 for how to run unsigned by default, enable signing via policy, and switch back and forth without rewriting history.
 
 ## ⚙️ Core Commands
 
@@ -154,6 +167,10 @@ Shiplog's security model is based on policy-as-code, stored and enforced within 
 - **Canonical ref**: `refs/_shiplog/policy/<env>` are signed commits containing your `.shiplog/policy.yaml` files.
 - **Mirror in main branch**: A copy of the policy file lives on your `main` branch, allowing changes to go through the normal PR review process.
 - **CI sync script**: A script (`scripts/shiplog-sync-policy.sh`) fast-forwards the policy ref after a merge, ensuring the enforced policy is always what's been reviewed and approved.
+
+Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast‑forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
+
+Signing is opt-in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup.
 
 ### Example Policy File (`.shiplog/policy.json`)
 

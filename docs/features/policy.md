@@ -14,7 +14,7 @@ Shiplog evaluates inputs in the following order (higher entries win when they pr
 2. Repository Git configuration (`shiplog.policy.allowedAuthors`, `shiplog.policy.allowedSignersFile`, `shiplog.policy.requireSigned`).
 3. Policy commit referenced by `refs/_shiplog/policy/current` (default) or the ref supplied via `SHIPLOG_POLICY_REF`/`--policy-ref`.
 4. Working-tree fallback `.shiplog/policy.json`.
-5. Built-in defaults (signing enabled, authors unrestricted, notes ref `refs/_shiplog/notes/logs`).
+5. Built-in defaults (signing disabled, authors unrestricted, notes ref `refs/_shiplog/notes/logs`).
 
 ### Merge Rules
 - **Authors**: the policy union merges `authors.default_allowlist`, `authors.env_overrides.default`, and `authors.env_overrides[ENV]` (duplicates removed). CLI env or Git config supply a complete replacement rather than merging.
