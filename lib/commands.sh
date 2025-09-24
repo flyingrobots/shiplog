@@ -378,6 +378,16 @@ cmd_policy() {
   done
   action="${action:-show}"
 
+  # Parse any trailing flags after the action (e.g., `policy show --json`)
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --boring|-b) boring=1; shift ;;
+      --json) as_json=1; shift ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
+
   if [ "$as_json" -eq 1 ]; then
     command -v jq >/dev/null 2>&1 || die "jq required for --json output"
   fi
@@ -398,13 +408,20 @@ cmd_policy() {
       local require_signed_bool="false"
       [ "${SHIPLOG_SIGN_EFFECTIVE:-0}" != "0" ] && require_signed_bool="true"
       if [ "$as_json" -eq 1 ]; then
-        local raw_policy; raw_policy=$(load_raw_policy); [ -n "$raw_policy" ] || raw_policy='{}'
-        jq -n           --arg source "${POLICY_SOURCE:-default}"           --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}"           --arg signers "${SIGNERS_FILE_EFFECTIVE:-}"           --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}"           --argjson req "$require_signed_bool"           --argjson policy "$raw_policy"           '
-            def env_require_map(p): (p.deployment_requirements // {})
-              | with_entries(.value = (.value.require_signed // null));
-            {source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes,
-             env_require_signed: env_require_map($policy)}
-          '
+        local raw_policy env_map
+        raw_policy=$(load_raw_policy); [ -n "$raw_policy" ] || raw_policy='{}'
+        # Derive env_require_signed map safely even if policy is minimal
+        env_map=$(printf '%s\n' "$raw_policy" | jq -c '(.deployment_requirements // {}) | with_entries(.value = (.value.require_signed // null))' 2>/dev/null || printf '{}')
+        jq -n \
+          --arg source "${POLICY_SOURCE:-default}" \
+          --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
+          --arg signers "${SIGNERS_FILE_EFFECTIVE:-}" \
+          --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}" \
+          --argjson req "$require_signed_bool" \
+          --argjson env "$env_map" \
+          '{source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes, env_require_signed:$env}' \
+          || printf '{"source":"%s","require_signed":%s,"allowed_authors":"%s","allowed_signers_file":"%s","notes_ref":"%s","env_require_signed":{}}\n' \
+               "${POLICY_SOURCE:-default}" "$require_signed_bool" "${ALLOWED_AUTHORS_EFFECTIVE:-}" "${SIGNERS_FILE_EFFECTIVE:-}" "${NOTES_REF:-refs/_shiplog/notes/logs}"
       else
         local signed_status; if [ "$require_signed_bool" = "true" ]; then signed_status="enabled"; else signed_status="disabled"; fi
         if [ "$boring" -eq 1 ] || ! shiplog_can_use_bosun; then
@@ -610,9 +627,9 @@ cmd_setup() {
   # Add per-env deployment requirements for strict with envs
   if [ "$strictness" = "strict" ] && [ -n "$strict_envs_in" ]; then
     jq --argjson envs "$strict_envs_json" '
-      .deployment_requirements = ( .deployment_requirements // {} ) |
-      (
-        reduce ($envs[]) as $e (.deployment_requirements; .[$e] = {require_signed:true})
+      .deployment_requirements |= (
+        . // {} |
+        reduce ($envs[]) as $e (. ; .[$e] = {require_signed:true})
       )
     ' "$tmp" >"${tmp}.2" && mv "${tmp}.2" "$tmp"
   fi

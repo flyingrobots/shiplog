@@ -64,6 +64,9 @@ shiplog_use_sandbox_repo() {
     # Initialize a local empty repo instead of cloning from network
     cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
     git init -q
+    # Ensure test identity is set BEFORE making any commits
+    git config user.name "Shiplog Tester"
+    git config user.email "shiplog-tester@example.com"
     # Create an initial commit to avoid detached HEAD states in some flows
     : > .gitkeep
     git add .gitkeep
@@ -73,7 +76,7 @@ shiplog_use_sandbox_repo() {
     cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
   fi
   export SHIPLOG_SANDBOX_DIR="$dest"
-  # Ensure test identity is set
+  # Ensure test identity is set (redundant when local sandbox path is used)
   git config user.name "Shiplog Tester"
   git config user.email "shiplog-tester@example.com"
   # Safety: remove upstream origin to prevent accidental network pushes

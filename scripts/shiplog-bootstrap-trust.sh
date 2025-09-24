@@ -161,7 +161,8 @@ done
 
 need git
 need jq
-SIGN_TRUST_RAW="${SHIPLOG_SIGN_TRUST:-${SHIPLOG_TRUST_SIGN:-1}}"
+# Default to unsigned trust commits unless explicitly requested
+SIGN_TRUST_RAW="${SHIPLOG_SIGN_TRUST:-${SHIPLOG_TRUST_SIGN:-0}}"
 # Normalize SIGN_TRUST to 1/0 and validate
 case "$(printf '%s' "$SIGN_TRUST_RAW" | tr '[:upper:]' '[:lower:]' | sed -e 's/^\s*//' -e 's/\s*$//')" in
   1|true|yes|on) SIGN_TRUST=1 ;;
@@ -185,8 +186,15 @@ fi
 # Optional non-interactive mode via env vars
 
 non_interactive_bootstrap="0"
-# Prefer CLI trust options when provided
-if [ ${#CLI_MAINTS[@]} -gt 0 ] || [ -n "$CLI_TRUST_ID" ] || [ -n "$CLI_TRUST_THRESHOLD" ] || [ -n "$CLI_TRUST_MESSAGE" ]; then
+# Prefer CLI trust options when provided (guard for unset array under set -u)
+has_cli_maint=0
+if declare -p CLI_MAINTS >/dev/null 2>&1; then
+  # Use parameter expansion to avoid unbound error under set -u
+  if [ "${CLI_MAINTS+set}" = "set" ] && [ ${#CLI_MAINTS[@]} -gt 0 ]; then
+    has_cli_maint=1
+  fi
+fi
+if [ "$has_cli_maint" -eq 1 ] || [ -n "${CLI_TRUST_ID:-}" ] || [ -n "${CLI_TRUST_THRESHOLD:-}" ] || [ -n "${CLI_TRUST_MESSAGE:-}" ]; then
   non_interactive_bootstrap="2"
 fi
 if [ -n "${SHIPLOG_TRUST_COUNT:-}" ]; then
@@ -206,7 +214,13 @@ commit_message=""
 if [ "$non_interactive_bootstrap" = "2" ]; then
   # CLI-driven non-interactive
   trust_id="${CLI_TRUST_ID:-shiplog-trust-root}"
-  if [ ${#CLI_MAINTS[@]} -eq 0 ]; then
+  has_cli_maint=0
+  if declare -p CLI_MAINTS >/dev/null 2>&1; then
+    if [ "${CLI_MAINTS+set}" = "set" ] && [ ${#CLI_MAINTS[@]} -gt 0 ]; then
+      has_cli_maint=1
+    fi
+  fi
+  if [ "$has_cli_maint" -ne 1 ]; then
     die "at least one --trust-maintainer is required when using CLI trust options"
   fi
   for spec in "${CLI_MAINTS[@]}"; do
@@ -474,8 +488,6 @@ if [ -z "$AUTHOR_NAME" ] || [ -z "$AUTHOR_EMAIL" ]; then
   die "git config user.name and user.email are required to sign the trust commit"
 fi
 
-sign_log="$SHIPLOG_HOME/.shiplog/trust-signing.log"
-sign_log="$SHIPLOG_HOME/.shiplog/trust-signing.log"
 commit_flags=()
 if [ "$SIGN_TRUST" != "0" ]; then
   commit_flags+=( -S )
@@ -484,11 +496,6 @@ if [ "$SIGN_TRUST" != "0" ]; then
     die "GPG signing requested but user.signingkey not configured"
   fi
 fi
-if ! GENESIS=$(printf '%s\n' "$commit_message" |
-  GIT_AUTHOR_NAME="$AUTHOR_NAME" \
-  GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
-  GIT_COMMITTER_NAME="$COMMITTER_NAME" \
-  GIT_COMMITTER_EMAIL="$COMMITTER_EMAIL" \
 if ! GENESIS=$(printf '%s\n' "$commit_message" | \
   GIT_AUTHOR_NAME="$AUTHOR_NAME" \
   GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
@@ -497,11 +504,6 @@ if ! GENESIS=$(printf '%s\n' "$commit_message" | \
   git commit-tree "$TREE" ${commit_flags:+"${commit_flags[@]}"} 2>&1); then
   die "failed to create trust commit: $GENESIS"
 fi
-  cat "$sign_log" >&2
-  rm -f "$sign_log"
-  die "failed to sign trust commit; ensure git signing is configured"
-fi
-rm -f "$sign_log"
 
 git update-ref "$TRUST_REF" "$GENESIS"
 

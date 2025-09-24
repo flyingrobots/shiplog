@@ -20,6 +20,11 @@ RUN apt-get update \
        shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
+# Provide safe Git defaults inside containers to avoid identity errors in tests
+RUN git config --system user.name  "Shiplog Test" \
+ && git config --system user.email "shiplog-test@example.local" \
+ && git config --system init.defaultBranch main
+
 
 # ---------------------------------------------------------------------------
 # devcontainer stage
@@ -57,6 +62,9 @@ export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 : "${TEST_ENV:=prod}"
 : "${TEST_AUTHOR_NAME:=Shiplog Test}"
 : "${TEST_AUTHOR_EMAIL:=shiplog-test@example.local}"
+: "${TEST_TIMEOUT_SECS:=180}"
+# Prefer local sandbox mode in tests to avoid network I/O
+export SHIPLOG_USE_LOCAL_SANDBOX="${SHIPLOG_USE_LOCAL_SANDBOX:-1}"
 SRC_WORKSPACE=${SHIPLOG_HOME:-/workspace}
 TEST_ROOT=$(mktemp -d)
 cp -a "$SRC_WORKSPACE/." "$TEST_ROOT/shiplog"
@@ -114,9 +122,13 @@ install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 # git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 # git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 git config core.logAllRefUpdates true
-echo "Running bats tests"
+echo "Running bats tests (timeout: ${TEST_TIMEOUT_SECS}s)"
 if compgen -G "${SHIPLOG_HOME}/test/*.bats" > /dev/null; then
-  bats -r "${SHIPLOG_HOME}/test"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${TEST_TIMEOUT_SECS}s" bats -r "${SHIPLOG_HOME}/test"
+  else
+    bats -r "${SHIPLOG_HOME}/test"
+  fi
 else
   echo "No tests found at ${SHIPLOG_HOME}/test/*.bats"
 fi
