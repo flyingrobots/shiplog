@@ -3,6 +3,12 @@
   "id": "shiplog-trust-root",
   "threshold": 1,
   "maintainers": [
-    {\n      "name": "Shiplog Tester",\n      "email": "shiplog-tester@example.com",\n      "pgp_fpr": null,\n      "role": "root",\n      "revoked": false\n    }
+    {
+      "name": "Shiplog Tester",
+      "email": "shiplog-tester@example.com",
+      "pgp_fpr": null,
+      "role": "root",
+      "revoked": false
+    }
   ]
 }

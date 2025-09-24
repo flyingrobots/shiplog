@@ -62,7 +62,7 @@ shiplog_use_sandbox_repo() {
   fi
   if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-0}" = "1" ]]; then
     # Initialize a local empty repo instead of cloning from network
-    cd "$dest"
+    cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
     git init -q
     git config user.name "Shiplog Tester"
     git config user.email "shiplog-tester@example.com"
@@ -72,7 +72,7 @@ shiplog_use_sandbox_repo() {
     git commit -q -m "init"
   else
     shiplog_clone_sandbox_repo "$dest"
-    cd "$dest"
+    cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
   fi
   export SHIPLOG_SANDBOX_DIR="$dest"
   # Ensure test identity is set
@@ -95,22 +95,30 @@ shiplog_setup_test_signing() {
   if [[ "$method" = "ssh" ]]; then
     local tmpdir
     tmpdir=$(mktemp -d)
-    ssh-keygen -q -t ed25519 -N '' -f "$tmpdir/id_ed25519"
+    if ! ssh-keygen -q -t ed25519 -N '' -f "$tmpdir/id_ed25519"; then
+      echo "ERROR: Failed to generate SSH key" >&2
+      rm -rf "$tmpdir"
+      return 1
+    fi
     git config gpg.format ssh
     git config user.signingkey "$tmpdir/id_ed25519"
+    # TODO: Track tmpdir for cleanup
   else
     export GNUPGHOME="$(mktemp -d)"
     printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
     printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
     gpgconf --kill gpg-agent >/dev/null 2>&1 || true
-    gpg --batch --pinentry-mode loopback --passphrase '' \
-       --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1 || true
+    if ! gpg --batch --pinentry-mode loopback --passphrase '' \
+       --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1; then
+      echo "ERROR: Failed to generate GPG key" >&2
+      return 1
+    fi
     local fpr
     fpr=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
     if [[ -n "$fpr" ]]; then
       git config gpg.format openpgp
       git config user.signingkey "$fpr"
-      export GPG_TTY="/dev/null"
+      export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null || echo /dev/null)}"
     fi
   fi
 }

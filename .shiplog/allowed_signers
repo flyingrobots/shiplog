@@ -1,1 +1,2 @@
-shiplog-tester@example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY shiplog@test
+# TODO: Replace with actual public key before production deployment
+# shiplog-tester@example.com ssh-ed25519 <REAL_PUBLIC_KEY_HERE> shiplog@production

@@ -367,7 +367,21 @@ cmd_policy() {
   resolve_policy
 
   local boring=0
+cmd_policy() {
+  ensure_in_repo
+  resolve_policy
+
+  local boring=0
   local as_json=0
+  ...
+  done
+  action="${action:-show}"
+
+  if [ "$as_json" -eq 1 ]; then
+    command -v jq >/dev/null 2>&1 || die "jq required for --json output"
+  fi
+
+  case "$action" in
   if is_boring; then
     boring=1
   fi
@@ -412,6 +426,7 @@ cmd_policy() {
         if [ -z "$raw_policy" ]; then
           raw_policy='{}'
         fi
+        # Build JSON output with policy info and per-environment requirements
         jq -n \
           --arg source "${POLICY_SOURCE:-default}" \
           --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
@@ -420,10 +435,19 @@ cmd_policy() {
           --argjson req "$require_signed_bool" \
           --argjson policy "$raw_policy" \
           '
+            # Extract per-env require_signed settings from deployment_requirements
             def env_require_map(p): (p.deployment_requirements // {})
               | with_entries(.value = (.value.require_signed // null));
-            {source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes,
-             env_require_signed: env_require_map($policy)}
+            
+            # Construct final JSON structure
+            {
+              source: $source,
+              require_signed: $req,
+              allowed_authors: $authors,
+              allowed_signers_file: $signers,
+              notes_ref: $notes,
+              env_require_signed: env_require_map($policy)
+            }
           '
       else
         local signed_status
@@ -699,8 +723,10 @@ cmd_setup() {
           local envs_json
           envs_json=$(printf '%s\n' $strict_envs | jq -R -s 'split("\n") | map(select(length>0)) | unique')
           if ! jq --argjson envs "$envs_json" '
+              # Set global require_signed to false and add per-env requirements
               (.version // 1) as $v | .version=$v | .require_signed=false |
               .deployment_requirements = (.deployment_requirements // {}) |
+              # For each env in the array, set require_signed=true
               reduce ($envs[]) as $e (.;
                 .deployment_requirements[$e] = ((.deployment_requirements[$e] // {}) + {require_signed:true})
               )' "$policy_file" >"$tmp" 2>/dev/null; then

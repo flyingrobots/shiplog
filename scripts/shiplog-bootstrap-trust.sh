@@ -123,12 +123,14 @@ done
 
 need git
 need jq
-SIGN_TRUST="${SHIPLOG_TRUST_SIGN:-1}"
+SIGN_TRUST="${SHIPLOG_SIGN_TRUST:-1}"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "run this script inside a git repository"
 fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+[ -n "$REPO_ROOT" ] || die "Failed to determine repository root"
+[ -d "$REPO_ROOT" ] || die "Repository root is not a directory: $REPO_ROOT"
 
 TRUST_REF="refs/_shiplog/trust/root"
 if git show-ref --verify --quiet "$TRUST_REF" && [ "$FORCE" -ne 1 ]; then
@@ -372,16 +374,28 @@ if [ -z "$AUTHOR_NAME" ] || [ -z "$AUTHOR_EMAIL" ]; then
 fi
 
 sign_log="$SHIPLOG_HOME/.shiplog/trust-signing.log"
+sign_log="$SHIPLOG_HOME/.shiplog/trust-signing.log"
 commit_flags=()
 if [ "$SIGN_TRUST" != "0" ]; then
   commit_flags+=( -S )
+  # Validate signing is properly configured
+  if ! git config user.signingkey >/dev/null 2>&1; then
+    die "GPG signing requested but user.signingkey not configured"
+  fi
 fi
 if ! GENESIS=$(printf '%s\n' "$commit_message" |
   GIT_AUTHOR_NAME="$AUTHOR_NAME" \
   GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
   GIT_COMMITTER_NAME="$COMMITTER_NAME" \
   GIT_COMMITTER_EMAIL="$COMMITTER_EMAIL" \
-  git commit-tree "$TREE" "${commit_flags[@]}" 2>"$sign_log"); then
+if ! GENESIS=$(printf '%s\n' "$commit_message" | \
+  GIT_AUTHOR_NAME="$AUTHOR_NAME" \
+  GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
+  GIT_COMMITTER_NAME="$COMMITTER_NAME" \
+  GIT_COMMITTER_EMAIL="$COMMITTER_EMAIL" \
+  git commit-tree "$TREE" ${commit_flags:+"${commit_flags[@]}"} 2>&1); then
+  die "failed to create trust commit: $GENESIS"
+fi
   cat "$sign_log" >&2
   rm -f "$sign_log"
   die "failed to sign trust commit; ensure git signing is configured"

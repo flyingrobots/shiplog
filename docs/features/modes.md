@@ -99,4 +99,4 @@ Use `git shiplog setup` to choose your strictness level and write a starter poli
 - Non‑interactive mode via env (`SHIPLOG_SETUP_STRICTNESS`, `SHIPLOG_SETUP_STRICT_ENVS`, `SHIPLOG_SETUP_AUTHORS`).
 - `--auto-push` to push the policy ref (and trust ref in non‑interactive Strict mode) to origin.
 
-See docs/features/setup.md:1 for details.
+See docs/features/setup.md for details.

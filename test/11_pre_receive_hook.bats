@@ -111,7 +111,7 @@ teardown() {
   make_entry
   run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
-  [[ "$output" == *"trust"* || "$output" == *"policy"* ]]
+  [[ "$output" == *"trust ref"* ]]
 }
 
 @test "push succeeds with valid trust and policy" {

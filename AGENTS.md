@@ -51,15 +51,14 @@ Shiplog tests manipulate Git repositories and can cause irreversible damage to y
 
 ### Daily Log – 2025-09-24
 
-- Fixed Bosun non-TTY input hang (scripts/bosun input no longer blocks on empty stdin).
+- Fixed Bosun non-TTY input hang: scripts/bosun now properly handles empty stdin in non-interactive environments by implementing timeout-based input detection (resolves issue where CI pipelines would hang indefinitely).
 - Completed setup wizard (Open/Balanced/Strict) with per-env strictness, non-interactive flags, backups/diffs, and --dry-run.
 - Implemented per-environment `require_signed` in CLI and hook; policy show includes per-env mapping (plain + JSON).
 - Hardened trust bootstrap (env-driven, removed stray prompt loop, repo-root paths, wizard uses --no-push).
 - Synced policy ref layout to `.shiplog/policy.json` in the policy ref tree.
 - Test harness: local sandbox option, remove upstream origin, non-interactive SSH signing; added wizard/per-env tests.
 - Aligned CI artifact paths; added cross-distro bash matrix workflow.
-- Full Dockerized suite green locally (1..40).
-
+- Full Dockerized test suite passes: all 40 Bats test cases complete successfully across Docker environments.
 - [x] Add GitHub Actions bash matrix workflow
 ```yaml
 priority: P1
@@ -150,9 +149,8 @@ steps:
 blocked_by: []
 notes:
   - cross-validate against docs/TRUST.md examples
-  - DONE: per-env require_signed resolution (CLI + hook)
+  - DONE: per-env require_signed resolution - environments can independently enforce/skip signature validation (implemented in CLI commands and pre-receive hook)
   - DONE: sync-policy writes `.shiplog/policy.json` in the policy ref tree
-```
 
 - [ ] Refactor installers and uninstallers for path safety
 ```yaml

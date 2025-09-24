@@ -35,8 +35,9 @@ Notes Ref: refs/_shiplog/notes/logs
 
 Run `git shiplog policy --boring` for plain-text output or `--json` to integrate with tooling.
 
-- Plain text (human): shows effective require_signed, and, when present, per-environment rows like `Require Signed (prod): true`.
-- JSON: includes `env_require_signed` mapping for any environments defined in `deployment_requirements`.
+**Output Formats:**
+- **Plain text (human)**: Shows effective require_signed, and when present, per-environment rows like `Require Signed (prod): true`.
+- **JSON**: Includes `env_require_signed` mapping for any environments defined in `deployment_requirements`.
 
 ## Policy File Examples
 
@@ -74,7 +75,8 @@ Run `git shiplog policy --boring` for plain-text output or `--json` to integrate
       "require_where": ["region", "cluster", "namespace"]
     },
     "staging": {
-      "require_signed": false
+      "require_signed": false,
+      "require_ticket": false
     }
   },
   "notes_ref": "refs/_shiplog/notes/logs",

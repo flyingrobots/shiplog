@@ -196,9 +196,6 @@ Shiplog's security model is based on policy-as-code, stored and enforced within 
 - **CI sync script**: A script (`scripts/shiplog-sync-policy.sh`) fast-forwards the policy ref after a merge, ensuring the enforced policy is always what's been reviewed and approved.
 
 Signing is opt‑in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup. For switching guidance, see docs/runbooks/toggle-signing.md:1.
-
-Signing is opt-in by default. Enable it by setting `require_signed: true` in your policy or export `SHIPLOG_SIGN=1` for a single session. When unsigned, the server hook can still enforce fast-forward and author allowlists depending on your setup.
-
 ### Example Policy File (`.shiplog/policy.json`)
 
 ```JSON
