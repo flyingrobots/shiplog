@@ -125,9 +125,17 @@ git config core.logAllRefUpdates true
 echo "Running bats tests (timeout: ${TEST_TIMEOUT_SECS}s)"
 if compgen -G "${SHIPLOG_HOME}/test/*.bats" > /dev/null; then
   if command -v timeout >/dev/null 2>&1; then
-    timeout "${TEST_TIMEOUT_SECS}s" bats -r "${SHIPLOG_HOME}/test"
+    if [ -n "${BATS_FLAGS:-}" ]; then
+      timeout "${TEST_TIMEOUT_SECS}s" bats $BATS_FLAGS "${SHIPLOG_HOME}/test"
+    else
+      timeout "${TEST_TIMEOUT_SECS}s" bats -r "${SHIPLOG_HOME}/test"
+    fi
   else
-    bats -r "${SHIPLOG_HOME}/test"
+    if [ -n "${BATS_FLAGS:-}" ]; then
+      bats $BATS_FLAGS "${SHIPLOG_HOME}/test"
+    else
+      bats -r "${SHIPLOG_HOME}/test"
+    fi
   fi
 else
   echo "No tests found at ${SHIPLOG_HOME}/test/*.bats"

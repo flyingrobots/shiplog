@@ -172,12 +172,15 @@ git shiplog write
 git shiplog ls --env prod
 git shiplog show $(git rev-parse refs/_shiplog/journal/prod)
 
+# JSON-only for the latest entry
+git shiplog show --json
+
 # Non-interactive (CI) mode
 # Use `SHIPLOG_BORING=1` to disable interactive prompts
 SHIPLOG_BORING=1 git shiplog write
 
 # Export for your monitoring tools
-git shiplog export-json --env prod | jq '.'
+  git shiplog export-json --env prod | jq '.'
 
 ## Release with Shiplog (MVP)
 
@@ -190,6 +193,40 @@ Dogfood Shiplog to release Shiplog itself:
 
 See `docs/runbooks/release.md`:1 for the full step‑by‑step, common failures, and a CI outline.
 ```
+
+### Quick Copy/Paste Commands
+
+Common one‑liners for inspection and cleanup.
+
+```
+# Latest entry as JSON (pretty or compact)
+git shiplog show --json
+git shiplog show --json-compact
+
+# Count entries in a journal
+git rev-list refs/_shiplog/journal/prod | wc -l
+
+# Filter entries by service (all envs)
+git shiplog export-json | jq -c 'select(.what.service=="web")'
+
+# Force-refresh local Shiplog refs to match origin (safe for local only)
+git fetch origin '+refs/_shiplog/*:refs/_shiplog/*'
+
+# Remove local journal refs (keep trust/policy); re-run write to recreate
+git for-each-ref 'refs/_shiplog/journal/*' --format='%(refname)' | xargs -r -I{} git update-ref -d {}
+
+# Inspect trust/policy files stored in refs
+git show refs/_shiplog/trust/root:.shiplog/trust.json | jq
+git show refs/_shiplog/policy/current:.shiplog/policy.json | jq
+
+# Show/Set ref root (custom vs branch namespace)
+git shiplog refs root show
+git shiplog refs root set refs/heads/_shiplog
+```
+
+### GitHub Hosting
+
+Shiplog stores data under custom refs (for example, `refs/_shiplog/journal/prod`), which the GitHub web UI does not display. You can protect these refs with Rulesets or use a branch namespace for full Branch Rules protection. See docs/hosting/github.md.
 
 ## 🛠️ How It Works
 
@@ -211,6 +248,12 @@ See docs/features/modes.md:1 for how to run unsigned by default, enable signing 
 | `git shiplog show` | Show entry details | `git shiplog show <commit>` |
 | `git shiplog verify` | Check signatures + author allowlist | `git shiplog verify --env prod` |
 | `git shiplog export-json` | NDJSON export for external tools | `git shiplog export-json \| jq '.'` |
+| `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
+| `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
+
+### Environment Reference
+
+See docs/reference/env.md for a compact overview of supported `SHIPLOG_*` variables and defaults.
 
 ## 🔐 Security & Policy
 

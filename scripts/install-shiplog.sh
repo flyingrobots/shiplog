@@ -219,14 +219,15 @@ if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$INSTALL_DIR/bin"
     ln -sf "$INSTALL_DIR/scripts/bosun" "$INSTALL_DIR/bin/bosun"
   fi
-  # Fix the context - we need to be in the current directory, not the install dir
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    log "Fetching Shiplog refs from origin"
-    if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
-      log "Warning: unable to fetch refs/_shiplog/*"
+  # Refresh tool-owned Shiplog refs inside the installer repo (never mutate the caller's repo)
+  if git -C "$INSTALL_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    log "Fetching Shiplog refs from origin into $INSTALL_DIR (force)"
+    # Tool refs are disposable; refresh with force to avoid non-FF issues
+    if ! run git -C "$INSTALL_DIR" fetch origin '+refs/_shiplog/*:refs/_shiplog/*'; then
+      log "Warning: unable to fetch installer refs/_shiplog/*"
     fi
   else
-    log "(Skipping git fetch; not inside a git worktree)"
+    log "(Skipping installer refs fetch; $INSTALL_DIR is not a git worktree)"
   fi
 else
   log "Would run dependency installer"

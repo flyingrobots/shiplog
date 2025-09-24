@@ -77,8 +77,20 @@ maybe_sync_shiplog_ref() {
 
 policy_install_file() {
   local new_file="$1" dest_file="$2"
+  normalize_json_file() {
+    local f="$1"
+    if command -v jq >/dev/null 2>&1; then
+      local tmpn; tmpn=$(mktemp)
+      if jq -S . "$f" >"$tmpn" 2>/dev/null; then
+        mv "$tmpn" "$f"
+      else
+        rm -f "$tmpn" 2>/dev/null || true
+      fi
+    fi
+  }
   if [ ! -f "$dest_file" ]; then
     mv "$new_file" "$dest_file"
+    normalize_json_file "$dest_file"
     return 0
   fi
   if cmp -s "$new_file" "$dest_file" 2>/dev/null; then
@@ -117,6 +129,7 @@ policy_install_file() {
     diffout="$(diff -u "$dest_file" "$new_file" 2>/dev/null || true)"
   fi
   mv "$new_file" "$dest_file"
+  normalize_json_file "$dest_file"
   if shiplog_can_use_bosun; then
     local bosun; bosun=$(shiplog_bosun_bin)
     "$bosun" style --title "Policy Backup" -- "Saved previous policy to $backup"
@@ -333,10 +346,52 @@ cmd_ls() {
 
 cmd_show() {
   ensure_in_repo
+  local json_only=0 boring_local=0 compact=0
+  local args=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json_only=1; shift; continue ;;
+      --json-compact|--jsonl) json_only=1; compact=1; shift; continue ;;
+      --boring|-b) boring_local=1; shift; continue ;;
+      --) shift; break ;;
+      -*) args+=("$1"); shift; continue ;;
+      *) break ;;
+    esac
+  done
+  # If --boring passed after subcommand, honor it
+  if [ "$boring_local" -eq 1 ]; then
+    SHIPLOG_BORING=1; export SHIPLOG_BORING
+  fi
+
   local target="${1:-}"
   if [ -z "$target" ]; then
     target="$(ref_journal "$DEFAULT_ENV")"
   fi
+
+  if [ "$json_only" -eq 1 ]; then
+    local body json
+    body="$(git show -s --format=%B "$target")"
+    json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
+    if [ -z "$json" ]; then
+      die "No JSON payload found in entry $target"
+    fi
+    if [ "$compact" -eq 1 ]; then
+      if command -v jq >/dev/null 2>&1; then
+        printf '%s\n' "$json" | jq -c .
+      else
+        # Best-effort: collapse whitespace
+        printf '%s\n' "$json" | tr -d '\n' | tr -s ' '
+      fi
+    else
+      if command -v jq >/dev/null 2>&1; then
+        printf '%s\n' "$json" | jq .
+      else
+        printf '%s\n' "$json"
+      fi
+    fi
+    return 0
+  fi
+
   show_entry "$target"
 }
 
@@ -517,6 +572,45 @@ cmd_trust() {
     *)
       die "Unknown trust subcommand: $action"
       ;;
+  esac
+}
+
+# Refs management
+cmd_refs() {
+  ensure_in_repo
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    root)
+      local action="${1:-show}"; shift || true
+      case "$action" in
+        show)
+          # Order of precedence: env, git config, default
+          local current_root
+          current_root="${SHIPLOG_REF_ROOT:-}"
+          if [ -z "$current_root" ]; then
+            current_root=$(git config --get shiplog.refRoot 2>/dev/null || true)
+          fi
+          current_root="${current_root:-$REF_ROOT}"
+          printf '%s\n' "$current_root"
+          ;;
+        set)
+          local new_root="${1:-}"
+          if [ -z "$new_root" ]; then
+            die "Usage: git shiplog refs root set <refs/...>"
+          fi
+          case "$new_root" in refs/*) : ;; *) die "Ref root must start with 'refs/'" ;; esac
+          git config shiplog.refRoot "$new_root"
+          if shiplog_can_use_bosun; then
+            local bosun; bosun=$(shiplog_bosun_bin)
+            "$bosun" style --title "Ref Root" -- "Set shiplog.refRoot to $new_root"
+          else
+            printf 'Set shiplog.refRoot to %s\n' "$new_root"
+          fi
+          ;;
+        *) die "Unknown refs root action: $action" ;;
+      esac
+      ;;
+    *) die "Unknown refs subcommand: ${sub:-<none>}" ;;
   esac
 }
 
@@ -759,6 +853,8 @@ Usage:
   policy require-signed <true|false>
                        Set signing requirement in .shiplog/policy.json and sync policy ref
   policy toggle        Toggle signing requirement (unsigned ↔ signed) and sync policy ref
+  refs root show       Show current Shiplog ref root
+  refs root set REF    Set Shiplog ref root (e.g., refs/_shiplog or refs/heads/_shiplog)
   setup                Non-interactive setup wrapper to write .shiplog/policy.json and sync policy ref
                        Options:
                          --strictness open|balanced|strict
@@ -802,6 +898,7 @@ run_command() {
     export-json)   cmd_export_json "$@";;
     trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
+    refs)          cmd_refs "$@";;
     setup)         cmd_setup "$@";;
     *)             usage; exit 1;;
   esac
