@@ -363,13 +363,30 @@ cmd_policy() {
       local require_signed_bool="false"
       [ "${SHIPLOG_SIGN_EFFECTIVE:-0}" != "0" ] && require_signed_bool="true"
       if [ "$as_json" -eq 1 ]; then
+        # Load raw policy JSON from ref or working tree (if available) to extract per-env settings
+        local raw_policy=""
+        if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
+          raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
+        fi
+        if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
+          raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
+        fi
+        if [ -z "$raw_policy" ]; then
+          raw_policy='{}'
+        fi
         jq -n \
           --arg source "${POLICY_SOURCE:-default}" \
           --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
           --arg signers "${SIGNERS_FILE_EFFECTIVE:-}" \
           --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}" \
           --argjson req "$require_signed_bool" \
-          '{source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes}'
+          --argjson policy "$raw_policy" \
+          '
+            def env_require_map(p): (p.deployment_requirements // {})
+              | with_entries(.value = (.value.require_signed // null));
+            {source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes,
+             env_require_signed: env_require_map($policy)}
+          '
       else
         local signed_status
         if [ "$require_signed_bool" = "true" ]; then signed_status="enabled"; else signed_status="disabled"; fi
@@ -673,6 +690,18 @@ cmd_setup() {
       if [ -n "${SHIPLOG_TRUST_COUNT:-}" ] || is_boring; then
         SHIPLOG_ASSUME_YES=${SHIPLOG_ASSUME_YES:-1} SHIPLOG_PLAIN=${SHIPLOG_PLAIN:-1} \
           "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh || die "shiplog: trust bootstrap failed"
+        # Auto-push trust ref if requested
+        if [ "$auto_push" -eq 1 ] && has_remote_origin; then
+          local trust_ref
+          trust_ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
+          git push origin "$trust_ref" >/dev/null 2>&1 || true
+          if shiplog_can_use_bosun; then
+            local bosun; bosun=$(shiplog_bosun_bin)
+            "$bosun" style --title "Trust" -- "📤 Pushed $trust_ref to origin"
+          else
+            printf '📤 Pushed %s to origin\n' "$trust_ref"
+          fi
+        fi
       else
         # Interactive fallback: inform the user
         if shiplog_can_use_bosun; then

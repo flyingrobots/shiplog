@@ -91,7 +91,12 @@ Set these as environment variables for the Git server user running the hook. See
 - Can I sign some environments but not others? Today `require_signed` is global. Per‑env is a potential future extension.
 - What if CI can’t sign yet? Keep `require_signed=false` until CI’s key is provisioned. You can still enforce fast‑forward and authors via policy.
 
-## Planned: Setup Wizard
+## Setup Wizard
 
-A guided `git shiplog setup` flow will help you pick a strictness level, write a starter policy, publish the policy ref, and (optionally) bootstrap trust now or later. It will also print server guidance for the hook and relaxed bootstrap variables.
+Use `git shiplog setup` to choose your strictness level and write a starter policy. The wizard supports:
 
+- Open, Balanced, or Strict (global or per‑environment via `--strict-envs`).
+- Non‑interactive mode via env (`SHIPLOG_SETUP_STRICTNESS`, `SHIPLOG_SETUP_STRICT_ENVS`, `SHIPLOG_SETUP_AUTHORS`).
+- `--auto-push` to push the policy ref (and trust ref in non‑interactive Strict mode) to origin.
+
+See docs/features/setup.md:1 for details.

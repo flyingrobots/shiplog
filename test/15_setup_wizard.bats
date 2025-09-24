@@ -88,3 +88,33 @@ teardown() {
   run git --git-dir="$ORIGIN_DIR" rev-parse --verify refs/_shiplog/policy/current
   [ "$status" -eq 0 ]
 }
+
+@test "setup strict env-driven auto-pushes trust to origin" {
+  # Prepare origin
+  ORIGIN2_DIR=$(mktemp -d)
+  git remote remove origin >/dev/null 2>&1 || true
+  git init --bare "$ORIGIN2_DIR"
+  git remote add origin "$ORIGIN2_DIR"
+
+  # Fake key
+  mkdir -p tmp
+  echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY shiplog@test" > tmp/testkey.pub
+  export SHIPLOG_TRUST_COUNT=1
+  export SHIPLOG_TRUST_ID="shiplog-trust-root"
+  export SHIPLOG_TRUST_1_NAME="Shiplog Tester"
+  export SHIPLOG_TRUST_1_EMAIL="shiplog-tester@example.com"
+  export SHIPLOG_TRUST_1_ROLE="root"
+  export SHIPLOG_TRUST_1_PGP_FPR=""
+  export SHIPLOG_TRUST_1_SSH_KEY_PATH="$(pwd)/tmp/testkey.pub"
+  export SHIPLOG_TRUST_1_PRINCIPAL="shiplog-tester@example.com"
+  export SHIPLOG_TRUST_1_REVOKED="no"
+  export SHIPLOG_TRUST_THRESHOLD=1
+  export SHIPLOG_TRUST_COMMIT_MESSAGE="shiplog: trust root v1 (GENESIS)"
+  export SHIPLOG_ASSUME_YES=1
+  export SHIPLOG_PLAIN=1
+
+  run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push
+  [ "$status" -eq 0 ]
+  run git --git-dir="$ORIGIN2_DIR" rev-parse --verify refs/_shiplog/trust/root
+  [ "$status" -eq 0 ]
+}
