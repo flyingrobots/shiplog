@@ -1,4 +1,9 @@
 # SHIPLOG • 🚢🪵
+> _Git-native deployment ledger. Every release event is a signed commit for a tamper-evident, immutable audit trail, no new infra._
+
+<p align="center">
+<img src="https://repository-images.githubusercontent.com/1060619650/5194fe70-a78c-4c2d-85d9-b43e8beb8717" width="600" />
+</p>
 
 ## Friday, 3:17 PM
 
