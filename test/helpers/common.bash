@@ -65,6 +65,8 @@ shiplog_use_sandbox_repo() {
   cd "$dest"
   git config user.name "Shiplog Tester"
   git config user.email "shiplog-tester@example.com"
+  # Safety: remove upstream origin to prevent accidental network pushes
+  git remote remove origin >/dev/null 2>&1 || true
 }
 
 shiplog_cleanup_sandbox_repo() {

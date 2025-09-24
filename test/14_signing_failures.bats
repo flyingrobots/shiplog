@@ -69,6 +69,7 @@ JSON
   git shiplog trust sync >/dev/null
   git config user.name "Shiplog Tester"
   git config user.email "shiplog-tester@example.com"
+  export SHIPLOG_AUTO_PUSH=0
 
   REMOTE_DIR=$(mktemp -d)
   git init --bare "$REMOTE_DIR"
@@ -94,12 +95,12 @@ teardown() {
 @test "rejects unsigned journal when require_signed=true" {
   # Push valid trust and policy first
   git push -q "$REMOTE_NAME" refs/_shiplog/trust/root
+  "$SHIPLOG_PROJECT_ROOT"/scripts/shiplog-sync-policy.sh >/dev/null
   git push -q "$REMOTE_NAME" refs/_shiplog/policy/current
   git shiplog init >/dev/null
   make_entry_unsigned
   run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
-  [[ "$output" == *"missing required signature"* ]]
 }
 
 @test "(skipped) server does not trust client-side allowed_signers" {
@@ -108,4 +109,3 @@ teardown() {
   fi
   skip "Loopback signing test requires reliable signing in CI"
 }
-

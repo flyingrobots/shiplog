@@ -181,12 +181,6 @@ resolve_policy() {
     SIGNERS_FILE_EFFECTIVE="$ALLOWED_SIGNERS_FILE"
   fi
 
-  if [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
-    if ! SIGNERS_FILE_EFFECTIVE=$(resolve_signers_path "$SIGNERS_FILE_EFFECTIVE"); then
-      die "shiplog: unable to resolve allowed signers path from '$SIGNERS_FILE_EFFECTIVE'"
-    fi
-  fi
-
   local sign_mode="${SHIPLOG_SIGN:-}"
   if [ -z "$sign_mode" ]; then
     if [ -n "$POLICY_REQUIRE_SIGNED" ]; then
@@ -205,6 +199,11 @@ resolve_policy() {
   esac
 
   if [ "${SHIPLOG_SIGN_EFFECTIVE:-1}" != "0" ]; then
+    if [ -n "$SIGNERS_FILE_EFFECTIVE" ]; then
+      if ! SIGNERS_FILE_EFFECTIVE=$(resolve_signers_path "$SIGNERS_FILE_EFFECTIVE"); then
+        die "shiplog: unable to resolve allowed signers path from '$SIGNERS_FILE_EFFECTIVE'"
+      fi
+    fi
     if [ -z "$SIGNERS_FILE_EFFECTIVE" ]; then
       die "shiplog: signing is required but no allowed signers file is configured"
     fi

@@ -4,7 +4,7 @@ set -euo pipefail
 POLICY_FILE=${1:-.shiplog/policy.json}
 POLICY_REF=${SHIPLOG_POLICY_REF:-refs/_shiplog/policy/current}
 MESSAGE=${SHIPLOG_POLICY_MESSAGE:-"shiplog: update policy"}
-SIGN_MODE=${SHIPLOG_POLICY_SIGN:-1}
+SIGN_MODE=${SHIPLOG_POLICY_SIGN:-0}
 SCHEMA_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../examples/policy.schema.json"
 
 if [ ! -f "$POLICY_FILE" ]; then

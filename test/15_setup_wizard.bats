@@ -70,6 +70,7 @@ teardown() {
 @test "setup strict per-env writes deployment_requirements and can auto-push" {
   # Create a bare origin and set as remote
   ORIGIN_DIR=$(mktemp -d)
+  git remote remove origin >/dev/null 2>&1 || true
   git init --bare "$ORIGIN_DIR"
   git remote add origin "$ORIGIN_DIR"
 
