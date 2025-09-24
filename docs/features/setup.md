@@ -29,6 +29,31 @@ SHIPLOG_SETUP_AUTO_PUSH=1 \
   - Per‑environment strict: `require_signed=false` globally and `deployment_requirements.<env>.require_signed=true` for selected envs (e.g., prod only).
   - Non‑interactive trust bootstrap supported via `SHIPLOG_TRUST_*` env vars (see docs/features/modes.md). The wizard runs the bootstrap script and can auto‑push the trust ref with `--auto-push`.
 
+## CLI Trust Bootstrap (No Prompts)
+
+When you want a fully non‑interactive strict setup including trust bootstrap, pass trust details as flags. The setup wrapper will write `.shiplog/policy.json`, sync the local policy ref, then create the trust ref without prompting. It only pushes when `--auto-push` is given.
+
+Example:
+
+```bash
+git shiplog setup \
+  --strictness strict \
+  --trust-id shiplog-trust-root \
+  --trust-threshold 2 \
+  --trust-maintainer "name=Alice,email=alice@example.com,key=~/.ssh/alice.pub,principal=alice@example.com" \
+  --trust-maintainer "name=Bob,email=bob@example.com,key=~/.ssh/bob.pub,principal=bob@example.com" \
+  --auto-push
+```
+
+Flags (repeat `--trust-maintainer` as needed):
+- `--trust-id ID`
+- `--trust-threshold N` (≤ number of maintainers)
+- `--trust-message "Commit message"` (optional)
+- `--trust-maintainer "name=<n>,email=<e>,key=<ssh_pub_path>[,principal=<p>][,role=<r>][,revoked=<yes|no>][,pgp=<fpr>]"`
+
+Notes:
+- In CI/non‑TTY: if these flags (or the `SHIPLOG_TRUST_*` envs) are not set, trust bootstrap is skipped for per‑env strictness or fails fast for global strictness instead of prompting.
+
 ## Dry Run
 
 - Use `--dry-run` (or `SHIPLOG_SETUP_DRY_RUN=1`) to preview changes to `.shiplog/policy.json` without writing, syncing, or pushing. The wizard prints a unified diff (or a full file preview if creating fresh).

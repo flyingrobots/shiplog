@@ -2,7 +2,25 @@
 
 **NEVER RUN SHIPLOG TESTS LOCALLY OR DIRECTLY**
 
-Shiplog tests manipulate Git repositories and can cause irreversible damage to your working repository if run outside the controlled Docker environment. Always use the designated test commands.
+Shiplog tests manipulate Git repositories and can cause irreversible damage to your working repository if run outside the controlled Docker environment.
+
+How to run tests safely (Dockerized):
+
+- Use `make test` from the repo root. This spins up Docker and runs the full Bats suite in an isolated container.
+- Do not invoke Bats or individual test files directly on the host.
+- CI runs the same flow via the bash matrix. If you need distro-specific runs locally, use `ci-matrix/run-all.sh`.
+ - Tests default to `SHIPLOG_USE_LOCAL_SANDBOX=1` (no network clones); set to `0` only if you explicitly need to hit the remote sandbox repo.
+
+## Test Timeouts (Required)
+
+- Always wrap local test runs with a timeout to prevent hangs:
+  - Linux: `timeout 180s make test`
+  - macOS (coreutils): `gtimeout 180s make test`
+- For signing-enabled runs, you may extend to 360s if needed.
+- In GitHub Actions, prefer the job/step timeout or wrap the command: `timeout 180s ./test.sh`.
+- If a timeout occurs, capture and attach logs from `ci-logs/*` or the container output for debugging.
+
+Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, default 180) and disables network clones by default (`SHIPLOG_USE_LOCAL_SANDBOX=1`) to keep runs bounded and deterministic.
 # Git Workflow Guidelines
 
 ## Quick Reminders

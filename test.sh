@@ -13,9 +13,20 @@ export SHIPLOG_REF_ROOT="${SHIPLOG_REF_ROOT:-refs/_shiplog}"
 export SHIPLOG_NOTES_REF="${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 
+# Avoid network during tests by default; use local sandbox init
+export SHIPLOG_USE_LOCAL_SANDBOX="${SHIPLOG_USE_LOCAL_SANDBOX:-1}"
+
+# Enforce a timeout inside the container to prevent hangs
+TEST_TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-180}"
+
 if ! command -v bats >/dev/null 2>&1; then
   echo "bats is required to run the Shiplog test suite" >&2
   exit 127
 fi
 
-bats -r "$SHIPLOG_HOME/test"
+if command -v timeout >/dev/null 2>&1; then
+  timeout "${TEST_TIMEOUT_SECS}s" bats -r "$SHIPLOG_HOME/test"
+else
+  # Fallback: run directly if timeout is unavailable (should not happen on Ubuntu base)
+  bats -r "$SHIPLOG_HOME/test"
+fi

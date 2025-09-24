@@ -487,6 +487,220 @@ cmd_trust() {
   esac
 }
 
+# Setup wizard (non-interactive wrapper)
+cmd_setup() {
+  ensure_in_repo
+
+  # Defaults
+  local strictness="${SHIPLOG_SETUP_STRICTNESS:-open}"
+  local authors_in="${SHIPLOG_SETUP_AUTHORS:-}" # space-separated emails
+  local strict_envs_in="${SHIPLOG_SETUP_STRICT_ENVS:-}" # space-separated env names
+  local do_auto_push=0
+  local dry_run=0
+  # Trust passthrough args
+  local -a trust_args; trust_args=()
+  local dry_run=0
+
+  # Parse options (no prompts)
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --strictness)
+        shift; strictness="${1:-}"; [ -n "$strictness" ] || die "shiplog: --strictness requires a value"; shift ;;
+      --strictness=*)
+        strictness="${1#*=}"; shift ;;
+      --authors)
+        shift; authors_in="${1:-}"; [ -n "$authors_in" ] || die "shiplog: --authors requires a value"; shift ;;
+      --authors=*)
+        authors_in="${1#*=}"; shift ;;
+      --strict-envs)
+        shift; strict_envs_in="${1:-}"; [ -n "$strict_envs_in" ] || die "shiplog: --strict-envs requires a value"; shift ;;
+      --strict-envs=*)
+        strict_envs_in="${1#*=}"; shift ;;
+      --auto-push)
+        do_auto_push=1; shift ;;
+      --no-auto-push)
+        do_auto_push=0; shift ;;
+      --dry-run)
+        dry_run=1; export SHIPLOG_SETUP_DRY_RUN=1; shift ;;
+      # Trust bootstrap pass-through options (non-interactive)
+      --trust-id)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-id requires a value"; trust_args+=("--trust-id" "$1"); shift ;;
+      --trust-id=*)
+        trust_args+=("--trust-id=${1#*=}"); shift ;;
+      --trust-threshold)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-threshold requires a value"; trust_args+=("--trust-threshold" "$1"); shift ;;
+      --trust-threshold=*)
+        trust_args+=("--trust-threshold=${1#*=}"); shift ;;
+      --trust-maintainer)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-maintainer requires a value"; trust_args+=("--trust-maintainer" "$1"); shift ;;
+      --trust-maintainer=*)
+        trust_args+=("--trust-maintainer=${1#*=}"); shift ;;
+      --trust-message)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-message requires a value"; trust_args+=("--trust-message" "$1"); shift ;;
+      --trust-message=*)
+        trust_args+=("--trust-message=${1#*=}"); shift ;;
+      --help|-h)
+        printf 'Usage: git shiplog setup [--strictness open|balanced|strict] [--authors "a@b c@d"] [--strict-envs "prod staging"] [--auto-push]\n' ; return 0 ;;
+      --)
+        shift; break ;;
+      *)
+        # Unknown option; show usage and fail
+        die "shiplog: unknown setup option: $1" ;;
+    esac
+  done
+
+  # Env override for auto-push
+  case "${SHIPLOG_SETUP_AUTO_PUSH:-}" in
+    1|true|yes|on) do_auto_push=1 ;;
+    0|false|no|off|'') : ;;
+  esac
+
+  # Env override for dry-run
+  case "${SHIPLOG_SETUP_DRY_RUN:-}" in
+    1|true|yes|on) dry_run=1 ;;
+  esac
+
+  # Normalize strictness
+  case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
+    open|balanced|strict) strictness="$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" ;;
+    *) die "shiplog: --strictness must be one of: open|balanced|strict" ;;
+  esac
+
+  # Build policy JSON
+  mkdir -p .shiplog
+  local tmp; tmp=$(mktemp)
+  local require_signed_global="false"
+  local authors_json='[]'
+  local strict_envs_json='[]'
+
+  # Convert space-separated lists to JSON arrays
+  if [ -n "$authors_in" ]; then
+    # squeeze spaces and split
+    authors_json=$(printf '%s\n' "$authors_in" | tr ',;' '  ' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) print $i}' | jq -R . | jq -s .)
+  fi
+  if [ -n "$strict_envs_in" ]; then
+    strict_envs_json=$(printf '%s\n' "$strict_envs_in" | tr ',;' '  ' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) print $i}' | jq -R . | jq -s .)
+  fi
+
+  # Determine policy shape
+  case "$strictness" in
+    open)
+      require_signed_global="false"
+      ;;
+    balanced)
+      require_signed_global="false"
+      ;;
+    strict)
+      if [ -n "$strict_envs_in" ]; then
+        require_signed_global="false"
+      else
+        require_signed_global="true"
+      fi
+      ;;
+  esac
+
+  # Start base policy
+  printf '{"version":1,"require_signed":%s}\n' "$require_signed_global" >"$tmp"
+
+  # Add authors for balanced
+  if [ "$strictness" = "balanced" ] && [ -n "$authors_in" ]; then
+    jq --argjson list "$authors_json" '.authors = {default_allowlist: $list, env_overrides: {default: []}}' "$tmp" >"${tmp}.2" && mv "${tmp}.2" "$tmp"
+  fi
+
+  # Add per-env deployment requirements for strict with envs
+  if [ "$strictness" = "strict" ] && [ -n "$strict_envs_in" ]; then
+    jq --argjson envs "$strict_envs_json" '
+      .deployment_requirements = ( .deployment_requirements // {} ) |
+      (
+        reduce ($envs[]) as $e (.deployment_requirements; .[$e] = {require_signed:true})
+      )
+    ' "$tmp" >"${tmp}.2" && mv "${tmp}.2" "$tmp"
+  fi
+
+  if [ "$dry_run" -eq 1 ]; then
+    # Preview only; do not write or sync
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Setup (dry-run)" -- "Previewing .shiplog/policy.json (no changes written)"
+      "$bosun" style --title "Proposed Policy" -- "$(cat "$tmp")"
+    else
+      printf 'Setup (dry-run): would write .shiplog/policy.json with contents below:\n'
+      cat "$tmp"
+      printf '\n'
+    fi
+    rm -f "$tmp"
+  else
+    # Install policy file with backup/diff semantics
+    policy_install_file "$tmp" ".shiplog/policy.json"
+
+    # Sync policy ref locally (no push here)
+    if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
+      SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" .shiplog/policy.json >/dev/null
+    else
+      printf 'Note: sync helper missing; commit and publish policy manually.\n'
+    fi
+
+  # Bootstrap trust only when explicitly requested via trust_args OR strict globally with envs provided
+  if [ -x "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" ]; then
+    if [ ${#trust_args[@]} -gt 0 ]; then
+      "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" --no-push "${trust_args[@]}" >/dev/null || die "shiplog: trust bootstrap failed"
+    elif [ "$strictness" = "strict" ] && [ -z "$strict_envs_in" ]; then
+      "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" --no-push >/dev/null || die "shiplog: trust bootstrap failed (provide SHIPLOG_TRUST_* env for non-interactive)"
+    fi
+  fi
+
+    # Handle optional auto-push to origin
+    if [ "$do_auto_push" -eq 1 ] && has_remote_origin; then
+      # Push policy ref if it exists
+      if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
+        git push origin "$POLICY_REF" >/dev/null
+      fi
+      # Push trust ref if it exists
+      if git rev-parse --verify "$TRUST_REF" >/dev/null 2>&1; then
+        git push origin "$TRUST_REF" >/dev/null
+      fi
+    fi
+  fi
+
+  if shiplog_can_use_bosun; then
+    local bosun; bosun=$(shiplog_bosun_bin)
+    if [ "$dry_run" -eq 0 ]; then
+      "$bosun" style --title "Setup" -- "Wrote .shiplog/policy.json (strictness: $strictness)"
+      "$bosun" style --title "Setup" -- "Updated $POLICY_REF locally (run git push origin $POLICY_REF to publish)"
+    else
+      "$bosun" style --title "Setup" -- "Dry-run: no files or refs changed"
+    fi
+    if [ "$do_auto_push" -eq 1 ]; then
+      "$bosun" style --title "Setup" -- "Auto-pushed configured refs to origin"
+    fi
+    # Always print next-step commands (advice only)
+    "$bosun" style --title "Next Steps" -- $'Configure local signing (optional):\n  git config --local user.name "Your Name"\n  git config --local user.email "you@example.com"\n  git config --local gpg.format ssh\n  git config --local user.signingkey ~/.ssh/your_signing_key.pub\n  git config --local commit.gpgSign true'
+    if [ "$do_auto_push" -eq 0 ]; then
+      "$bosun" style --title "Next Steps" -- $'Publish refs when ready:\n  git push origin '"$POLICY_REF"$'\n  [if created] git push origin '"$TRUST_REF"''
+    fi
+    "$bosun" style --title "Next Steps" -- $'Inspect effective policy:\n  git shiplog policy show --json'
+  else
+    if [ "$dry_run" -eq 0 ]; then
+      printf 'Wrote .shiplog/policy.json (strictness: %s)\n' "$strictness"
+      printf 'Updated %s locally. Run: git push origin %s\n' "$POLICY_REF" "$POLICY_REF"
+      [ "$do_auto_push" -eq 1 ] && printf 'Auto-pushed configured refs to origin.\n'
+    else
+      printf 'Dry-run: no files or refs changed.\n'
+    fi
+    printf '%s\n' "Next steps (copy/paste as needed):"
+    printf '  %s\n' "git config --local user.name \"Your Name\""
+    printf '  %s\n' "git config --local user.email \"you@example.com\""
+    printf '  %s\n' "git config --local gpg.format ssh"
+    printf '  %s\n' "git config --local user.signingkey ~/.ssh/your_signing_key.pub"
+    printf '  %s\n' "git config --local commit.gpgSign true"
+    if [ "$do_auto_push" -eq 0 ]; then
+      printf '  %s\n' "git push origin $POLICY_REF"
+      printf '  %s\n' "[if created] git push origin $TRUST_REF"
+    fi
+    printf '  %s\n' "git shiplog policy show --json"
+  fi
+}
+
 usage() {
   local cmd="$(basename "$0")"
   if [ "$cmd" = "git-shiplog" ]; then
@@ -499,7 +713,7 @@ A structured deployment logging tool for Git repositories.
 Usage:
   $cmd [GLOBAL_OPTIONS] <command> [COMMAND_OPTIONS]
 
-Commands:
+  Commands:
   version             Print Shiplog version
   init                 Initialize shiplog configuration in current repo
   write [ENV]          Create a new deployment log entry
@@ -512,7 +726,12 @@ Commands:
   policy require-signed <true|false>
                        Set signing requirement in .shiplog/policy.json and sync policy ref
   policy toggle        Toggle signing requirement (unsigned ↔ signed) and sync policy ref
-  setup                Interactive setup wizard (Open/Balanced) to write policy and sync ref
+  setup                Non-interactive setup wrapper to write .shiplog/policy.json and sync policy ref
+                       Options:
+                         --strictness open|balanced|strict
+                         --authors "a@b c@d" (balanced)
+                         --strict-envs "prod staging" (strict per-env)
+                         --auto-push (push policy/trust refs to origin)
 
 Global Options:
   --env ENV            Target environment (default: $DEFAULT_ENV)

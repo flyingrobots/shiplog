@@ -15,7 +15,7 @@ teardown() {
 }
 
 @test "setup open writes policy and updates ref" {
-  run SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
   [ "$status" -eq 0 ]
   [ -f .shiplog/policy.json ]
   run jq -r '.require_signed' .shiplog/policy.json
@@ -33,7 +33,7 @@ teardown() {
 }
 
 @test "setup balanced writes allowlist" {
-  run SHIPLOG_SETUP_STRICTNESS=balanced SHIPLOG_SETUP_AUTHORS="shiplog-tester@example.com other@example.com" git shiplog setup
+  run env SHIPLOG_SETUP_STRICTNESS=balanced SHIPLOG_SETUP_AUTHORS="shiplog-tester@example.com other@example.com" git shiplog setup
   [ "$status" -eq 0 ]
   run jq -r '.authors.default_allowlist | join(" ")' .shiplog/policy.json
   [ "$status" -eq 0 ]
@@ -59,7 +59,7 @@ teardown() {
   export SHIPLOG_ASSUME_YES=1
   export SHIPLOG_PLAIN=1
 
-  run SHIPLOG_SETUP_STRICTNESS=strict git shiplog setup
+  run env SHIPLOG_SETUP_STRICTNESS=strict git shiplog setup
   [ "$status" -eq 0 ]
   run jq -r '.require_signed' .shiplog/policy.json
   [ "$status" -eq 0 ]
@@ -76,7 +76,7 @@ teardown() {
   git init --bare "$ORIGIN_DIR"
   git remote add origin "$ORIGIN_DIR"
 
-  run SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_STRICT_ENVS="prod staging" SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push --strict-envs "prod staging"
+  run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_STRICT_ENVS="prod staging" SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push --strict-envs "prod staging"
   [ "$status" -eq 0 ]
   run jq -r '.require_signed' .shiplog/policy.json
   [ "$status" -eq 0 ]
@@ -117,7 +117,7 @@ teardown() {
   export SHIPLOG_ASSUME_YES=1
   export SHIPLOG_PLAIN=1
 
-  run SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push
+  run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push
   [ "$status" -eq 0 ]
   run git --git-dir="$ORIGIN2_DIR" rev-parse --verify refs/_shiplog/trust/root
   [ "$status" -eq 0 ]
@@ -127,7 +127,7 @@ teardown() {
   mkdir -p .shiplog
   rm -f .shiplog/policy.json.bak.*
   printf '{"version":1,"require_signed":true}' > .shiplog/policy.json
-  run SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
   [ "$status" -eq 0 ]
   run ls .shiplog/policy.json.bak.*
   [ "$status" -eq 0 ]
@@ -147,7 +147,7 @@ teardown() {
   printf '{"version":1,"require_signed":false}' > .shiplog/policy.json
   # Record current ref (should exist due to previous tests creating it)
   before_ref=$(git rev-parse -q --verify refs/_shiplog/policy/current 2>/dev/null || echo "")
-  run SHIPLOG_SETUP_STRICTNESS=balanced SHIPLOG_SETUP_AUTHORS="x@y" git shiplog setup --dry-run --authors "x@y"
+  run env SHIPLOG_SETUP_STRICTNESS=balanced SHIPLOG_SETUP_AUTHORS="x@y" git shiplog setup --dry-run --authors "x@y"
   [ "$status" -eq 0 ]
   # File unchanged
   run jq -r '.require_signed' .shiplog/policy.json

@@ -100,25 +100,50 @@ export PATH="$SHIPLOG_HOME/bin:$PATH"
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
 ```
 
-## Setup Wizard (Recommended)
+## Setup (Recommended)
 
-Use the built-in wizard to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per-environment enforcement:
+Use the built-in setup wrapper to configure Shiplog for your repo — unsigned by default (Open/Balanced) or signed (Strict), including per-environment enforcement. The wrapper is non-interactive and file-first: it writes `.shiplog/policy.json`, syncs the local policy ref, and only pushes if you ask it to.
 
 ```bash
-# Interactive
+# Defaults to open (unsigned)
 git shiplog setup
 
-# Non-interactive (examples)
-SHIPLOG_SETUP_STRICTNESS=balanced \
-SHIPLOG_SETUP_AUTHORS="you@example.com teammate@example.com" \
-git shiplog setup
+# Balanced (add author allowlist)
+git shiplog setup \
+  --strictness balanced \
+  --authors "you@example.com teammate@example.com"
 
+# Strict per-environment (e.g., prod only)
+git shiplog setup \
+  --strictness strict \
+  --strict-envs "prod"
+
+# Auto-push policy/trust refs when origin is configured
+git shiplog setup --auto-push
+
+# Env-style equivalents (useful in CI)
 SHIPLOG_SETUP_STRICTNESS=strict \
-SHIPLOG_SETUP_STRICT_ENVS="prod" \
+SHIPLOG_SETUP_STRICT_ENVS="prod staging" \
+SHIPLOG_SETUP_AUTO_PUSH=1 \
 git shiplog setup
 
-# Auto-push policy ref when origin is configured
-SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup
+What it does
+- Writes `.shiplog/policy.json` deterministically (backs up previous policy with a timestamp and shows a diff).
+- Syncs the local policy ref `refs/_shiplog/policy/current` (no push by default).
+- For `--strictness strict`, bootstraps a trust ref locally using `scripts/shiplog-bootstrap-trust.sh --no-push` (expects `SHIPLOG_TRUST_*` vars in CI).
+
+Next steps (suggested commands)
+- Configure local signing (optional):
+  - `git config --local user.name "Your Name"`
+  - `git config --local user.email "you@example.com"`
+  - `git config --local gpg.format ssh`
+  - `git config --local user.signingkey ~/.ssh/your_signing_key.pub`
+  - `git config --local commit.gpgSign true`
+- Publish refs when ready (if not using `--auto-push`):
+  - `git push origin refs/_shiplog/policy/current`
+  - `[if created] git push origin refs/_shiplog/trust/root`
+- Inspect effective policy:
+  - `git shiplog policy show --json`
 ```
 
 ### Setup Modes
