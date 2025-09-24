@@ -68,12 +68,6 @@ bosun_version() {
     fi
   fi
   printf '%s' "unknown"
-  local var="$1"
-  # Remove leading whitespace
-  var="${var#"${var%%[![:space:]]*}"}"
-  # Remove trailing whitespace
-  var="${var%"${var##*[![:space:]]}"}"
-  printf '%s' "$var"
 }
 
 show_doc() {

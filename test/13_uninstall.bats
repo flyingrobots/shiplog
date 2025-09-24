@@ -48,25 +48,28 @@ PROFILE
 }
 
 teardown() {
+  # Restore repo config only if still inside a git repo
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git config --unset-all remote.origin.fetch '+refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
+    git config --unset-all remote.origin.push 'refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
+
+    if [ -n "$ORIGINAL_FETCH" ]; then
+      while IFS= read -r line; do
+        [ -n "$line" ] && git config --add remote.origin.fetch "$line"
+      done <<< "$ORIGINAL_FETCH"
+    fi
+    if [ -n "$ORIGINAL_PUSH" ]; then
+      while IFS= read -r line; do
+        [ -n "$line" ] && git config --add remote.origin.push "$line"
+      done <<< "$ORIGINAL_PUSH"
+    fi
+  fi
+
   shiplog_cleanup_sandbox_repo
   rm -rf "$HOME/.shiplog" "$HOME/.test_profile" "$HOME/.test_profile.shiplog.bak" 2>/dev/null || true
 
   if [[ -w /usr/local/bin ]]; then
     rm -f /usr/local/bin/git-shiplog /usr/local/bin/shiplog /usr/local/bin/bosun
-  fi
-
-  git config --unset-all remote.origin.fetch '+refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
-  git config --unset-all remote.origin.push 'refs/_shiplog/*:refs/_shiplog/*' 2>/dev/null || true
-
-  if [ -n "$ORIGINAL_FETCH" ]; then
-    while IFS= read -r line; do
-      [ -n "$line" ] && git config --add remote.origin.fetch "$line"
-    done <<< "$ORIGINAL_FETCH"
-  fi
-  if [ -n "$ORIGINAL_PUSH" ]; then
-    while IFS= read -r line; do
-      [ -n "$line" ] && git config --add remote.origin.push "$line"
-    done <<< "$ORIGINAL_PUSH"
   fi
 }
 
