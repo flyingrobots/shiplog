@@ -434,6 +434,21 @@ cmd_policy() {
           printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
           printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
           printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shiplog/notes/logs}"
+          # Per-env mapping for humans (boring output)
+          local raw_policy env_lines
+          raw_policy=""
+          if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
+            raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
+          fi
+          if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
+            raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
+          fi
+          if [ -n "$raw_policy" ]; then
+            env_lines=$(printf '%s' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "Require Signed (\(.key)): \(.value.require_signed)"' 2>/dev/null || true)
+            if [ -n "$env_lines" ]; then
+              printf '%s\n' "$env_lines"
+            fi
+          fi
         else
           local rows=""
           rows+=$'Source\t'"${POLICY_SOURCE:-default}"$'\n'

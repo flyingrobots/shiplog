@@ -33,7 +33,10 @@ Allowed Signers File: /repo/.shiplog/allowed_signers
 Notes Ref: refs/_shiplog/notes/logs
 ```
 
-Run `git shiplog policy --boring` for plain-text output or `--json` to integrate with tooling. JSON output includes `env_require_signed` mapping for any environments defined in `deployment_requirements`.
+Run `git shiplog policy --boring` for plain-text output or `--json` to integrate with tooling.
+
+- Plain text (human): shows effective require_signed, and, when present, per-environment rows like `Require Signed (prod): true`.
+- JSON: includes `env_require_signed` mapping for any environments defined in `deployment_requirements`.
 
 ## Policy File Examples
 
