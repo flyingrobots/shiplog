@@ -5,20 +5,25 @@
 
 ## Usage
 ```bash
-git shiplog write [ENV]
-# non-interactive
-SHIPLOG_BORING=1 git shiplog --yes write prod
+git shiplog write [ENV] \
+  [--service NAME] [--status success|failed|in_progress|skipped|override|revert|finalize] \
+  [--reason TEXT] [--ticket ID] \
+  [--region R] [--cluster C] [--namespace NS] \
+  [--image IMG] [--tag TAG] [--run-url URL]
+
+# Non-interactive
+SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP release"
 ```
 
 ## Behavior
 - Validates the author against the resolved allowlist and performs a signing precheck when signatures are required.
-- Prompts for service, status, change details, and artifact information; respects the `SHIPLOG_*` environment overrides listed below.
+- Prompts for service, status, change details, and artifact information. You can prefill or bypass prompts with flags (`--service`, `--reason`, etc.) or environment variables listed below.
 - Generates both a human-readable header and a JSON trailer; optionally attaches NDJSON logs via `SHIPLOG_LOG`.
 - Accepts `--yes` to skip confirmation prompts (sets `SHIPLOG_ASSUME_YES=1`).
 - Fast-forwards the journal ref; aborts if the ref is missing or would require a force update.
 - Automatically pushes the updated journal (and attached notes) to `origin` when available; disable with `SHIPLOG_AUTO_PUSH=0` or `--no-push`.
 
-## Environment Overrides
+## Flags and Environment Overrides
 | Variable | Purpose | Accepted values | Default | Example |
 |----------|---------|-----------------|---------|---------|
 | `SHIPLOG_ENV` | Target environment when `[ENV]` argument omitted | Any journal name | `prod` | `SHIPLOG_ENV=staging` |

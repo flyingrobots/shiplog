@@ -29,6 +29,8 @@ permissions:
 jobs:
   sign-entry:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.env || 'prod' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,7 +47,7 @@ jobs:
       - name: Configure SSH signing (CI)
         env:
           CI_SSH_PRIVATE_KEY: ${{ secrets.CI_SSH_PRIVATE_KEY }}
-          CI_SSH_PUBLIC_KEY: ${{ env.CI_SSH_PUBLIC_KEY }}
+          CI_SSH_PUBLIC_KEY: ${{ vars.CI_SSH_PUBLIC_KEY }}
         run: |
           set -euo pipefail
           [ -n "${CI_SSH_PRIVATE_KEY:-}" ] || { echo "Missing CI_SSH_PRIVATE_KEY secret" >&2; exit 1; }
@@ -94,4 +96,3 @@ jobs:
         run: |
           set -euo pipefail
           git push origin "refs/_shiplog/journal/${SHIPLOG_ENV}"
-

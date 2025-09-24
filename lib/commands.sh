@@ -176,7 +176,45 @@ cmd_init() {
 
 cmd_write() {
   ensure_in_repo
-  local env="${1:-$DEFAULT_ENV}"
+  local env="$DEFAULT_ENV"
+  local args=()
+  local opt
+
+  # Parse positional ENV and optional flags to prefill prompts
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift; env="${1:-$env}"; shift; continue ;;
+      --env=*)
+        env="${1#*=}"; shift; continue ;;
+      --service) shift; SHIPLOG_SERVICE="${1:-}"; export SHIPLOG_SERVICE; shift; continue ;;
+      --service=*) SHIPLOG_SERVICE="${1#*=}"; export SHIPLOG_SERVICE; shift; continue ;;
+      --status) shift; SHIPLOG_STATUS="${1:-}"; export SHIPLOG_STATUS; shift; continue ;;
+      --status=*) SHIPLOG_STATUS="${1#*=}"; export SHIPLOG_STATUS; shift; continue ;;
+      --reason) shift; SHIPLOG_REASON="${1:-}"; export SHIPLOG_REASON; shift; continue ;;
+      --reason=*) SHIPLOG_REASON="${1#*=}"; export SHIPLOG_REASON; shift; continue ;;
+      --ticket) shift; SHIPLOG_TICKET="${1:-}"; export SHIPLOG_TICKET; shift; continue ;;
+      --ticket=*) SHIPLOG_TICKET="${1#*=}"; export SHIPLOG_TICKET; shift; continue ;;
+      --region) shift; SHIPLOG_REGION="${1:-}"; export SHIPLOG_REGION; shift; continue ;;
+      --region=*) SHIPLOG_REGION="${1#*=}"; export SHIPLOG_REGION; shift; continue ;;
+      --cluster) shift; SHIPLOG_CLUSTER="${1:-}"; export SHIPLOG_CLUSTER; shift; continue ;;
+      --cluster=*) SHIPLOG_CLUSTER="${1#*=}"; export SHIPLOG_CLUSTER; shift; continue ;;
+      --namespace) shift; SHIPLOG_NAMESPACE="${1:-}"; export SHIPLOG_NAMESPACE; shift; continue ;;
+      --namespace=*) SHIPLOG_NAMESPACE="${1#*=}"; export SHIPLOG_NAMESPACE; shift; continue ;;
+      --image) shift; SHIPLOG_IMAGE="${1:-}"; export SHIPLOG_IMAGE; shift; continue ;;
+      --image=*) SHIPLOG_IMAGE="${1#*=}"; export SHIPLOG_IMAGE; shift; continue ;;
+      --tag) shift; SHIPLOG_TAG="${1:-}"; export SHIPLOG_TAG; shift; continue ;;
+      --tag=*) SHIPLOG_TAG="${1#*=}"; export SHIPLOG_TAG; shift; continue ;;
+      --run-url) shift; SHIPLOG_RUN_URL="${1:-}"; export SHIPLOG_RUN_URL; shift; continue ;;
+      --run-url=*) SHIPLOG_RUN_URL="${1#*=}"; export SHIPLOG_RUN_URL; shift; continue ;;
+      --) shift; break ;;
+      -*) args+=("$1"); shift; continue ;;
+      *)
+        # First non-flag positional argument is ENV if not set by --env
+        if [ "$env" = "$DEFAULT_ENV" ]; then env="$1"; shift; continue; else args+=("$1"); shift; continue; fi
+        ;;
+    esac
+  done
 
   require_allowed_author
   require_allowed_signer

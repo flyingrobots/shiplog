@@ -154,13 +154,20 @@ sign_commit() {
   local sign_mode="${SHIPLOG_SIGN_EFFECTIVE:-0}"
   GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-${SHIPLOG_AUTHOR_NAME:-$(git config user.name || echo 'Shiplog Bot')}}"
   GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-${SHIPLOG_AUTHOR_EMAIL:-$(git config user.email || echo 'shiplog-bot@local')}}"
-  local signer_flag=()
+
+  # Build commit-tree command safely without expanding an empty array under set -u
+  local -a cmd
+  cmd=(git commit-tree "$tree")
   case "$sign_mode" in
-    0|false|no|off) ;;
-    *) signer_flag=(-S) ;;
+    0|false|no|off) : ;;
+    *) cmd+=(-S) ;;
   esac
+  # Append remaining arguments (e.g., -p <parent>)
+  if [ "$#" -gt 0 ]; then
+    cmd+=("$@")
+  fi
   GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" \
-    git commit-tree "$tree" "$@" "${signer_flag[@]}"
+    "${cmd[@]}"
 }
 
 attach_note_if_present() {

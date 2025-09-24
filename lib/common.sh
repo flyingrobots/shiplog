@@ -112,11 +112,20 @@ shiplog_prompt_input() {
   if is_boring; then
     printf '%s\n' "$value"
   else
-    shiplog_require_bosun
-    local result
-    local bosun
-    bosun=$(shiplog_bosun_bin)
-    result=$("$bosun" input --placeholder "$placeholder" --value "$value")
+    local result=""
+    if shiplog_have_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      if result=$("$bosun" input --placeholder "$placeholder" --value "$value" 2>/dev/null); then
+        printf '%s\n' "$result"
+        _log_prompt_interaction prompt "$placeholder" "$result"
+        return
+      fi
+    fi
+    # Fallback to POSIX prompt
+    printf '%s ' "$placeholder" >&2
+    IFS= read -r result || result="$value"
+    [ -n "$result" ] || result="$value"
     printf '%s\n' "$result"
     _log_prompt_interaction prompt "$placeholder" "$result"
   fi
@@ -138,14 +147,21 @@ shiplog_prompt_choice() {
   if is_boring; then
     printf '%s\n' "$value"
   else
-    shiplog_require_bosun
-    local result
-    local bosun
-    bosun=$(shiplog_bosun_bin)
-    if [ -n "$value" ]; then
-      result=$("$bosun" choose --header "$header" --default "$value" "${options[@]}")
-    else
-      result=$("$bosun" choose --header "$header" "${options[@]}")
+    local result=""
+    if shiplog_have_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      if [ -n "$value" ]; then
+        result=$("$bosun" choose --header "$header" --default "$value" "${options[@]}" 2>/dev/null) || true
+      else
+        result=$("$bosun" choose --header "$header" "${options[@]}" 2>/dev/null) || true
+      fi
+    fi
+    if [ -z "$result" ]; then
+      # Fallback: print options and read a line
+      printf '%s [%s] ' "$header" "${options[*]}" >&2
+      IFS= read -r result || result="$value"
+      [ -n "$result" ] || result="$value"
     fi
     printf '%s\n' "$result"
     _log_prompt_interaction prompt "$header" "$result"
@@ -159,13 +175,17 @@ shiplog_confirm() {
     return 0
   fi
   _log_prompt_interaction confirmation "$prompt" null raw
-  shiplog_require_bosun
-  local bosun
-  bosun=$(shiplog_bosun_bin)
-  if "$bosun" confirm "$prompt"; then
+  if shiplog_have_bosun && "$(shiplog_bosun_bin)" confirm "$prompt"; then
     _log_prompt_interaction confirmation "$prompt" true raw
     return 0
   fi
+  # Fallback
+  printf '%s [y/N] ' "$prompt" >&2
+  local ans
+  IFS= read -r ans || ans=""
+  case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+    y|yes) _log_prompt_interaction confirmation "$prompt" true raw; return 0 ;;
+  esac
   _log_prompt_interaction confirmation "$prompt" false raw
   return 1
 }
