@@ -60,9 +60,22 @@ shiplog_use_sandbox_repo() {
   else
     mkdir -p "$dest"
   fi
-  shiplog_clone_sandbox_repo "$dest"
+  if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-0}" = "1" ]]; then
+    # Initialize a local empty repo instead of cloning from network
+    cd "$dest"
+    git init -q
+    git config user.name "Shiplog Tester"
+    git config user.email "shiplog-tester@example.com"
+    # Create an initial commit to avoid detached HEAD states in some flows
+    : > .gitkeep
+    git add .gitkeep
+    git commit -q -m "init"
+  else
+    shiplog_clone_sandbox_repo "$dest"
+    cd "$dest"
+  fi
   export SHIPLOG_SANDBOX_DIR="$dest"
-  cd "$dest"
+  # Ensure test identity is set
   git config user.name "Shiplog Tester"
   git config user.email "shiplog-tester@example.com"
   # Safety: remove upstream origin to prevent accidental network pushes
@@ -77,21 +90,28 @@ shiplog_cleanup_sandbox_repo() {
   fi
 }
 
-shiplog_setup_test_gpg() {
-  export GNUPGHOME="$(mktemp -d)"
-  # Ensure non-interactive loopback pinentry and empty passphrase
-  printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
-  printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
-  gpgconf --kill gpg-agent >/dev/null 2>&1 || true
-  gpg --batch --pinentry-mode loopback --passphrase '' \
-     --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1 || true
-  local fpr
-  fpr=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
-  if [[ -n "$fpr" ]]; then
-    git config gpg.format openpgp
-    git config user.signingkey "$fpr"
-    # Make sure Git can talk to gpg in loopback mode without a TTY
-    export GPG_TTY="/dev/null"
+shiplog_setup_test_signing() {
+  local method="${SHIPLOG_TEST_SIGN_METHOD:-ssh}"
+  if [[ "$method" = "ssh" ]]; then
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    ssh-keygen -q -t ed25519 -N '' -f "$tmpdir/id_ed25519"
+    git config gpg.format ssh
+    git config user.signingkey "$tmpdir/id_ed25519"
+  else
+    export GNUPGHOME="$(mktemp -d)"
+    printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
+    printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
+    gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+    gpg --batch --pinentry-mode loopback --passphrase '' \
+       --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1 || true
+    local fpr
+    fpr=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
+    if [[ -n "$fpr" ]]; then
+      git config gpg.format openpgp
+      git config user.signingkey "$fpr"
+      export GPG_TTY="/dev/null"
+    fi
   fi
 }
 

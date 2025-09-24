@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      git jq bats gnupg curl ca-certificates openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+COPY . /workspace
+
+# Defaults; can be overridden at build time
+ARG TEST_PATH=/workspace/test/15_setup_wizard_strict_only.bats
+ARG TEST_FILTER=
+ENV TEST_PATH=${TEST_PATH}
+ENV TEST_FILTER=${TEST_FILTER}
+
+RUN printf '%s\n' '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
+    'cd /workspace' \
+    'if [ -n "${TEST_FILTER:-}" ]; then' \
+    '  exec bats -t "$TEST_PATH" -f "$TEST_FILTER"' \
+    'else' \
+    '  exec bats -t "$TEST_PATH"' \
+    'fi' > /usr/local/bin/run-one \
+  && chmod +x /usr/local/bin/run-one
+
+ENTRYPOINT ["/usr/local/bin/run-one"]

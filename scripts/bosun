@@ -227,7 +227,14 @@ cmd_input() {
     printf '%s' "$prompt_col"
     read -r out || true
   else
-    out="$(cat - 2>/dev/null || true)"
+    # Non-interactive: avoid blocking when stdin is not a pipe or has no data
+    if [ -p /dev/stdin ]; then
+      out="$(cat - 2>/dev/null || true)"
+    elif [ -s /dev/stdin ]; then
+      out="$(cat - 2>/dev/null || true)"
+    else
+      out=""
+    fi
   fi
   [ -z "$out" ] && out="$def"
   [ "$json" -eq 1 ] && emit_json_kv value "$out" || printf '%s\n' "$out"

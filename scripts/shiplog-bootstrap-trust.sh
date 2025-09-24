@@ -124,6 +124,7 @@ done
 
 need git
 need jq
+SIGN_TRUST="${SHIPLOG_TRUST_SIGN:-1}"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "run this script inside a git repository"
@@ -290,15 +291,6 @@ else
   commit_message=$(prompt_input "Trust genesis commit message" "shiplog: trust root v1 (GENESIS)")
 fi
 
-maint_count=""
-while :; do
-  maint_count=$(prompt_input "Number of maintainers" "2")
-  if printf '%s' "$maint_count" | grep -Eq '^[1-9][0-9]*$'; then
-    break
-  fi
-  echo "Please enter a positive integer." >&2
-done
-
 # End non-interactive/interactive branching
 
 summary="Trust ID: $trust_id\nThreshold: $threshold\nMaintainers:"
@@ -412,4 +404,3 @@ else
 fi
 
 echo "Run ./scripts/shiplog-trust-sync.sh to distribute the allowed signers file on other machines."
-SIGN_TRUST="${SHIPLOG_TRUST_SIGN:-1}"
