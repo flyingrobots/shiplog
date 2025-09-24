@@ -348,3 +348,9 @@ make test-signing
 MIT © J. Kirby Ross • [@flyingrobots](https://github.com/flyingrobots)
 
 _Jenkins was not harmed in the making of this project._
+## 📊 Project Progress
+
+```
+███████████████▓░░░░ 75%
+58/77 complete (19 remaining)
+```

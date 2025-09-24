@@ -55,9 +55,23 @@ Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, 
 ## Worklog
 
 ```
-█████████████████▓░░ 86%
-44/51 complete (7 remaining)
+███████████████▓░░░░ 75%
+58/77 complete (19 remaining)
 ```
+
+### Progress Bar Maintenance
+
+- Always keep the progress bar accurate and in sync in both AGENTS.md and README.md.
+- How to update:
+  1. Count total tasks in AGENTS.md: `rg -n "^- \\[.\\]" AGENTS.md | wc -l`
+  2. Count completed tasks: `rg -n "^- \\[x\\]" AGENTS.md | wc -l`
+  3. Compute remaining = total - completed; percent = floor((completed/total)*100).
+  4. Update the bar in AGENTS.md and README.md with:
+     - Unicode bar approximating the percent (e.g., `████...▓░░`),
+     - Text line: `completed/total complete (remaining remaining)`.
+  5. Re-run counts after any checklist edits.
+- Rule: Do this at the end of every substantive change that touches tasks.
+
 
 ### Daily Log – 2025-09-22
 
@@ -156,7 +170,7 @@ notes:
   - first-time trust bootstrap now scripted via scripts/shiplog-bootstrap-trust.sh
 ```
 
-- [ ] Complete policy and sync tooling hardening
+- [x] Complete policy and sync tooling hardening
 ```yaml
 priority: P1
 impact: stabilizes policy resolution and schema validation
@@ -169,8 +183,10 @@ notes:
   - cross-validate against docs/TRUST.md examples
   - DONE: per-env require_signed resolution - environments can independently enforce/skip signature validation (implemented in CLI commands and pre-receive hook)
   - DONE: sync-policy writes `.shiplog/policy.json` in the policy ref tree
+  - DONE: canonicalize policy writes (jq -S) and treat semantically equal JSON as no-op
+  - DONE: robust `policy show --json` path and trailing flag parsing
 
-- [ ] Refactor installers and uninstallers for path safety
+- [x] Refactor installers and uninstallers for path safety
 ```yaml
 priority: P1
 impact: avoids destructive rm/git operations on unsafe paths
@@ -181,6 +197,7 @@ steps:
 blocked_by: []
 notes:
   - align logging with README security guidance
+  - DONE: installer no longer fetches Shiplog refs into the caller repo; fetch scoped to `$SHIPLOG_HOME` and force-refreshed tool refs
 ```
 
 - [x] Finish sandboxed test migration and isolation
@@ -444,6 +461,27 @@ notes:
 
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
 - Keep runtime/test dependencies to stock POSIX tools plus `jq`; avoid introducing other external binaries.
+
+### Daily Log – 2025-09-25
+
+- Stabilized policy JSON output and CLI JSON paths:
+  - `git shiplog policy show --json` now robustly returns valid JSON; trailing `--json` flag supported.
+  - Added `git shiplog show --json` and `--json-compact` for single-entry JSON output.
+- Test reliability and timeouts:
+  - Enforced in-container timeout for Bats via the Docker test entrypoint; `TEST_TIMEOUT_SECS` env supported.
+  - Default tests use `SHIPLOG_USE_LOCAL_SANDBOX=1` to avoid network clones; added `BATS_FLAGS` support for stderr on failure.
+- Fixed Alpine/Arch CI:
+  - Removed hard Perl dependency in Bosun (`strip_ansi` fallback) and installed `ssh-keygen` in matrix images.
+  - Normalized policy writes (jq -S) and treated semantically-equal JSON as no-op to stop backup churn across distros.
+- Installer safety:
+  - `scripts/install-shiplog.sh` now fetches tool refs inside the installer repo (`$SHIPLOG_HOME`) and never mutates the caller repo; force-refreshes tool refs.
+- GitHub hosting/docs/tooling:
+  - Added docs/hosting/github.md and docs/runbooks/github-protection.md; explained custom refs vs branch namespace and protections.
+  - Shipped a migration helper: `scripts/shiplog-migrate-ref-root.sh`; CLI wrapper `git shiplog refs migrate` plus `refs root show|set`.
+  - Added importable Ruleset JSON and Actions workflows under `docs/examples/github/` for branch namespace and custom-refs auditing.
+- README refresh:
+  - Added “GitHub Hosting” links, Environment Reference, Quick copy/paste commands, JSON-only `show` examples.
+
 - [ ] Setup wizard refinements (Phase 3)
 ```yaml
 priority: P1
@@ -503,3 +541,42 @@ notes:
   - Consolidate `git config user.name/email` to the sandbox setup only.
 
 Owner: core + docs; Priority: P0; Target: MVP follow-up PR
+
+### New/Updated Tasks (GitHub Toolkit & UX)
+
+- [x] Add `git shiplog show --json` and `--json-compact`
+- [x] Honor trailing `--boring` on subcommands
+- [x] Add `git shiplog refs root show|set` and `refs migrate` wrapper
+- [x] Add migration helper script (`scripts/shiplog-migrate-ref-root.sh`)
+- [x] Add importable GitHub Ruleset JSON (branch namespace)
+- [x] Add GitHub Actions workflows for verify (branch) and audit (custom refs)
+- [x] Document GitHub protections and ref root switching (docs/hosting/github.md, runbook)
+- [x] Add Environment Reference (docs/reference/env.md) and README quick commands
+
+### New/Updated Tasks (Follow-ups)
+
+- [ ] macOS time helpers portability
+  ```yaml
+  priority: P2
+  impact: ensures time/duration operations work on macOS and Linux
+  steps:
+    - audit any GNU `date` usage (`-d`, `--iso-8601`, etc.)
+    - implement portable alternatives (POSIX `date` or Python fallback)
+    - add a tiny helper for formatting/parse with tests
+  blocked_by: []
+  notes:
+    - keep zero external deps; prefer POSIX shell + git timestamps
+  ```
+
+- [ ] Trailer JSON validation command
+  ```yaml
+  priority: P2
+  impact: catches invalid trailers proactively; improves UX and CI checks
+  steps:
+    - add `git shiplog validate-trailer [COMMIT]` (defaults to latest journal)
+    - pretty errors; suggest fixes; optional schema flag
+    - document in docs/features; add unit tests for malformed trailers
+  blocked_by: []
+  notes:
+    - reuse existing jq; avoid adding new deps
+  ```
