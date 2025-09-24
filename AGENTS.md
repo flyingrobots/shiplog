@@ -407,3 +407,31 @@ notes:
 
 - Shiplog tests must run inside Docker via `make test`; never run them directly on the host
 - Keep runtime/test dependencies to stock POSIX tools plus `jq`; avoid introducing other external binaries.
+- [ ] Setup wizard refinements (Phase 3)
+```yaml
+priority: P1
+impact: simplifies initial configuration and reduces lock-in/friction
+steps:
+  - Add per-environment strictness option (e.g., Strict for prod only)
+  - Offer to auto-push policy/trust refs when origin is configured
+  - Add non-interactive flags for all setup inputs (authors, envs) and print exact commands
+  - Detect and suggest relaxed hook envs if trust/policy missing on server
+  - Add rollback safety: backup existing .shiplog/policy.json before overwrite and show diff
+blocked_by: []
+notes:
+  - integrate with `shiplog-bootstrap-trust.sh` env mode and support multiple maintainers
+```
+
+- [ ] Tests for setup wizard and per-env policy
+```yaml
+priority: P1
+impact: prevent regressions in user-guided flows
+steps:
+  - Test `git shiplog setup` open/balanced/strict (env-driven) creates expected policy and refs
+  - Test per-env `require_signed` enforcement: staging accepts unsigned, prod rejects (pre-receive harness)
+  - Test `git shiplog policy show --json` emits expected fields and types
+  - Test `git shiplog policy toggle` flips require_signed and syncs ref without push
+blocked_by: []
+notes:
+  - Keep all tests Docker-only; use sandbox harness and fake SSH key files
+```

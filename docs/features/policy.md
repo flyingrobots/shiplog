@@ -65,9 +65,13 @@ Run `git shiplog policy --boring` for plain-text output or `--json` to integrate
       "require_ticket": false
     },
     "prod": {
+      "require_signed": true,
       "require_ticket": true,
       "require_service": true,
       "require_where": ["region", "cluster", "namespace"]
+    },
+    "staging": {
+      "require_signed": false
     }
   },
   "notes_ref": "refs/_shiplog/notes/logs",

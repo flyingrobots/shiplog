@@ -68,7 +68,8 @@ load_policy_state() {
 }
 
 get_policy_require_signed() {
-  "$JQ_BIN" -r '.require_signed // false' <<<"$CURRENT_POLICY_JSON"
+  local env="$1"
+  "$JQ_BIN" -r --arg env "$env" '(.deployment_requirements[$env].require_signed // .require_signed // false) | tostring' <<<"$CURRENT_POLICY_JSON"
 }
 
 get_policy_authors() {
@@ -210,7 +211,7 @@ validate_journal_updates() {
   ensure_fast_forward "$old" "$new" "refs/_shiplog/journal/$env"
   local require_signed allowlist
   if [ -n "$CURRENT_POLICY_JSON" ]; then
-    require_signed=$(get_policy_require_signed)
+    require_signed=$(get_policy_require_signed "$env")
     allowlist=$(get_policy_authors "$env")
   else
     if [ "$ALLOW_MISSING_POLICY" = "1" ]; then

@@ -8,10 +8,10 @@ validate_jq_and_file() {
 }
 
 extract_policy_fields() {
-  local src="$1"
-  jq -r '
+  local src="$1" env="$2"
+  jq -r --arg env "$env" '
     {
-      require_signed: .require_signed,
+      require_signed: (.deployment_requirements[$env].require_signed // .require_signed),
       allowed_signers_file: .allow_ssh_signers_file,
       notes_ref: .notes_ref,
       journals_prefix: .journals_ref_prefix,
@@ -75,7 +75,7 @@ parse_policy_json() {
   validate_jq_and_file "$src" || return 1
 
   local fields authors
-  if ! fields=$(extract_policy_fields "$src"); then
+  if ! fields=$(extract_policy_fields "$src" "$env"); then
     echo "ERROR: failed to parse policy fields from $src" >&2
     return 1
   fi
