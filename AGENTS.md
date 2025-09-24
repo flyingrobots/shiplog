@@ -75,11 +75,7 @@ Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, 
 
 ### Daily Log – 2025-09-22
 
-- Rebased branch onto latest `main`; verified new commits (`3390bda`, `9e115b2`) keep trust/policy flow stable inside Docker.
-- Hardened developer tooling: guarded `test.sh` against host execution, standardized Docker compose/Makefile resource names, and fixed jq trailer parsing so Bats passes.
-- Converted `.devcontainer/scripts/verified-download.sh` to pure Bash to drop the extra interpreter dependency.
-- Ran `make test` in Docker (pass) and noted `ci-matrix/run-all.sh` still needs an arm64-friendly Arch base image.
-- Updated this worklog (86% complete) and marked “Enforce trust workflow in hooks and tests” plus “Finish sandboxed test migration and isolation” as done.
+Archived: see docs/archives/AGENTS/activity-2025-09-22.md
 
 ### Daily Log – 2025-09-24
 
