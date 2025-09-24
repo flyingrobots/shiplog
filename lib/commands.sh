@@ -433,7 +433,7 @@ cmd_policy() {
           printf 'Require Signed: %s\n' "$signed_status"
           printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
           printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
-          printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shipLOG/notes/logs}"
+          printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shiplog/notes/logs}"
         else
           local rows=""
           rows+=$'Source\t'"${POLICY_SOURCE:-default}"$'\n'
@@ -441,6 +441,26 @@ cmd_policy() {
           rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
           rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
           rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
+          # Append per-env require_signed rows if available
+          local raw_policy env_lines
+          raw_policy=""
+          if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
+            raw_policy=$(git show "$POLICY_REF:.shiplog/policy.json" 2>/dev/null || true)
+          fi
+          if [ -z "$raw_policy" ] && [ -f ".shiplog/policy.json" ]; then
+            raw_policy=$(cat .shiplog/policy.json 2>/dev/null || true)
+          fi
+          if [ -n "$raw_policy" ]; then
+            env_lines=$(printf '%s' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null || true)
+            if [ -n "$env_lines" ]; then
+              while IFS=$'\t' read -r env_name env_req; do
+                [ -z "$env_name" ] && continue
+                rows+=$'Require Signed ('"$env_name"$')\t'"$env_req"$'\n'
+              done <<EOF
+$env_lines
+EOF
+            fi
+          fi
           local bosun
           bosun=$(shiplog_bosun_bin)
           printf '%s' "$rows" | "$bosun" table --columns "Field,Value"
@@ -510,6 +530,7 @@ cmd_setup() {
   local strict_envs_raw="${SHIPLOG_SETUP_STRICT_ENVS:-}"
   local auto_push="${SHIPLOG_SETUP_AUTO_PUSH:-0}"
   local authors_input="${SHIPLOG_SETUP_AUTHORS:-}"
+  local dry_run="${SHIPLOG_SETUP_DRY_RUN:-0}"
   local include_self=1
   local self_email
   self_email="$(git config user.email 2>/dev/null || echo)"
@@ -524,6 +545,14 @@ cmd_setup() {
         [ -n "$strict_envs_raw" ] || die "--strict-envs requires a value"
         shift
         ;;
+      --authors)
+        shift
+        authors_input="${1:-}"
+        [ -n "$authors_input" ] || die "--authors requires a value"
+        shift
+        ;;
+      --dry-run)
+        dry_run=1; shift ;;
       --) shift; break ;;
       *) break ;;
     esac
@@ -686,7 +715,29 @@ cmd_setup() {
         ;;
     esac
   fi
-  policy_install_file "$tmp" "$policy_file"
+  if [ "$dry_run" -eq 1 ]; then
+    # Show diff without writing
+    if [ -f "$policy_file" ]; then
+      if command -v git >/dev/null 2>&1; then
+        git --no-pager diff --no-index --color=never -- "$policy_file" "$tmp" || true
+      else
+        diff -u "$policy_file" "$tmp" || true
+      fi
+    else
+      printf '(would create) %s\n' "$policy_file"
+      cat "$tmp"
+    fi
+    rm -f "$tmp"
+    if shiplog_can_use_bosun; then
+      local bosun; bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Dry Run" -- "No changes written; skipping sync and push"
+    else
+      printf 'Dry run: no changes written; skipping sync and push\n'
+    fi
+    return 0
+  else
+    policy_install_file "$tmp" "$policy_file"
+  fi
 
   if shiplog_can_use_bosun; then
     local bosun; bosun=$(shiplog_bosun_bin)

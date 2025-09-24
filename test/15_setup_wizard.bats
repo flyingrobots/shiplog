@@ -137,3 +137,19 @@ teardown() {
   after_count=$(ls -1 .shiplog/policy.json.bak.* | wc -l | tr -d ' ')
   [ "$before_count" -eq "$after_count" ]
 }
+
+@test "setup dry-run previews without writing or syncing" {
+  mkdir -p .shiplog
+  printf '{"version":1,"require_signed":false}' > .shiplog/policy.json
+  # Record current ref (should exist due to previous tests creating it)
+  before_ref=$(git rev-parse -q --verify refs/_shiplog/policy/current 2>/dev/null || echo "")
+  run env SHIPLOG_SETUP_STRICTNESS=balanced SHIPLOG_SETUP_AUTHORS="x@y" git shiplog setup --dry-run --authors "x@y"
+  [ "$status" -eq 0 ]
+  # File unchanged
+  run jq -r '.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "false" ]
+  # Ref unchanged (no sync on dry-run)
+  after_ref=$(git rev-parse -q --verify refs/_shiplog/policy/current 2>/dev/null || echo "")
+  [ "$before_ref" = "$after_ref" ]
+}

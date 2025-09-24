@@ -5,14 +5,14 @@ The setup wizard helps you choose how strict Shiplog should be for this reposito
 ## Usage
 
 ```
-git shiplog setup [--auto-push] [--strict-envs "prod staging"]
+git shiplog setup [--auto-push] [--strict-envs "prod staging"] [--authors "a@x b@y"] [--dry-run]
 
 # Non-interactive (env-driven)
 SHIPLOG_SETUP_STRICTNESS=open|balanced|strict \
 SHIPLOG_SETUP_STRICT_ENVS="prod staging" \
 SHIPLOG_SETUP_AUTHORS="you@example.com teammate@example.com" \
 SHIPLOG_SETUP_AUTO_PUSH=1 \
-  git shiplog setup --auto-push --strict-envs "prod staging"
+  git shiplog setup --auto-push --strict-envs "prod staging" --authors "you@example.com teammate@example.com"
 ```
 
 ## Modes
@@ -29,6 +29,10 @@ SHIPLOG_SETUP_AUTO_PUSH=1 \
   - Global strict: `require_signed=true` for all environments.
   - Per‑environment strict: `require_signed=false` globally and `deployment_requirements.<env>.require_signed=true` for selected envs (e.g., prod only).
   - Non‑interactive trust bootstrap supported via `SHIPLOG_TRUST_*` env vars (see docs/features/modes.md:1). The wizard runs the bootstrap script and can auto‑push the trust ref with `--auto-push`.
+
+## Dry Run
+
+- Use `--dry-run` (or `SHIPLOG_SETUP_DRY_RUN=1`) to preview changes to `.shiplog/policy.json` without writing, syncing, or pushing. The wizard prints a unified diff (or a full file preview if creating fresh).
 
 ## Auto‑Push
 
