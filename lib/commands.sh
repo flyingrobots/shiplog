@@ -362,6 +362,7 @@ cmd_export_json() {
   done
 }
 
+
 cmd_policy() {
   ensure_in_repo
   resolve_policy
@@ -397,46 +398,50 @@ cmd_policy() {
       local require_signed_bool="false"
       [ "${SHIPLOG_SIGN_EFFECTIVE:-0}" != "0" ] && require_signed_bool="true"
       if [ "$as_json" -eq 1 ]; then
-        local raw_policy; raw_policy=$(load_raw_policy)
-        [ -n "$raw_policy" ] || raw_policy='{}'
-        jq -n \
-          --arg source "${POLICY_SOURCE:-default}" \
-          --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}" \
-          --arg signers "${SIGNERS_FILE_EFFECTIVE:-}" \
-          --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}" \
-          --argjson req "$require_signed_bool" \
-          --argjson policy "$raw_policy" \
-          '
+        local raw_policy; raw_policy=$(load_raw_policy); [ -n "$raw_policy" ] || raw_policy='{}'
+        jq -n           --arg source "${POLICY_SOURCE:-default}"           --arg authors "${ALLOWED_AUTHORS_EFFECTIVE:-}"           --arg signers "${SIGNERS_FILE_EFFECTIVE:-}"           --arg notes "${NOTES_REF:-refs/_shiplog/notes/logs}"           --argjson req "$require_signed_bool"           --argjson policy "$raw_policy"           '
             def env_require_map(p): (p.deployment_requirements // {})
               | with_entries(.value = (.value.require_signed // null));
             {source:$source, require_signed:$req, allowed_authors:$authors, allowed_signers_file:$signers, notes_ref:$notes,
              env_require_signed: env_require_map($policy)}
           '
       else
-        local signed_status
-        if [ "$require_signed_bool" = "true" ]; then signed_status="enabled"; else signed_status="disabled"; fi
+        local signed_status; if [ "$require_signed_bool" = "true" ]; then signed_status="enabled"; else signed_status="disabled"; fi
         if [ "$boring" -eq 1 ] || ! shiplog_can_use_bosun; then
-          printf 'Source: %s\n' "${POLICY_SOURCE:-default}"
-          printf 'Require Signed: %s\n' "$signed_status"
-          printf 'Allowed Authors: %s\n' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
-          printf 'Allowed Signers File: %s\n' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
-          printf 'Notes Ref: %s\n' "${NOTES_REF:-refs/_shiplog/notes/logs}"
+          printf 'Source: %s
+' "${POLICY_SOURCE:-default}"
+          printf 'Require Signed: %s
+' "$signed_status"
+          printf 'Allowed Authors: %s
+' "${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"
+          printf 'Allowed Signers File: %s
+' "${SIGNERS_FILE_EFFECTIVE:-<none>}"
+          printf 'Notes Ref: %s
+' "${NOTES_REF:-refs/_shiplog/notes/logs}"
           local raw_policy; raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            printf '%s\n' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "Require Signed (\(.key)): \(.value.require_signed)"' 2>/dev/null || true
+            printf '%s
+' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "Require Signed (\(.key)): \(.value.require_signed)"' 2>/dev/null || true
           fi
         else
-          local rows=""
-          rows+=$'Source\t'"${POLICY_SOURCE:-default}"$'\n'
-          rows+=$'Require Signed\t'"$signed_status"$'\n'
-          rows+=$'Allowed Authors\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'\n'
-          rows+=$'Allowed Signers File\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'\n'
-          rows+=$'Notes Ref\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'\n'
-          local raw_policy; raw_policy=$(load_raw_policy)
+          local rows="" raw_policy
+          rows+=$'Source	'"${POLICY_SOURCE:-default}"$'
+'
+          rows+=$'Require Signed	'"$signed_status"$'
+'
+          rows+=$'Allowed Authors	'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'
+'
+          rows+=$'Allowed Signers File	'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'
+'
+          rows+=$'Notes Ref	'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'
+'
+          raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            printf '%s\n' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null | while IFS=$'\t' read -r env_name env_req; do
+            printf '%s
+' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)	\(.value.require_signed)"' 2>/dev/null | while IFS=$'	' read -r env_name env_req; do
               [ -z "$env_name" ] && continue
-              rows+=$'Require Signed ('"$env_name"$')\t'"$env_req"$'\n'
+              rows+=$'Require Signed ('"$env_name"$')	'"$env_req"$'
+'
             done
           fi
           local bosun; bosun=$(shiplog_bosun_bin)
@@ -445,333 +450,24 @@ cmd_policy() {
       fi
       ;;
     validate)
-      printf '%s\n' "Policy source: ${POLICY_SOURCE:-default}" >&2
-      ;;
+      printf '%s
+' "Policy source: ${POLICY_SOURCE:-default}" >&2 ;;
     require-signed)
-      local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in
-        1|true|yes|on) val=true ;;
-        0|false|no|off) val=false ;;
-        *) die "Usage: git shiplog policy require-signed <true|false>" ;;
-      esac
-      mkdir -p .shiplog
-      local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
-      if [ -f "$policy_file" ]; then
-        jq --argjson rs "$val" '(.version // 1) as $v | .version=$v | .require_signed=$rs' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
-      else
-        printf '{"version":1,"require_signed":%s}\n' "$val" >"$tmp"
-      fi
+      local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) val=true ;; 0|false|no|off) val=false ;; *) die "Usage: git shiplog policy require-signed <true|false>" ;; esac
+      mkdir -p .shiplog; local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
+      if [ -f "$policy_file" ]; then jq --argjson rs "$val" '(.version // 1) as $v | .version=$v | .require_signed=$rs' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
+      else printf '{"version":1,"require_signed":%s}
+' "$val" >"$tmp"; fi
       policy_install_file "$tmp" "$policy_file"
-      if shiplog_can_use_bosun; then
-        local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
-      else
-        printf 'Set require_signed to %s in %s\n' "$val" "$policy_file"
-      fi
-      if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
-        SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
-        if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"; else printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'; fi
-      else
-        printf 'Note: sync helper missing; commit and publish policy manually.\n'
-      fi
-      ;;
+      if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"; else printf 'Set require_signed to %s in %s
+' "$val" "$policy_file"; fi
+      if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null; if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"; else printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current
+'; fi; else printf 'Note: sync helper missing; commit and publish policy manually.
+'; fi ;;
     toggle)
       local current="${SHIPLOG_SIGN_EFFECTIVE:-0}"; local new="false"; [ "$current" = "0" ] && new=true || new=false; cmd_policy require-signed "$new" ;;
     *) die "Unknown policy subcommand: $action" ;;
   esac
-}
-
-cmd_setup() {
-  ensure_in_repo
-  resolve_policy
-
-  local strictness="${SHIPLOG_SETUP_STRICTNESS:-}"
-  local strict_envs_raw="${SHIPLOG_SETUP_STRICT_ENVS:-}"
-  local auto_push="${SHIPLOG_SETUP_AUTO_PUSH:-0}"
-  local authors_input="${SHIPLOG_SETUP_AUTHORS:-}"
-  local dry_run="${SHIPLOG_SETUP_DRY_RUN:-0}"
-  local include_self=1
-  local self_email
-  self_email="$(git config user.email 2>/dev/null || echo)"
-
-  # Parse flags
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --auto-push) auto_push=1; shift ;;
-      --strict-envs)
-        shift
-        strict_envs_raw="${1:-}"
-        [ -n "$strict_envs_raw" ] || die "--strict-envs requires a value"
-        shift
-        ;;
-      --authors)
-        shift
-        authors_input="${1:-}"
-        [ -n "$authors_input" ] || die "--authors requires a value"
-        shift
-        ;;
-      --dry-run)
-        dry_run=1; shift ;;
-      --) shift; break ;;
-      *) break ;;
-    esac
-  done
-
-  if [ -z "$strictness" ] && ! is_boring; then
-    if shiplog_can_use_bosun; then
-      local bosun; bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Setup" -- "Choose a starting mode. You can change this later."
-      local choice
-      choice=$("$bosun" choose --header "Security mode" --default "Open (unsigned)" \
-        "Open (unsigned)" \
-        "Balanced (unsigned + allowlist)" \
-        "Strict (signed)") || true
-      case "$choice" in
-        "Balanced (unsigned + allowlist)") strictness=balanced ;;
-        "Strict (signed)") strictness=strict ;;
-        *) strictness=open ;;
-      esac
-    else
-      printf 'Select security mode [open/balanced/strict]: ' >&2
-      read -r strictness || strictness="open"
-      case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
-        balanced) strictness=balanced ;;
-        strict) strictness=strict ;;
-        *) strictness=open ;;
-      esac
-    fi
-  fi
-
-  strictness="${strictness:-open}"
-  case "$(printf '%s' "$strictness" | tr '[:upper:]' '[:lower:]')" in
-    open) strictness=open ;;
-    balanced) strictness=balanced ;;
-    strict) strictness=strict ;;
-    *) die "Unknown strictness: $strictness (expected: open|balanced)" ;;
-  esac
-
-  local strict_global=0
-  local strict_envs=""
-  if [ "$strictness" = "strict" ]; then
-    # Determine whether strict applies to all envs or selected envs
-    if [ -n "$strict_envs_raw" ]; then
-      strict_global=0
-      strict_envs="$strict_envs_raw"
-    elif ! is_boring && shiplog_can_use_bosun; then
-      local bosun; bosun=$(shiplog_bosun_bin)
-      local scope
-      scope=$("$bosun" choose --header "Apply signing to" --default "All environments" "All environments" "Specific environments") || true
-      case "$scope" in
-        "Specific environments")
-          strict_global=0
-          local envs_in
-          envs_in=$("$bosun" input --placeholder "Enter env names (space/comma separated)" --value "prod")
-          strict_envs="$envs_in"
-          ;;
-        *)
-          strict_global=1
-          ;;
-      esac
-    else
-      # Plain prompts
-      if ! is_boring; then
-        printf 'Apply signing to all environments? [Y/n]: ' >&2
-        local ans; read -r ans || ans="y"
-        case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
-          n|no) strict_global=0 ;;
-          *) strict_global=1 ;;
-        esac
-      fi
-      if [ "$strict_global" -eq 0 ] && [ -z "$strict_envs_raw" ]; then
-        printf 'Enter env names (space/comma separated) [prod]: ' >&2
-        read -r strict_envs || strict_envs="prod"
-      fi
-    fi
-  fi
-
-  # Normalize strict_envs separators to single spaces
-  strict_envs=$(printf '%s\n' "$strict_envs" | tr ',;' ' ' | tr -s ' ')
-
-  if [ "$strictness" = "balanced" ]; then
-    if [ -z "$authors_input" ] && ! is_boring; then
-      local default_authors
-      default_authors="$self_email"
-      if shiplog_can_use_bosun; then
-        local bosun; bosun=$(shiplog_bosun_bin)
-        authors_input=$("$bosun" input --placeholder "Author emails (space or comma separated)" --value "$default_authors")
-      else
-        printf 'Author emails (space or comma separated) [%s]: ' "$default_authors" >&2
-        read -r authors_input || authors_input="$default_authors"
-        [ -n "$authors_input" ] || authors_input="$default_authors"
-      fi
-    fi
-    # Normalize separators to single spaces and squeeze repeats
-    authors_input=$(printf '%s\n' "$authors_input" | tr ',;' ' ' | tr -s ' ')
-    # Include self by default if not present
-    if [ -n "$self_email" ] && ! printf ' %s ' " $authors_input " | grep -q " $self_email "; then
-      authors_input="$self_email ${authors_input}" 
-    fi
-  fi
-
-  mkdir -p .shiplog
-  local policy_file=".shiplog/policy.json" tmp
-  tmp=$(mktemp)
-
-  if [ -f "$policy_file" ]; then
-    case "$strictness" in
-      open)
-        if ! jq '(.version // 1) as $v | .version=$v | .require_signed=false' "$policy_file" >"$tmp" 2>/dev/null; then
-          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
-        fi
-        ;;
-      balanced)
-        # Build authors JSON array from input
-        local authors_json
-        authors_json=$(printf '%s\n' $authors_input | jq -R -s 'split("\n") | map(select(length>0)) | unique')
-        if ! jq --argjson arr "$authors_json" '(.version // 1) as $v | .version=$v | .require_signed=false | .authors = (.authors // {}) | .authors.default_allowlist = $arr' "$policy_file" >"$tmp" 2>/dev/null; then
-          rm -f "$tmp"; die "shiplog: failed to update $policy_file"
-        fi
-        ;;
-      strict)
-        if [ "$strict_global" -eq 1 ]; then
-          if ! jq '(.version // 1) as $v | .version=$v | .require_signed=true' "$policy_file" >"$tmp" 2>/dev/null; then
-            rm -f "$tmp"; die "shiplog: failed to update $policy_file"
-          fi
-        else
-          # per-env strictness: set global false and mark selected envs
-          # Build JSON array from strict_envs
-          local envs_json
-          envs_json=$(printf '%s\n' $strict_envs | jq -R -s 'split("\n") | map(select(length>0)) | unique')
-          if ! jq --argjson envs "$envs_json" '
-              # Set global require_signed to false and add per-env requirements
-              (.version // 1) as $v | .version=$v | .require_signed=false |
-              .deployment_requirements = (.deployment_requirements // {}) |
-              # For each env in the array, set require_signed=true
-              reduce ($envs[]) as $e (.;
-                .deployment_requirements[$e] = ((.deployment_requirements[$e] // {}) + {require_signed:true})
-              )' "$policy_file" >"$tmp" 2>/dev/null; then
-            rm -f "$tmp"; die "shiplog: failed to update $policy_file"
-          fi
-        fi
-        ;;
-    esac
-  else
-    case "$strictness" in
-      open)
-        printf '{"version":1,"require_signed":false}\n' >"$tmp"
-        ;;
-      balanced)
-        local authors_json
-        authors_json=$(printf '%s\n' $authors_input | jq -R -s 'split("\n") | map(select(length>0)) | unique')
-        jq -n --argjson arr "$authors_json" '{version:1, require_signed:false, authors:{default_allowlist:$arr}}' >"$tmp"
-        ;;
-      strict)
-        if [ "$strict_global" -eq 1 ]; then
-          printf '{"version":1,"require_signed":true}\n' >"$tmp"
-        else
-          local envs_json
-          envs_json=$(printf '%s\n' $strict_envs | jq -R -s 'split("\n") | map(select(length>0)) | unique')
-          jq -n --argjson envs "$envs_json" '{version:1, require_signed:false, deployment_requirements: (reduce $envs[] as $e ({}; .[$e]={require_signed:true}))}' >"$tmp"
-        fi
-        ;;
-    esac
-  fi
-  if [ "$dry_run" -eq 1 ]; then
-    # Show diff without writing
-    if [ -f "$policy_file" ]; then
-      if command -v git >/dev/null 2>&1; then
-        git --no-pager diff --no-index --color=never -- "$policy_file" "$tmp" || true
-      else
-        diff -u "$policy_file" "$tmp" || true
-      fi
-    else
-      printf '(would create) %s\n' "$policy_file"
-      cat "$tmp"
-    fi
-    rm -f "$tmp"
-    if shiplog_can_use_bosun; then
-      local bosun; bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Dry Run" -- "No changes written; skipping sync and push"
-    else
-      printf 'Dry run: no changes written; skipping sync and push\n'
-    fi
-    return 0
-  else
-    policy_install_file "$tmp" "$policy_file"
-  fi
-
-  if shiplog_can_use_bosun; then
-    local bosun; bosun=$(shiplog_bosun_bin)
-    "$bosun" style --title "Policy" -- "Wrote $policy_file for '$strictness' mode"
-  else
-    printf 'Wrote %s for "%s" mode\n' "$policy_file" "$strictness"
-  fi
-
-  # Sync policy ref locally (no push)
-  if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
-    SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
-    if shiplog_can_use_bosun; then
-      local bosun; bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
-    else
-      printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current\n'
-    fi
-  fi
-
-  # Auto-push if requested and origin exists
-  if [ "$auto_push" -eq 1 ]; then
-    if has_remote_origin; then
-      git push origin refs/_shiplog/policy/current >/dev/null 2>&1 || true
-      if shiplog_can_use_bosun; then
-        local bosun; bosun=$(shiplog_bosun_bin)
-        "$bosun" style --title "Policy" -- "📤 Pushed refs/_shiplog/policy/current to origin"
-      else
-        printf '📤 Pushed refs/_shiplog/policy/current to origin\n'
-      fi
-    else
-      printf 'ℹ️ shiplog: no origin remote; skipped auto-push.\n'
-    fi
-  fi
-
-  # If strict mode, attempt trust bootstrap (non-interactive if env is provided)
-  if [ "$strictness" = "strict" ]; then
-    if [ -x "$SHIPLOG_HOME/scripts/shiplog-bootstrap-trust.sh" ]; then
-      # Detect non-interactive intent via SHIPLOG_TRUST_COUNT
-      if [ -n "${SHIPLOG_TRUST_COUNT:-}" ] || is_boring; then
-        env SHIPLOG_ASSUME_YES="${SHIPLOG_ASSUME_YES:-1}" SHIPLOG_PLAIN="${SHIPLOG_PLAIN:-1}" \
-          "$SHIPLOG_HOME"/scripts/shiplog-bootstrap-trust.sh --no-push || die "shiplog: trust bootstrap failed"
-        # Auto-push trust ref if requested
-        if [ "$auto_push" -eq 1 ] && has_remote_origin; then
-          local trust_ref
-          trust_ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
-          git push origin "$trust_ref" >/dev/null 2>&1 || true
-          if shiplog_can_use_bosun; then
-            local bosun; bosun=$(shiplog_bosun_bin)
-            "$bosun" style --title "Trust" -- "📤 Pushed $trust_ref to origin"
-          else
-            printf '📤 Pushed %s to origin\n' "$trust_ref"
-          fi
-        fi
-      else
-        # Interactive fallback: inform the user
-        if shiplog_can_use_bosun; then
-          local bosun; bosun=$(shiplog_bosun_bin)
-          "$bosun" style --title "Trust" -- "Run scripts/shiplog-bootstrap-trust.sh to create refs/_shiplog/trust/root, then push it to origin."
-        else
-          printf 'Trust: run scripts/shiplog-bootstrap-trust.sh to create refs/_shiplog/trust/root, then push it to origin.\n'
-        fi
-      fi
-    fi
-  fi
-
-  # Server guidance (hook install + relaxed mode)
-  local hook_path="$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog"
-  if [ -r "$hook_path" ]; then
-    if shiplog_can_use_bosun; then
-      local bosun; bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Server" -- "Install pre-receive hook on your bare repo and (optionally) set SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 during bootstrap. See contrib/README.md."
-    else
-      printf 'Server: install contrib/hooks/pre-receive.shiplog on your bare repo. Optional during bootstrap: export SHIPLOG_ALLOW_MISSING_POLICY=1 SHIPLOG_ALLOW_MISSING_TRUST=1 (see contrib/README.md).\n'
-    fi
-  fi
 }
 
 cmd_trust() {
