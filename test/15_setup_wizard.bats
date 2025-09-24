@@ -7,6 +7,7 @@ setup() {
   shiplog_use_sandbox_repo
   git config user.name "Shiplog Tester"
   git config user.email "shiplog-tester@example.com"
+  shiplog_setup_test_gpg
 }
 
 teardown() {

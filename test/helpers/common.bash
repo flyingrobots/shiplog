@@ -77,6 +77,24 @@ shiplog_cleanup_sandbox_repo() {
   fi
 }
 
+shiplog_setup_test_gpg() {
+  export GNUPGHOME="$(mktemp -d)"
+  # Ensure non-interactive loopback pinentry and empty passphrase
+  printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
+  printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
+  gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+  gpg --batch --pinentry-mode loopback --passphrase '' \
+     --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1 || true
+  local fpr
+  fpr=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
+  if [[ -n "$fpr" ]]; then
+    git config gpg.format openpgp
+    git config user.signingkey "$fpr"
+    # Make sure Git can talk to gpg in loopback mode without a TTY
+    export GPG_TTY="/dev/null"
+  fi
+}
+
 shiplog_bootstrap_trust() {
   local with_signers="${1:-1}"
   mkdir -p .shiplog

@@ -380,12 +380,16 @@ if [ -z "$AUTHOR_NAME" ] || [ -z "$AUTHOR_EMAIL" ]; then
 fi
 
 sign_log="$SHIPLOG_HOME/.shiplog/trust-signing.log"
+commit_flags=()
+if [ "$SIGN_TRUST" != "0" ]; then
+  commit_flags+=( -S )
+fi
 if ! GENESIS=$(printf '%s\n' "$commit_message" |
   GIT_AUTHOR_NAME="$AUTHOR_NAME" \
   GIT_AUTHOR_EMAIL="$AUTHOR_EMAIL" \
   GIT_COMMITTER_NAME="$COMMITTER_NAME" \
   GIT_COMMITTER_EMAIL="$COMMITTER_EMAIL" \
-  git commit-tree "$TREE" -S 2>"$sign_log"); then
+  git commit-tree "$TREE" "${commit_flags[@]}" 2>"$sign_log"); then
   cat "$sign_log" >&2
   rm -f "$sign_log"
   die "failed to sign trust commit; ensure git signing is configured"
@@ -408,3 +412,4 @@ else
 fi
 
 echo "Run ./scripts/shiplog-trust-sync.sh to distribute the allowed signers file on other machines."
+SIGN_TRUST="${SHIPLOG_TRUST_SIGN:-1}"
