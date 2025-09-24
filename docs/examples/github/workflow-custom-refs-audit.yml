@@ -1,0 +1,74 @@
+name: Shiplog Audit (custom refs)
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Audit Shiplog (custom refs)
+        shell: bash
+        env:
+          REF_ROOT: refs/_shiplog
+        run: |
+          set -euo pipefail
+          need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1" >&2; exit 1; }; }
+          need git; need jq
+
+          echo "Fetching Shiplog refs (custom namespace)"
+          git fetch origin '+refs/_shiplog/*:refs/_shiplog/*'
+
+          # Load policy/trust if present
+          POLICY_JSON=$(git show "$REF_ROOT/policy/current:.shiplog/policy.json" 2>/dev/null || true)
+          SIGNERS=$(git show "$REF_ROOT/trust/root:.shiplog/allowed_signers" 2>/dev/null || true)
+          if [ -z "$POLICY_JSON" ]; then
+            echo "No policy ref found; treating as require_signed=false and no allowlist" >&2
+            POLICY_JSON='{}'
+          fi
+          if [ -n "$SIGNERS" ]; then printf '%s' "$SIGNERS" > .allowed_signers; fi
+
+          REQ_SIGN_GLOBAL=$(printf '%s' "$POLICY_JSON" | jq -r '(.require_signed // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+
+          FAIL=0; TOTAL=0
+          # Iterate all journal envs
+          while read -r jref; do
+            [ -z "$jref" ] && continue
+            envname=${jref#refs/_shiplog/journal/}
+            req_env=$(printf '%s' "$POLICY_JSON" | jq -r --arg env "$envname" '((.deployment_requirements[$env].require_signed // null) // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+            REQUIRE_SIGN=$REQ_SIGN_GLOBAL; [ "$req_env" = "1" ] && REQUIRE_SIGN=1
+
+            # Allowed authors (global+default overrides+env override)
+            ALLOWED_AUTHORS=$(printf '%s' "$POLICY_JSON" | jq -r --arg env "$envname" '[(.authors.default_allowlist // []), (.authors.env_overrides.default // []), (.authors.env_overrides[$env] // [])] | flatten | unique | join(" ")' 2>/dev/null || true)
+
+            while read -r c; do
+              [ -z "$c" ] && continue
+              TOTAL=$((TOTAL+1))
+              author=$(git show -s --format='%ae' "$c")
+              if [ -n "$ALLOWED_AUTHORS" ]; then
+                printf '%s\n' "$ALLOWED_AUTHORS" | tr ' ' '\n' | grep -Fxq "$author" || { echo "Unauthorized author <$author> on $jref ($c)" >&2; FAIL=1; }
+              fi
+              if [ "$REQUIRE_SIGN" = "1" ]; then
+                if [ -s .allowed_signers ]; then
+                  git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.allowed_signers verify-commit "$c" >/dev/null 2>&1 || { echo "Signature verification failed on $jref ($c)" >&2; FAIL=1; }
+                else
+                  echo "Require-signed is true but no allowed_signers found; env=$envname" >&2; FAIL=1
+                fi
+              fi
+            done < <(git rev-list "$jref")
+          done < <(git for-each-ref 'refs/_shiplog/journal/*' --format='%(refname)')
+
+          echo "Audited $TOTAL journal commits"
+          [ "$FAIL" -eq 0 ] || { echo "Shiplog audit found policy/signature violations" >&2; exit 1; }
+          echo "Shiplog audit passed"
+

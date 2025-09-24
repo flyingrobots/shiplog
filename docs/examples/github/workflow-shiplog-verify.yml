@@ -1,0 +1,92 @@
+name: Shiplog Verify (branch namespace)
+
+on:
+  push:
+    branches:
+      - _shiplog/**
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Shiplog policy/trust on pushed commits
+        shell: bash
+        env:
+          REF_ROOT: refs/heads/_shiplog
+        run: |
+          set -euo pipefail
+          need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1" >&2; exit 1; }; }
+          need git
+          need jq
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          ZERO=0000000000000000000000000000000000000000
+
+          # Load policy JSON and trust signers from refs
+          if ! POLICY_JSON=$(git show "$REF_ROOT/policy/current:.shiplog/policy.json" 2>/dev/null); then
+            echo "No policy ref found ($REF_ROOT/policy/current); defaulting to unsigned + no allowlist" >&2
+            POLICY_JSON='{}'
+          fi
+          if ! git show "$REF_ROOT/trust/root:.shiplog/allowed_signers" > .allowed_signers 2>/dev/null; then
+            : # No signers file; SSH signature checks will be skipped if require_signed=false
+          fi
+
+          # Determine env if pushing a journal ref (_shiplog/journal/<env>)
+          REF_NAME="${GITHUB_REF#refs/heads/}"
+          ENV=""
+          case "$REF_NAME" in
+            _shiplog/journal/*) ENV="${REF_NAME#_shiplog/journal/}" ;;
+          esac
+
+          # Effective signing requirement: env override > global
+          REQ_SIGN_GLOBAL=$(printf '%s' "$POLICY_JSON" | jq -r '(.require_signed // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+          if [ -n "$ENV" ]; then
+            REQ_SIGN_ENV=$(printf '%s' "$POLICY_JSON" | jq -r --arg env "$ENV" '((.deployment_requirements[$env].require_signed // null) // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+          else
+            REQ_SIGN_ENV=0
+          fi
+          REQUIRE_SIGN=$REQ_SIGN_GLOBAL
+          [ "$REQ_SIGN_ENV" = "1" ] && REQUIRE_SIGN=1
+
+          # Allowed authors (space separated)
+          ALLOWED_AUTHORS=$(printf '%s' "$POLICY_JSON" | jq -r '[(.authors.default_allowlist // []), (.authors.env_overrides.default // []), (if env then (.authors.env_overrides[env] // []) else [] end)] | flatten | unique | join(" ")' --arg env "$ENV" 2>/dev/null || true)
+
+          echo "Ref: $GITHUB_REF (env=$ENV)"
+          echo "Require signed: $REQUIRE_SIGN"
+          echo "Allowed authors: ${ALLOWED_AUTHORS:-<none>}"
+
+          # Build commit range
+          if [ "$BEFORE" = "$ZERO" ] || [ -z "$BEFORE" ]; then
+            RANGE="$AFTER"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+
+          FAIL=0
+          while read -r c; do
+            [ -z "$c" ] && continue
+            author=$(git show -s --format='%ae' "$c")
+            if [ -n "$ALLOWED_AUTHORS" ]; then
+              printf '%s\n' "$ALLOWED_AUTHORS" | tr ' ' '\n' | grep -Fxq "$author" || { echo "Unauthorized author <$author> on $c" >&2; FAIL=1; }
+            fi
+            if [ "$REQUIRE_SIGN" = "1" ]; then
+              if [ -s .allowed_signers ]; then
+                if ! git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=.allowed_signers verify-commit "$c" >/dev/null 2>&1; then
+                  echo "SSH signature verification failed on $c" >&2; FAIL=1
+                fi
+              else
+                echo "Require-signed is true but no allowed_signers found at $REF_ROOT/trust/root:.shiplog/allowed_signers" >&2; FAIL=1
+              fi
+            fi
+          done < <(git rev-list "$RANGE")
+
+          [ "$FAIL" -eq 0 ] || { echo "Shiplog verification failed" >&2; exit 1; }
+          echo "Shiplog verification passed"
+

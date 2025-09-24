@@ -228,6 +228,13 @@ git shiplog refs root set refs/heads/_shiplog
 
 Shiplog stores data under custom refs (for example, `refs/_shiplog/journal/prod`), which the GitHub web UI does not display. You can protect these refs with Rulesets or use a branch namespace for full Branch Rules protection. See docs/hosting/github.md.
 
+### GitHub Hosting
+
+On GitHub.com, Shiplog stores data under custom refs that the web UI doesn’t display. Learn how to view and protect these refs, and how to switch to a branch namespace for full Branch Rules support:
+
+- Guide: docs/hosting/github.md
+- Runbook: docs/runbooks/github-protection.md
+
 ## 🛠️ How It Works
 
 Shiplog records deployment events as signed empty-tree commits to a set of hidden Git refs. This makes the ledger tamper-evident and keeps it separate from your main branch history.
@@ -248,6 +255,9 @@ See docs/features/modes.md:1 for how to run unsigned by default, enable signing 
 | `git shiplog show` | Show entry details | `git shiplog show <commit>` |
 | `git shiplog verify` | Check signatures + author allowlist | `git shiplog verify --env prod` |
 | `git shiplog export-json` | NDJSON export for external tools | `git shiplog export-json \| jq '.'` |
+| `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
+| `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
+| `git shiplog refs migrate` | Mirror refs between roots | `git shiplog refs migrate --to refs/heads/_shiplog --dry-run` |
 | `git shiplog refs root show` | Show current ref root | `git shiplog refs root show` |
 | `git shiplog refs root set` | Set ref root (custom vs branch) | `git shiplog refs root set refs/heads/_shiplog` |
 

@@ -610,6 +610,12 @@ cmd_refs() {
         *) die "Unknown refs root action: $action" ;;
       esac
       ;;
+    migrate)
+      if [ ! -x "$SHIPLOG_HOME/scripts/shiplog-migrate-ref-root.sh" ]; then
+        die "migration helper missing: $SHIPLOG_HOME/scripts/shiplog-migrate-ref-root.sh"
+      fi
+      "$SHIPLOG_HOME/scripts/shiplog-migrate-ref-root.sh" "$@"
+      ;;
     *) die "Unknown refs subcommand: ${sub:-<none>}" ;;
   esac
 }
@@ -855,6 +861,7 @@ Usage:
   policy toggle        Toggle signing requirement (unsigned ↔ signed) and sync policy ref
   refs root show       Show current Shiplog ref root
   refs root set REF    Set Shiplog ref root (e.g., refs/_shiplog or refs/heads/_shiplog)
+  refs migrate [OPTS]  Mirror refs between roots (wrapper). Options: --to <refs/...> [--from <refs/...>] [--push] [--remove-old] [--dry-run]
   setup                Non-interactive setup wrapper to write .shiplog/policy.json and sync policy ref
                        Options:
                          --strictness open|balanced|strict
