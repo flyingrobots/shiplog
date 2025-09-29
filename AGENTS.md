@@ -112,6 +112,21 @@ Tasks are now tracked under docs/tasks/. See:
 - README refresh:
   - Added “GitHub Hosting” links, Environment Reference, Quick copy/paste commands, JSON-only `show` examples.
 
+### Daily Log – 2025-09-26
+
+- MVP docs + release
+  - Full features docs sweep; added docs/features/command-reference.md.
+  - test/README.md aligned with snapshot runner, timeouts, local sandbox.
+  - Tasks MoC generator (scripts/update-task-moc.sh) and populated docs/tasks/README.md; kept progress bars updated (scripts/update-task-progress.sh UTF‑8 fix).
+  - Opened and merged MVP PR (feat/github → main); tagged and pushed v0.1.0-mvp.
+- CI/CD signing
+  - Fixed shiplog-sign workflow to bind to the selected environment and read CI_SSH_PUBLIC_KEY from environment variables (vars.*) instead of env.*.
+- CLI improvements
+  - git shiplog write: new flags (--service/--reason/--status/--ticket/--region/--cluster/--namespace/--image/--tag/--run-url, --env), non-Bosun prompt fallbacks.
+  - Signing robustness: fixed unbound array expansion in sign_commit under set -u.
+- README
+  - Linked Command Reference; kept Overall bar mirrored from docs/tasks.
+
 ### Daily Log – 2025-09-24
 
 - Fixed Bosun non-TTY input hang: scripts/bosun now properly handles empty stdin in non-interactive environments by implementing timeout-based input detection (resolves issue where CI pipelines would hang indefinitely).
