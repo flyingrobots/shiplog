@@ -31,7 +31,7 @@ teardown() {
   unset SHIPLOG_ENV
 }
 
-@test "write defaults namespace to environment when unset" {
+@test "defaults namespace to environment name when SHIPLOG_NAMESPACE is unset" {
   run bash -c 'SHIPLOG_BORING=1 SHIPLOG_ASSUME_YES=1 SHIPLOG_SERVICE=api git shiplog write staging'
   [ "$status" -eq 0 ]
 
