@@ -55,6 +55,8 @@ teardown() {
   export SHIPLOG_ENV="prod-append-stdin"
   local journal_ref="${REF_ROOT}/journal/${SHIPLOG_ENV}"
 
+  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
+
   before=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
   [ -z "$before" ]
 
