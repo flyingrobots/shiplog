@@ -40,9 +40,10 @@ teardown() {
   run bash -lc 'git shiplog append --service api --status success --reason "auto" --json '\''{"build":"200"}'\'''
   [ "$status" -eq 0 ]
 
-  run bash -lc "git shiplog show --json ${REF_ROOT}/journal/prod | jq -r '.build'"
+  run bash -c "git shiplog show --json ${REF_ROOT}/journal/prod"
   [ "$status" -eq 0 ]
-  [ "$output" = "200" ]
+  build=$(printf '%s\n' "$output" | jq -r '.build')
+  [ "$build" = "200" ]
 }
 
 @test "append accepts JSON from stdin" {
@@ -53,9 +54,10 @@ teardown() {
   after=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
   [ "$before" != "$after" ]
 
-  run bash -lc "git shiplog show --json ${REF_ROOT}/journal/prod | jq -r '.method'"
+  run bash -c "git shiplog show --json ${REF_ROOT}/journal/prod"
   [ "$status" -eq 0 ]
-  [ "$output" = "stdin" ]
+  method=$(printf '%s\n' "$output" | jq -r '.method')
+  [ "$method" = "stdin" ]
 }
 
 @test "trust show prints roster and supports --json" {
