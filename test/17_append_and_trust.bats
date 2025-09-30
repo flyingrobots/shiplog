@@ -5,7 +5,7 @@ load helpers/common
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 TRUST_REF=${SHIPLOG_TRUST_REF:-refs/_shiplog/trust/root}
 
-reset_shiplog_env() {
+set_default_shiplog_env() {
   unset SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON SHIPLOG_TICKET
   unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE
   unset SHIPLOG_IMAGE SHIPLOG_TAG SHIPLOG_RUN_URL
@@ -14,7 +14,7 @@ reset_shiplog_env() {
 }
 
 setup() {
-  reset_shiplog_env
+  set_default_shiplog_env
   shiplog_standard_setup
   git shiplog init >/dev/null
   export SHIPLOG_SIGN=0
