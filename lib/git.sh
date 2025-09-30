@@ -137,7 +137,7 @@ JQ
 
   if [ -n "${SHIPLOG_EXTRA_JSON:-}" ]; then
     local extra_merged
-    if ! extra_merged=$(printf '%s\n' "$json" | jq --argjson extra "${SHIPLOG_EXTRA_JSON}" '. + $extra' 2>/dev/null); then
+    if ! extra_merged=$(printf '%s\n' "$json" | jq -S --argjson extra "${SHIPLOG_EXTRA_JSON}" '. + $extra' 2>/dev/null); then
       die "shiplog: SHIPLOG_EXTRA_JSON must be valid JSON object"
     fi
     json="$extra_merged"
