@@ -40,11 +40,10 @@ git shiplog run --service deploy --reason "Smoke test" -- env printf hi
 - `--status-success <status>` — Status recorded when the command exits 0. Default `success`.
 - `--status-failure <status>` — Status recorded when the command fails. Default `failed`.
 - `--ticket <id>`, `--region <r>`, `--cluster <c>`, `--namespace <ns>` — Override standard write metadata.
-- Notes with no output skip attachment and record `log_attached=false` in the trailer.
+- When there is no output, log attachment is skipped and `log_attached=false` is recorded in the trailer.
 
 ## See Also
 - `docs/features/write.md`
 - `docs/reference/env.md`
 - `docs/notes/codex-feedback-on-shiplog.md`
 - `docs/reference/json-schema.md`
-
