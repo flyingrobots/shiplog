@@ -30,6 +30,14 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Env: `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`, `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`, `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`, `SHIPLOG_LOG`, `SHIPLOG_AUTO_PUSH`.
   - Effects: honors allowlists/signing per policy; pushes journal (+notes) to origin unless disabled.
 
+- `run [OPTIONS] -- <command ...>`
+  - Purpose: wrap a shell command, tee its output (when interactive), and append a Shiplog entry describing the run.
+  - Usage:
+    - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
+    - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
+  - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`.
+
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.
   - Usage: `git shiplog ls prod 20`
@@ -91,4 +99,3 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 - Features docs: init, write, ls, show, export-json, validate-trailer, verify, policy, setup, notes.
 - Modes and signing policy: `docs/features/modes.md`
 - GitHub hosting and protections: `docs/hosting/github.md`, `docs/runbooks/github-protection.md`
-

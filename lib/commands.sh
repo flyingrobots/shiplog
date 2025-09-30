@@ -375,6 +375,291 @@ cmd_write() {
   fi
 }
 
+cmd_run() {
+  ensure_in_repo
+
+  local env="$DEFAULT_ENV"
+  local service="${SHIPLOG_SERVICE:-}"
+  local reason="${SHIPLOG_REASON:-}"
+  local status_success="success"
+  local status_failure="failed"
+  local namespace="${SHIPLOG_NAMESPACE:-}"
+  local ticket="${SHIPLOG_TICKET:-}"
+  local region="${SHIPLOG_REGION:-}"
+  local cluster="${SHIPLOG_CLUSTER:-}"
+
+  local -a run_argv=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift; env="${1:-$env}"; shift; continue ;;
+      --env=*)
+        env="${1#*=}"; shift; continue ;;
+      --service)
+        shift; service="${1:-}"; shift; continue ;;
+      --service=*)
+        service="${1#*=}"; shift; continue ;;
+      --reason)
+        shift; reason="${1:-}"; shift; continue ;;
+      --reason=*)
+        reason="${1#*=}"; shift; continue ;;
+      --status-success)
+        shift; status_success="${1:-$status_success}"; shift; continue ;;
+      --status-success=*)
+        status_success="${1#*=}"; shift; continue ;;
+      --status-failure)
+        shift; status_failure="${1:-$status_failure}"; shift; continue ;;
+      --status-failure=*)
+        status_failure="${1#*=}"; shift; continue ;;
+      --namespace)
+        shift; namespace="${1:-}"; shift; continue ;;
+      --namespace=*)
+        namespace="${1#*=}"; shift; continue ;;
+      --ticket)
+        shift; ticket="${1:-}"; shift; continue ;;
+      --ticket=*)
+        ticket="${1#*=}"; shift; continue ;;
+      --region)
+        shift; region="${1:-}"; shift; continue ;;
+      --region=*)
+        region="${1#*=}"; shift; continue ;;
+      --cluster)
+        shift; cluster="${1:-}"; shift; continue ;;
+      --cluster=*)
+        cluster="${1#*=}"; shift; continue ;;
+      --)
+        shift
+        while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
+        break ;;
+      -*)
+        die "shiplog: unknown run option: $1" ;;
+      *)
+        while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
+        break ;;
+    esac
+  done
+
+  if [ ${#run_argv[@]} -eq 0 ]; then
+    die "shiplog: run requires a command to execute (tip: place it after --)"
+  fi
+
+  if [ -z "$service" ]; then
+    die "shiplog: --service (or SHIPLOG_SERVICE) is required for run"
+  fi
+
+  local started_at finished_at
+  local start_epoch end_epoch duration_s
+  local log_path; log_path=$(mktemp) || die "shiplog: failed to allocate temp log"
+  local tee_output=1
+  if is_boring; then
+    tee_output=0
+  fi
+
+  started_at="$(fmt_ts)"
+  start_epoch=$(date -u +%s)
+
+  local cmd_status
+  if [ "$tee_output" -eq 1 ]; then
+    set +e
+    "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+    cmd_status=$?
+    set -e
+  else
+    set +e
+    "${run_argv[@]}" >"$log_path" 2>&1
+    cmd_status=$?
+    set -e
+  fi
+
+  finished_at="$(fmt_ts)"
+  end_epoch=$(date -u +%s)
+  duration_s=$(( end_epoch - start_epoch ))
+  if [ "$duration_s" -lt 0 ]; then
+    duration_s=0
+  fi
+
+  local run_status="$status_failure"
+  if [ "$cmd_status" -eq 0 ]; then
+    run_status="$status_success"
+  fi
+
+  local log_attached_bool="false"
+  if [ -s "$log_path" ]; then
+    log_attached_bool="true"
+  fi
+
+  local -a quoted_cmd=()
+  local arg
+  for arg in "${run_argv[@]}"; do
+    quoted_cmd+=("$(printf '%q' "$arg")")
+  done
+  local cmd_display
+  cmd_display="${quoted_cmd[*]}"
+
+  local argv_json
+  argv_json=$(printf '%s\n' "${run_argv[@]}" | jq -R . | jq -s .)
+
+  local extra_json
+  extra_json=$(jq -n \
+    --argjson argv "$argv_json" \
+    --arg cmd "$cmd_display" \
+    --arg status "$run_status" \
+    --arg started "$started_at" \
+    --arg finished "$finished_at" \
+    --argjson exit_code "$cmd_status" \
+    --argjson duration "$duration_s" \
+    --argjson log_attached "$log_attached_bool" \
+    '{run: {argv: $argv, cmd: $cmd, exit_code: $exit_code, status: $status, duration_s: $duration, started_at: $started, finished_at: $finished, log_attached: $log_attached}}'
+  )
+
+  local had_boring=0 prev_boring=""
+  if [ "${SHIPLOG_BORING+x}" = x ]; then
+    had_boring=1; prev_boring="$SHIPLOG_BORING"
+  fi
+  SHIPLOG_BORING=1; export SHIPLOG_BORING
+
+  local had_assume=0 prev_assume=""
+  if [ "${SHIPLOG_ASSUME_YES+x}" = x ]; then
+    had_assume=1; prev_assume="$SHIPLOG_ASSUME_YES"
+  fi
+  SHIPLOG_ASSUME_YES=1; export SHIPLOG_ASSUME_YES
+
+  local had_log=0 prev_log=""
+  if [ "${SHIPLOG_LOG+x}" = x ]; then
+    had_log=1; prev_log="$SHIPLOG_LOG"
+  fi
+  local attach_log=0
+  if [ "$log_attached_bool" = "true" ]; then
+    SHIPLOG_LOG="$log_path"; export SHIPLOG_LOG
+    attach_log=1
+  fi
+
+  local had_extra=0 prev_extra=""
+  if [ "${SHIPLOG_EXTRA_JSON+x}" = x ]; then
+    had_extra=1; prev_extra="$SHIPLOG_EXTRA_JSON"
+  fi
+  SHIPLOG_EXTRA_JSON="$extra_json"; export SHIPLOG_EXTRA_JSON
+
+  local had_status=0 prev_status=""
+  if [ "${SHIPLOG_STATUS+x}" = x ]; then
+    had_status=1; prev_status="$SHIPLOG_STATUS"
+  fi
+  SHIPLOG_STATUS="$run_status"; export SHIPLOG_STATUS
+
+  local had_reason=0 prev_reason=""
+  if [ "${SHIPLOG_REASON+x}" = x ]; then
+    had_reason=1; prev_reason="$SHIPLOG_REASON"
+  fi
+  SHIPLOG_REASON="$reason"; export SHIPLOG_REASON
+
+  local had_service=0 prev_service=""
+  if [ "${SHIPLOG_SERVICE+x}" = x ]; then
+    had_service=1; prev_service="$SHIPLOG_SERVICE"
+  fi
+  SHIPLOG_SERVICE="$service"; export SHIPLOG_SERVICE
+
+  local had_namespace=0 prev_namespace=""
+  if [ "${SHIPLOG_NAMESPACE+x}" = x ]; then
+    had_namespace=1; prev_namespace="$SHIPLOG_NAMESPACE"
+  fi
+  SHIPLOG_NAMESPACE="$namespace"; export SHIPLOG_NAMESPACE
+
+  local had_ticket=0 prev_ticket=""
+  if [ "${SHIPLOG_TICKET+x}" = x ]; then
+    had_ticket=1; prev_ticket="$SHIPLOG_TICKET"
+  fi
+  SHIPLOG_TICKET="$ticket"; export SHIPLOG_TICKET
+
+  local had_region=0 prev_region=""
+  if [ "${SHIPLOG_REGION+x}" = x ]; then
+    had_region=1; prev_region="$SHIPLOG_REGION"
+  fi
+  SHIPLOG_REGION="$region"; export SHIPLOG_REGION
+
+  local had_cluster=0 prev_cluster=""
+  if [ "${SHIPLOG_CLUSTER+x}" = x ]; then
+    had_cluster=1; prev_cluster="$SHIPLOG_CLUSTER"
+  fi
+  SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
+
+  local write_status
+  (
+    cmd_write --env "$env"
+  )
+  write_status=$?
+
+  if [ $had_boring -eq 1 ]; then
+    SHIPLOG_BORING="$prev_boring"; export SHIPLOG_BORING
+  else
+    unset SHIPLOG_BORING
+  fi
+  if [ $had_assume -eq 1 ]; then
+    SHIPLOG_ASSUME_YES="$prev_assume"; export SHIPLOG_ASSUME_YES
+  else
+    unset SHIPLOG_ASSUME_YES
+  fi
+  if [ $attach_log -eq 1 ]; then
+    if [ $had_log -eq 1 ]; then
+      SHIPLOG_LOG="$prev_log"; export SHIPLOG_LOG
+    else
+      unset SHIPLOG_LOG
+    fi
+  elif [ $had_log -eq 1 ]; then
+    SHIPLOG_LOG="$prev_log"; export SHIPLOG_LOG
+  else
+    unset SHIPLOG_LOG
+  fi
+  if [ $had_extra -eq 1 ]; then
+    SHIPLOG_EXTRA_JSON="$prev_extra"; export SHIPLOG_EXTRA_JSON
+  else
+    unset SHIPLOG_EXTRA_JSON
+  fi
+  if [ $had_status -eq 1 ]; then
+    SHIPLOG_STATUS="$prev_status"; export SHIPLOG_STATUS
+  else
+    unset SHIPLOG_STATUS
+  fi
+  if [ $had_reason -eq 1 ]; then
+    SHIPLOG_REASON="$prev_reason"; export SHIPLOG_REASON
+  else
+    unset SHIPLOG_REASON
+  fi
+  if [ $had_service -eq 1 ]; then
+    SHIPLOG_SERVICE="$prev_service"; export SHIPLOG_SERVICE
+  else
+    unset SHIPLOG_SERVICE
+  fi
+  if [ $had_namespace -eq 1 ]; then
+    SHIPLOG_NAMESPACE="$prev_namespace"; export SHIPLOG_NAMESPACE
+  else
+    unset SHIPLOG_NAMESPACE
+  fi
+  if [ $had_ticket -eq 1 ]; then
+    SHIPLOG_TICKET="$prev_ticket"; export SHIPLOG_TICKET
+  else
+    unset SHIPLOG_TICKET
+  fi
+  if [ $had_region -eq 1 ]; then
+    SHIPLOG_REGION="$prev_region"; export SHIPLOG_REGION
+  else
+    unset SHIPLOG_REGION
+  fi
+  if [ $had_cluster -eq 1 ]; then
+    SHIPLOG_CLUSTER="$prev_cluster"; export SHIPLOG_CLUSTER
+  else
+    unset SHIPLOG_CLUSTER
+  fi
+
+  if [ $write_status -eq 0 ]; then
+    rm -f "$log_path"
+  else
+    printf '❌ shiplog: failed to record run entry; log preserved at %s\n' "$log_path" >&2
+    return $write_status
+  fi
+
+  return "$cmd_status"
+}
+
 cmd_ls() {
   ensure_in_repo
   local env="${1:-$DEFAULT_ENV}"
@@ -890,6 +1175,7 @@ Usage:
   version             Print Shiplog version
   init                 Initialize shiplog configuration in current repo
   write [ENV]          Create a new deployment log entry
+  run [OPTS] -- CMD    Execute a command, capture output, and log the run
   ls [ENV] [LIMIT]     List recent deployment entries (default: last 20)
   show [COMMIT]        Show detailed deployment entry
   validate-trailer [COMMIT]
@@ -941,6 +1227,7 @@ run_command() {
     version)       cmd_version "$@";;
     init)          cmd_init "$@";;
     write)         cmd_write "$@";;
+    run)           cmd_run "$@";;
     ls)            cmd_ls "$@";;
     show)          cmd_show "$@";;
     validate-trailer) cmd_validate_trailer "$@";;
