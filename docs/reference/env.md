@@ -43,7 +43,7 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`
 - `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`
 - `SHIPLOG_LOG` — Path to NDJSON log to attach as a git note
-- `SHIPLOG_EXTRA_JSON` — Raw JSON object merged into the structured trailer (set automatically by `git shiplog run`)
+- `SHIPLOG_EXTRA_JSON` — *(internal)* Raw JSON object merged into the structured trailer; set automatically by `git shiplog run`/`git shiplog append`. Do not export manually—use `git shiplog append --json '{...}'` or `--json-file path` to supply custom payloads.
 
 See: docs/features/write.md for full semantics and examples.
 
