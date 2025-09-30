@@ -250,6 +250,10 @@ cmd_write() {
   artifact_tag="$(shiplog_prompt_input "artifact tag (e.g., 2025-09-19.3)" "SHIPLOG_TAG")"
   run_url="$(shiplog_prompt_input "pipeline/run URL (optional)" "SHIPLOG_RUN_URL")"
 
+  if [ -z "$ns" ]; then
+    ns="$env"
+  fi
+
   if [ -z "$service" ] && [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     service="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo default)")"
   fi
@@ -660,6 +664,131 @@ cmd_run() {
   return "$cmd_status"
 }
 
+cmd_append() {
+  ensure_in_repo
+  need jq
+
+  local env="$DEFAULT_ENV"
+  local service="${SHIPLOG_SERVICE:-}"
+  local status="${SHIPLOG_STATUS:-}"
+  local reason="${SHIPLOG_REASON:-}"
+  local ticket="${SHIPLOG_TICKET:-}"
+  local region="${SHIPLOG_REGION:-}"
+  local cluster="${SHIPLOG_CLUSTER:-}"
+  local namespace="${SHIPLOG_NAMESPACE:-}"
+  local image="${SHIPLOG_IMAGE:-}"
+  local tag="${SHIPLOG_TAG:-}"
+  local run_url="${SHIPLOG_RUN_URL:-}"
+  local log_path="${SHIPLOG_LOG:-}"
+  local extra_json=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift; env="${1:-$env}"; shift; continue ;;
+      --env=*)
+        env="${1#*=}"; shift; continue ;;
+      --service)
+        shift; service="${1:-}"; shift; continue ;;
+      --service=*)
+        service="${1#*=}"; shift; continue ;;
+      --status)
+        shift; status="${1:-}"; shift; continue ;;
+      --status=*)
+        status="${1#*=}"; shift; continue ;;
+      --reason)
+        shift; reason="${1:-}"; shift; continue ;;
+      --reason=*)
+        reason="${1#*=}"; shift; continue ;;
+      --ticket)
+        shift; ticket="${1:-}"; shift; continue ;;
+      --ticket=*)
+        ticket="${1#*=}"; shift; continue ;;
+      --region)
+        shift; region="${1:-}"; shift; continue ;;
+      --region=*)
+        region="${1#*=}"; shift; continue ;;
+      --cluster)
+        shift; cluster="${1:-}"; shift; continue ;;
+      --cluster=*)
+        cluster="${1#*=}"; shift; continue ;;
+      --namespace)
+        shift; namespace="${1:-}"; shift; continue ;;
+      --namespace=*)
+        namespace="${1#*=}"; shift; continue ;;
+      --image)
+        shift; image="${1:-}"; shift; continue ;;
+      --image=*)
+        image="${1#*=}"; shift; continue ;;
+      --tag)
+        shift; tag="${1:-}"; shift; continue ;;
+      --tag=*)
+        tag="${1#*=}"; shift; continue ;;
+      --run-url)
+        shift; run_url="${1:-}"; shift; continue ;;
+      --run-url=*)
+        run_url="${1#*=}"; shift; continue ;;
+      --log)
+        shift; log_path="${1:-}"; shift; continue ;;
+      --log=*)
+        log_path="${1#*=}"; shift; continue ;;
+      --json)
+        shift; extra_json="${1:-}"; shift; continue ;;
+      --json=*)
+        extra_json="${1#*=}"; shift; continue ;;
+      --json-file)
+        shift; [ -n "${1:-}" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "${1}")"; shift; continue ;;
+      --json-file=*)
+        local json_file; json_file="${1#*=}"; [ -n "$json_file" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "$json_file")"; shift; continue ;;
+      --help|-h)
+        cat <<'EOF'
+Usage: git shiplog append [--env ENV] --service NAME --json '{...}' [OPTIONS]
+
+Options mirror `git shiplog write` flags (service/status/reason/etc.). JSON payload
+is merged into the structured trailer before writing.
+EOF
+        return 0 ;;
+      --)
+        shift; break ;;
+      *)
+        die "shiplog: unknown append option: $1" ;;
+    esac
+  done
+
+  [ -n "$extra_json" ] || die "shiplog: --json is required"
+
+  if printf '%s' "$extra_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+    extra_json=$(printf '%s' "$extra_json" | jq -c .)
+  else
+    die "shiplog: --json payload must be a JSON object"
+  fi
+
+  if [ -z "$service" ]; then
+    die "shiplog: --service (or SHIPLOG_SERVICE) is required in append"
+  fi
+
+  (
+    set -e
+    SHIPLOG_BORING=1
+    SHIPLOG_ASSUME_YES=1
+    export SHIPLOG_BORING SHIPLOG_ASSUME_YES
+    export SHIPLOG_EXTRA_JSON="$extra_json"
+    export SHIPLOG_SERVICE="$service"
+    [ -n "$status" ] && export SHIPLOG_STATUS="$status"
+    [ -n "$reason" ] && export SHIPLOG_REASON="$reason"
+    [ -n "$ticket" ] && export SHIPLOG_TICKET="$ticket"
+    [ -n "$region" ] && export SHIPLOG_REGION="$region"
+    [ -n "$cluster" ] && export SHIPLOG_CLUSTER="$cluster"
+    [ -n "$namespace" ] && export SHIPLOG_NAMESPACE="$namespace"
+    [ -n "$image" ] && export SHIPLOG_IMAGE="$image"
+    [ -n "$tag" ] && export SHIPLOG_TAG="$tag"
+    [ -n "$run_url" ] && export SHIPLOG_RUN_URL="$run_url"
+    [ -n "$log_path" ] && export SHIPLOG_LOG="$log_path"
+    cmd_write --env "$env"
+  )
+  return $?
+}
+
 cmd_ls() {
   ensure_in_repo
   local env="${1:-$DEFAULT_ENV}"
@@ -893,6 +1022,74 @@ cmd_trust() {
       local dest="${2:-.shiplog/allowed_signers}"
       [ -x "$SHIPLOG_HOME/scripts/shiplog-trust-sync.sh" ] || die "shiplog: trust sync helper missing at $SHIPLOG_HOME/scripts/shiplog-trust-sync.sh"
       "$SHIPLOG_HOME"/scripts/shiplog-trust-sync.sh "$ref" "$dest"
+      ;;
+    show)
+      need jq
+      local ref=""
+      local as_json=0
+      local boring=0
+      if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+        ref="$1"
+        shift
+      fi
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --json)
+            as_json=1; shift ;;
+          --boring|-b)
+            boring=1; shift ;;
+          --help|-h)
+            printf 'Usage: git shiplog trust show [REF] [--json]\n'
+            return 0 ;;
+          --)
+            shift; break ;;
+          *)
+            die "shiplog: unknown trust show option: $1" ;;
+        esac
+      done
+      [ -n "$ref" ] || ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
+
+      local trust_json
+      trust_json=$(git show "$ref:trust.json" 2>/dev/null || true)
+      [ -n "$trust_json" ] || die "shiplog: trust metadata not found at $ref:trust.json"
+
+      if [ "$as_json" -eq 1 ]; then
+        printf '%s\n' "$trust_json"
+        return 0
+      fi
+
+      local trust_id threshold maintainer_rows signer_count
+      trust_id=$(printf '%s\n' "$trust_json" | jq -r '.id // "(unknown)"')
+      threshold=$(printf '%s\n' "$trust_json" | jq -r '.threshold // "(unset)"')
+      maintainer_rows=$(printf '%s\n' "$trust_json" | jq -r '.maintainers[]? | [(.name // ""), (.email // ""), (.role // "maintainer"), (if (.revoked // false) then "yes" else "no" end)] | @tsv')
+      signer_count=$(git show "$ref:allowed_signers" 2>/dev/null | awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' || true)
+
+      if [ "$signer_count" = "" ]; then
+        signer_count=0
+      fi
+
+      if [ $boring -eq 1 ]; then
+        SHIPLOG_BORING=1; export SHIPLOG_BORING
+      fi
+
+      printf 'Trust ID: %s\n' "$trust_id"
+      printf 'Threshold: %s\n' "$threshold"
+      printf 'Allowed signers: %s\n' "$signer_count"
+      if [ -n "$maintainer_rows" ]; then
+        if shiplog_can_use_bosun; then
+          local bosun; bosun=$(shiplog_bosun_bin)
+          printf '%s\n' "$maintainer_rows" | "$bosun" table --columns "Name,Email,Role,Revoked"
+        else
+          printf 'Maintainers:\n'
+          printf '%s\n' "$maintainer_rows" | while IFS=$'\t' read -r name email role revoked; do
+            local revoked_note=""
+            [ "$revoked" = "yes" ] && revoked_note=" (revoked)"
+            printf '  - %s <%s> [%s]%s\n' "$name" "$email" "$role" "$revoked_note"
+          done
+        fi
+      else
+        printf 'Maintainers: none\n'
+      fi
       ;;
     *)
       die "Unknown trust subcommand: $action"
@@ -1175,6 +1372,7 @@ Usage:
   version             Print Shiplog version
   init                 Initialize shiplog configuration in current repo
   write [ENV]          Create a new deployment log entry
+  append [OPTS]        Append using non-interactive JSON payload
   run [OPTS] -- CMD    Execute a command, capture output, and log the run
   ls [ENV] [LIMIT]     List recent deployment entries (default: last 20)
   show [COMMIT]        Show detailed deployment entry
@@ -1183,6 +1381,7 @@ Usage:
   verify [ENV]         Verify signatures and authorization of entries
   export-json [ENV]    Export entries as JSON lines
   trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
+  trust show [REF]     Display trust roster and metadata (use --json for raw output)
   policy [show]        Show current policy configuration
   policy require-signed <true|false>
                        Set signing requirement in .shiplog/policy.json and sync policy ref
@@ -1227,6 +1426,7 @@ run_command() {
     version)       cmd_version "$@";;
     init)          cmd_init "$@";;
     write)         cmd_write "$@";;
+    append)        cmd_append "$@";;
     run)           cmd_run "$@";;
     ls)            cmd_ls "$@";;
     show)          cmd_show "$@";;
