@@ -132,8 +132,9 @@ Append structured data non-interactively (great for automation):
 
 ```bash
 printf '{"checks": {"canary": "green"}}' | \
-  git shiplog append --env prod --service deploy \
-    --status success --reason "post-release smoke" --json -
+  git shiplog append --env prod --region us-west-2 --cluster prod-a \
+    --namespace frontend --service deploy --status success \
+    --reason "post-release smoke" --json -
 ```
 
 ---
