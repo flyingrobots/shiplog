@@ -24,7 +24,11 @@ setup() {
 teardown() {
   shiplog_standard_teardown
   unset SHIPLOG_SIGN SHIPLOG_AUTO_PUSH
-  reset_shiplog_env
+  unset SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON SHIPLOG_TICKET
+  unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE
+  unset SHIPLOG_IMAGE SHIPLOG_TAG SHIPLOG_RUN_URL
+  unset SHIPLOG_LOG SHIPLOG_EXTRA_JSON SHIPLOG_BORING SHIPLOG_ASSUME_YES
+  unset SHIPLOG_ENV
 }
 
 @test "write defaults namespace to environment when unset" {
