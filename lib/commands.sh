@@ -1035,9 +1035,11 @@ cmd_trust() {
       local ref=""
       local as_json=0
       local boring=0
-      if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-        ref="$1"
-        shift
+      if [ $# -gt 0 ]; then
+        case "$1" in
+          -*) : ;; # option; leave for main loop
+          *) ref="$1"; shift ;;
+        esac
       fi
       while [ $# -gt 0 ]; do
         case "$1" in
