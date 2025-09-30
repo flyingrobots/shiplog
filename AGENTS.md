@@ -151,3 +151,35 @@ For the current backlog, active work, and completed items, see:
 - docs/tasks/complete/
 
 Progress bars are now maintained in `docs/tasks/README.md` (and mirrored into the root README) by `scripts/update-task-progress.sh`.
+
+## Memoir – Release v0.2.0 (The Cut of Your Jib)
+
+### What We Attempted
+Delivered Shiplog v0.2.0 “The Cut of Your Jib”: implemented `git shiplog run`, `git shiplog append`, `git shiplog trust show`, hardened tests, and polished release artifacts. Tag v0.2.0 is live.
+
+### Key Decisions & Why
+- Documented trailer schema (`docs/reference/json-schema.md`) to remove guesswork for consumers.
+- Gave `test/17_append_and_trust.bats` a unique journal per run plus cleanup to stop cross-run failures.
+- Used `release/v0.2.0` as staging branch for the PR/tag to keep history clean.
+
+### What Worked
+- `cmd_run` in `lib/commands.sh` captures structured run metadata and attaches logs as intended.
+- `cmd_append` handles `--json`/stdin payloads and namespace defaults correctly.
+- `cmd_trust show` surfaces trust roster/signers in both table and `--json` forms.
+- Docs (README, `docs/releases/v0.2.0.md`, CHANGELOG) reference real paths/examples and pass review.
+
+### What Failed or Was Painful
+- CI flakiness from lingering journal refs in `test/17_append_and_trust.bats`; required unique env + cleanup trap.
+- Initial release note file misnamed (`v020.md`) and needed cleanup.
+- Too-strict empty-state assertions in the stdin append test caused rerun failures.
+
+### Lessons & Patterns
+- Tests manipulating Git refs must self-clean (`git update-ref -d`) and avoid assuming empty state.
+- Generate unique identifiers per test (`$RANDOM`, `BATS_TEST_NUMBER`) to prevent collisions.
+- Explicit documentation (schema, release notes, README) smooths review.
+
+### Unresolved Threads
+- UNKNOWN whether runbook task `SLT.BETA.015` will ship before next release.
+
+### Next Moves
+- NONE (release tagged and published).
