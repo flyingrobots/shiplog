@@ -56,10 +56,7 @@ teardown() {
   local journal_ref="${REF_ROOT}/journal/${SHIPLOG_ENV}"
 
   before=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
-  if [ -n "$before" ]; then
-    before_method=$(git shiplog show --json "$before" | jq -r '.method // ""')
-    [ "$before_method" != "stdin" ]
-  fi
+  [ -z "$before" ]
 
   run bash -c 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
   [ "$status" -eq 0 ]
