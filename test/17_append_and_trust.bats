@@ -37,7 +37,7 @@ teardown() {
 }
 
 @test "append merges provided JSON payload" {
-  run bash -lc 'git shiplog append --service api --status success --reason "auto" --json '\''{"build":"200"}'\'''
+  run bash -c 'git shiplog append --service api --status success --reason "auto" --json '\''{"build":"200"}'\'''
   [ "$status" -eq 0 ]
 
   run bash -c "git shiplog show --json ${REF_ROOT}/journal/prod"
@@ -48,7 +48,7 @@ teardown() {
 
 @test "append accepts JSON from stdin" {
   before=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
-  run bash -lc 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
+  run bash -c 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
   [ "$status" -eq 0 ]
 
   after=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
@@ -61,10 +61,10 @@ teardown() {
 }
 
 @test "trust show prints roster and supports --json" {
-  run bash -lc 'git show refs/_shiplog/trust/root:trust.json'
+  run bash -c 'git show refs/_shiplog/trust/root:trust.json'
   [ "$status" -eq 0 ]
 
-  run bash -lc 'git shiplog trust show --json'
+  run bash -c 'git shiplog trust show --json'
   [ "$status" -eq 0 ]
   threshold=$(printf '%s\n' "$output" | jq -r '.threshold')
   [ "$threshold" = "1" ]
