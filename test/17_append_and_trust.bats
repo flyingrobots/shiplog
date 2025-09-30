@@ -53,6 +53,7 @@ teardown() {
 @test "append accepts JSON from stdin" {
   before=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
   # CI creates a fresh sandbox repo each time, so prod journal should be empty before this append.
+  [ -z "$before" ]
   run bash -c 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
   [ "$status" -eq 0 ]
 
