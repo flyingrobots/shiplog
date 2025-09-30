@@ -98,6 +98,19 @@ Pipe to tools:
 git shiplog export-json | jq .
 ```
 
+Wrap a command and capture its output automatically:
+
+```bash
+git shiplog run --service deploy --reason "Canary" -- env kubectl rollout status deploy/web
+```
+
+Append structured data non-interactively (great for automation):
+
+```bash
+printf '{"checks": {"canary": "green"}}' | \
+  git shiplog append --service deploy --status success --reason "post-release smoke" --json -
+```
+
 ---
 
 ## 🔐 Policy & Security
@@ -130,8 +143,11 @@ Shiplog enforces policy as code, stored in Git itself.
 |---------|---------|
 | `git shiplog init` |	Setup refs & configs |
 | `git shiplog write` |	Record a deployment |
+| `git shiplog append` |	Record a deployment via JSON payload (stdin or file) |
+| `git shiplog run` |	Wrap a command, capture logs, and record result |
 | `git shiplog ls` |	List recent entries |
 | `git shiplog show` |	Show entry details |
+| `git shiplog trust show` |	Display trust roster and signer inventory |
 | `git shiplog verify` |	Verify signatures/allowlist |
 | `git shiplog export-json` |	Export NDJSON for tools |
 
