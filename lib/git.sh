@@ -135,6 +135,14 @@ JQ
     --argjson seq "$seq" \
     "$jq_filter")
 
+  if [ -n "${SHIPLOG_EXTRA_JSON:-}" ]; then
+    local extra_merged
+    if ! extra_merged=$(printf '%s\n' "$json" | jq -S --argjson extra "${SHIPLOG_EXTRA_JSON}" '. + $extra' 2>/dev/null); then
+      die "shiplog: SHIPLOG_EXTRA_JSON must be valid JSON object"
+    fi
+    json="$extra_merged"
+  fi
+
   cat <<EOF
 Deploy: $service $artifact_display → $env/${region:-?}/${cluster:-?}/${ns:-?}
 Reason: ${reason:-"—"} ${ticket:+($ticket)}

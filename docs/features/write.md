@@ -18,6 +18,7 @@ SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP re
 ## Behavior
 - Validates the author against the resolved allowlist and performs a signing precheck when signatures are required.
 - Prompts for service, status, change details, and artifact information. You can prefill or bypass prompts with flags (`--service`, `--reason`, etc.) or environment variables listed below.
+- Defaults the namespace to the journal environment when left blank (e.g., `prod`).
 - Generates both a human-readable header and a JSON trailer; optionally attaches NDJSON logs via `SHIPLOG_LOG`.
 - Accepts `--yes` to skip confirmation prompts (sets `SHIPLOG_ASSUME_YES=1`).
 - Fast-forwards the journal ref; aborts if the ref is missing or would require a force update.
@@ -51,3 +52,18 @@ SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP re
 - `test/02_write_and_ls_show.bats:22`
 - `test/05_verify_authors.bats:9`
 - `test/10_boring_mode.bats:31`
+- `test/17_append_and_trust.bats`
+
+## Programmatic Append
+
+Need to script entries without prompts? Use `git shiplog append`:
+
+```bash
+printf '{"checks": {"canary": "green"}}' | \
+  git shiplog append --service deploy --status success \
+    --reason "Post-release smoke" --json -
+```
+
+- Accepts the same metadata flags as `write` but runs in boring/auto-confirm mode.
+- `--json` (or `--json-file path`) must contain a JSON object; Shiplog merges it into the structured trailer via `SHIPLOG_EXTRA_JSON`.
+- Attach logs with `--log <path>` if desired.

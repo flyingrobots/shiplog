@@ -181,6 +181,8 @@ cmd_write() {
   local opt
 
   # Parse positional ENV and optional flags to prefill prompts
+  local json_from_stdin=0
+
   while [ $# -gt 0 ]; do
     case "$1" in
       --env)
@@ -249,6 +251,10 @@ cmd_write() {
   artifact_image="$(shiplog_prompt_input "artifact image (e.g., ghcr.io/acme/web)" "SHIPLOG_IMAGE")"
   artifact_tag="$(shiplog_prompt_input "artifact tag (e.g., 2025-09-19.3)" "SHIPLOG_TAG")"
   run_url="$(shiplog_prompt_input "pipeline/run URL (optional)" "SHIPLOG_RUN_URL")"
+
+  if [ -z "$ns" ]; then
+    ns="$env"
+  fi
 
   if [ -z "$service" ] && [ "${SHIPLOG_ASSUME_YES:-0}" = "1" ]; then
     service="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo default)")"
@@ -373,6 +379,421 @@ cmd_write() {
   elif [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" = "0" ] && ! is_boring; then
     printf 'ℹ️ shiplog: auto-push disabled; remember to push %s manually.\n' "$journal_ref"
   fi
+}
+
+cmd_run() {
+  ensure_in_repo
+
+  local env="$DEFAULT_ENV"
+  local service="${SHIPLOG_SERVICE:-}"
+  local reason="${SHIPLOG_REASON:-}"
+  local status_success="success"
+  local status_failure="failed"
+  local namespace="${SHIPLOG_NAMESPACE:-}"
+  local ticket="${SHIPLOG_TICKET:-}"
+  local region="${SHIPLOG_REGION:-}"
+  local cluster="${SHIPLOG_CLUSTER:-}"
+
+  local -a run_argv=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift; env="${1:-$env}"; shift; continue ;;
+      --env=*)
+        env="${1#*=}"; shift; continue ;;
+      --service)
+        shift; service="${1:-}"; shift; continue ;;
+      --service=*)
+        service="${1#*=}"; shift; continue ;;
+      --reason)
+        shift; reason="${1:-}"; shift; continue ;;
+      --reason=*)
+        reason="${1#*=}"; shift; continue ;;
+      --status-success)
+        shift; status_success="${1:-$status_success}"; shift; continue ;;
+      --status-success=*)
+        status_success="${1#*=}"; shift; continue ;;
+      --status-failure)
+        shift; status_failure="${1:-$status_failure}"; shift; continue ;;
+      --status-failure=*)
+        status_failure="${1#*=}"; shift; continue ;;
+      --namespace)
+        shift; namespace="${1:-}"; shift; continue ;;
+      --namespace=*)
+        namespace="${1#*=}"; shift; continue ;;
+      --ticket)
+        shift; ticket="${1:-}"; shift; continue ;;
+      --ticket=*)
+        ticket="${1#*=}"; shift; continue ;;
+      --region)
+        shift; region="${1:-}"; shift; continue ;;
+      --region=*)
+        region="${1#*=}"; shift; continue ;;
+      --cluster)
+        shift; cluster="${1:-}"; shift; continue ;;
+      --cluster=*)
+        cluster="${1#*=}"; shift; continue ;;
+      --)
+        shift
+        while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
+        break ;;
+      -*)
+        die "shiplog: unknown run option: $1" ;;
+      *)
+        while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
+        break ;;
+    esac
+  done
+
+  if [ ${#run_argv[@]} -eq 0 ]; then
+    die "shiplog: run requires a command to execute (tip: place it after --)"
+  fi
+
+  if [ -z "$service" ]; then
+    die "shiplog: --service (or SHIPLOG_SERVICE) is required for run"
+  fi
+
+  local started_at finished_at
+  local start_epoch end_epoch duration_s
+  local log_path; log_path=$(mktemp) || die "shiplog: failed to allocate temp log"
+  local tee_output=1
+  if is_boring; then
+    tee_output=0
+  fi
+
+  started_at="$(fmt_ts)"
+  start_epoch=$(date -u +%s)
+
+  local cmd_status
+  if [ "$tee_output" -eq 1 ]; then
+    set +e
+    "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+    cmd_status=$?
+    set -e
+  else
+    set +e
+    "${run_argv[@]}" >"$log_path" 2>&1
+    cmd_status=$?
+    set -e
+  fi
+
+  finished_at="$(fmt_ts)"
+  end_epoch=$(date -u +%s)
+  duration_s=$(( end_epoch - start_epoch ))
+  if [ "$duration_s" -lt 0 ]; then
+    duration_s=0
+  fi
+
+  local run_status="$status_failure"
+  if [ "$cmd_status" -eq 0 ]; then
+    run_status="$status_success"
+  fi
+
+  local log_attached_bool="false"
+  if [ -s "$log_path" ]; then
+    log_attached_bool="true"
+  fi
+
+  local -a quoted_cmd=()
+  local arg
+  for arg in "${run_argv[@]}"; do
+    quoted_cmd+=("$(printf '%q' "$arg")")
+  done
+  local cmd_display
+  cmd_display="${quoted_cmd[*]}"
+
+  local argv_json
+  argv_json=$(printf '%s\n' "${run_argv[@]}" | jq -R . | jq -s .)
+
+  local extra_json
+  extra_json=$(jq -n \
+    --argjson argv "$argv_json" \
+    --arg cmd "$cmd_display" \
+    --arg status "$run_status" \
+    --arg started "$started_at" \
+    --arg finished "$finished_at" \
+    --argjson exit_code "$cmd_status" \
+    --argjson duration "$duration_s" \
+    --argjson log_attached "$log_attached_bool" \
+    '{run: {argv: $argv, cmd: $cmd, exit_code: $exit_code, status: $status, duration_s: $duration, started_at: $started, finished_at: $finished, log_attached: $log_attached}}'
+  )
+
+  local had_boring=0 prev_boring=""
+  if [ "${SHIPLOG_BORING+x}" = x ]; then
+    had_boring=1; prev_boring="$SHIPLOG_BORING"
+  fi
+  SHIPLOG_BORING=1; export SHIPLOG_BORING
+
+  local had_assume=0 prev_assume=""
+  if [ "${SHIPLOG_ASSUME_YES+x}" = x ]; then
+    had_assume=1; prev_assume="$SHIPLOG_ASSUME_YES"
+  fi
+  SHIPLOG_ASSUME_YES=1; export SHIPLOG_ASSUME_YES
+
+  local had_log=0 prev_log=""
+  if [ "${SHIPLOG_LOG+x}" = x ]; then
+    had_log=1; prev_log="$SHIPLOG_LOG"
+  fi
+  local attach_log=0
+  if [ "$log_attached_bool" = "true" ]; then
+    SHIPLOG_LOG="$log_path"; export SHIPLOG_LOG
+    attach_log=1
+  fi
+
+  local had_extra=0 prev_extra=""
+  if [ "${SHIPLOG_EXTRA_JSON+x}" = x ]; then
+    had_extra=1; prev_extra="$SHIPLOG_EXTRA_JSON"
+  fi
+  SHIPLOG_EXTRA_JSON="$extra_json"; export SHIPLOG_EXTRA_JSON
+
+  local had_status=0 prev_status=""
+  if [ "${SHIPLOG_STATUS+x}" = x ]; then
+    had_status=1; prev_status="$SHIPLOG_STATUS"
+  fi
+  SHIPLOG_STATUS="$run_status"; export SHIPLOG_STATUS
+
+  local had_reason=0 prev_reason=""
+  if [ "${SHIPLOG_REASON+x}" = x ]; then
+    had_reason=1; prev_reason="$SHIPLOG_REASON"
+  fi
+  SHIPLOG_REASON="$reason"; export SHIPLOG_REASON
+
+  local had_service=0 prev_service=""
+  if [ "${SHIPLOG_SERVICE+x}" = x ]; then
+    had_service=1; prev_service="$SHIPLOG_SERVICE"
+  fi
+  SHIPLOG_SERVICE="$service"; export SHIPLOG_SERVICE
+
+  local had_namespace=0 prev_namespace=""
+  if [ "${SHIPLOG_NAMESPACE+x}" = x ]; then
+    had_namespace=1; prev_namespace="$SHIPLOG_NAMESPACE"
+  fi
+  SHIPLOG_NAMESPACE="$namespace"; export SHIPLOG_NAMESPACE
+
+  local had_ticket=0 prev_ticket=""
+  if [ "${SHIPLOG_TICKET+x}" = x ]; then
+    had_ticket=1; prev_ticket="$SHIPLOG_TICKET"
+  fi
+  SHIPLOG_TICKET="$ticket"; export SHIPLOG_TICKET
+
+  local had_region=0 prev_region=""
+  if [ "${SHIPLOG_REGION+x}" = x ]; then
+    had_region=1; prev_region="$SHIPLOG_REGION"
+  fi
+  SHIPLOG_REGION="$region"; export SHIPLOG_REGION
+
+  local had_cluster=0 prev_cluster=""
+  if [ "${SHIPLOG_CLUSTER+x}" = x ]; then
+    had_cluster=1; prev_cluster="$SHIPLOG_CLUSTER"
+  fi
+  SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
+
+  local write_status
+  (
+    cmd_write --env "$env"
+  )
+  write_status=$?
+
+  if [ $had_boring -eq 1 ]; then
+    SHIPLOG_BORING="$prev_boring"; export SHIPLOG_BORING
+  else
+    unset SHIPLOG_BORING
+  fi
+  if [ $had_assume -eq 1 ]; then
+    SHIPLOG_ASSUME_YES="$prev_assume"; export SHIPLOG_ASSUME_YES
+  else
+    unset SHIPLOG_ASSUME_YES
+  fi
+  if [ $attach_log -eq 1 ]; then
+    if [ $had_log -eq 1 ]; then
+      SHIPLOG_LOG="$prev_log"; export SHIPLOG_LOG
+    else
+      unset SHIPLOG_LOG
+    fi
+  elif [ $had_log -eq 1 ]; then
+    SHIPLOG_LOG="$prev_log"; export SHIPLOG_LOG
+  else
+    unset SHIPLOG_LOG
+  fi
+  if [ $had_extra -eq 1 ]; then
+    SHIPLOG_EXTRA_JSON="$prev_extra"; export SHIPLOG_EXTRA_JSON
+  else
+    unset SHIPLOG_EXTRA_JSON
+  fi
+  if [ $had_status -eq 1 ]; then
+    SHIPLOG_STATUS="$prev_status"; export SHIPLOG_STATUS
+  else
+    unset SHIPLOG_STATUS
+  fi
+  if [ $had_reason -eq 1 ]; then
+    SHIPLOG_REASON="$prev_reason"; export SHIPLOG_REASON
+  else
+    unset SHIPLOG_REASON
+  fi
+  if [ $had_service -eq 1 ]; then
+    SHIPLOG_SERVICE="$prev_service"; export SHIPLOG_SERVICE
+  else
+    unset SHIPLOG_SERVICE
+  fi
+  if [ $had_namespace -eq 1 ]; then
+    SHIPLOG_NAMESPACE="$prev_namespace"; export SHIPLOG_NAMESPACE
+  else
+    unset SHIPLOG_NAMESPACE
+  fi
+  if [ $had_ticket -eq 1 ]; then
+    SHIPLOG_TICKET="$prev_ticket"; export SHIPLOG_TICKET
+  else
+    unset SHIPLOG_TICKET
+  fi
+  if [ $had_region -eq 1 ]; then
+    SHIPLOG_REGION="$prev_region"; export SHIPLOG_REGION
+  else
+    unset SHIPLOG_REGION
+  fi
+  if [ $had_cluster -eq 1 ]; then
+    SHIPLOG_CLUSTER="$prev_cluster"; export SHIPLOG_CLUSTER
+  else
+    unset SHIPLOG_CLUSTER
+  fi
+
+  if [ $write_status -eq 0 ]; then
+    rm -f "$log_path"
+  else
+    printf '❌ shiplog: failed to record run entry; log preserved at %s\n' "$log_path" >&2
+    return $write_status
+  fi
+
+  return "$cmd_status"
+}
+
+cmd_append() {
+  ensure_in_repo
+  need jq
+
+  local env="$DEFAULT_ENV"
+  local service="${SHIPLOG_SERVICE:-}"
+  local status="${SHIPLOG_STATUS:-}"
+  local reason="${SHIPLOG_REASON:-}"
+  local ticket="${SHIPLOG_TICKET:-}"
+  local region="${SHIPLOG_REGION:-}"
+  local cluster="${SHIPLOG_CLUSTER:-}"
+  local namespace="${SHIPLOG_NAMESPACE:-}"
+  local image="${SHIPLOG_IMAGE:-}"
+  local tag="${SHIPLOG_TAG:-}"
+  local run_url="${SHIPLOG_RUN_URL:-}"
+  local log_path="${SHIPLOG_LOG:-}"
+  local extra_json=""
+  local json_from_stdin=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env)
+        shift; env="${1:-$env}"; shift; continue ;;
+      --env=*)
+        env="${1#*=}"; shift; continue ;;
+      --service)
+        shift; service="${1:-}"; shift; continue ;;
+      --service=*)
+        service="${1#*=}"; shift; continue ;;
+      --status)
+        shift; status="${1:-}"; shift; continue ;;
+      --status=*)
+        status="${1#*=}"; shift; continue ;;
+      --reason)
+        shift; reason="${1:-}"; shift; continue ;;
+      --reason=*)
+        reason="${1#*=}"; shift; continue ;;
+      --ticket)
+        shift; ticket="${1:-}"; shift; continue ;;
+      --ticket=*)
+        ticket="${1#*=}"; shift; continue ;;
+      --region)
+        shift; region="${1:-}"; shift; continue ;;
+      --region=*)
+        region="${1#*=}"; shift; continue ;;
+      --cluster)
+        shift; cluster="${1:-}"; shift; continue ;;
+      --cluster=*)
+        cluster="${1#*=}"; shift; continue ;;
+      --namespace)
+        shift; namespace="${1:-}"; shift; continue ;;
+      --namespace=*)
+        namespace="${1#*=}"; shift; continue ;;
+      --image)
+        shift; image="${1:-}"; shift; continue ;;
+      --image=*)
+        image="${1#*=}"; shift; continue ;;
+      --tag)
+        shift; tag="${1:-}"; shift; continue ;;
+      --tag=*)
+        tag="${1#*=}"; shift; continue ;;
+      --run-url)
+        shift; run_url="${1:-}"; shift; continue ;;
+      --run-url=*)
+        run_url="${1#*=}"; shift; continue ;;
+      --log)
+        shift; log_path="${1:-}"; shift; continue ;;
+      --log=*)
+        log_path="${1#*=}"; shift; continue ;;
+      --json)
+        shift; extra_json="${1:-}"; if [ "$extra_json" = "-" ]; then json_from_stdin=1; extra_json=""; fi; shift; continue ;;
+      --json=*)
+        extra_json="${1#*=}"; if [ "$extra_json" = "-" ]; then json_from_stdin=1; extra_json=""; fi; shift; continue ;;
+      --json-file)
+        shift; [ -n "${1:-}" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "${1}")"; shift; continue ;;
+      --json-file=*)
+        local json_file; json_file="${1#*=}"; [ -n "$json_file" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "$json_file")"; shift; continue ;;
+      --help|-h)
+        cat <<'EOF'
+Usage: git shiplog append [--env ENV] --service NAME --json '{...}' [OPTIONS]
+
+Options mirror `git shiplog write` flags (service/status/reason/etc.). JSON payload
+is merged into the structured trailer before writing.
+EOF
+        return 0 ;;
+      --)
+        shift; break ;;
+      *)
+        die "shiplog: unknown append option: $1" ;;
+    esac
+  done
+
+  if [ $json_from_stdin -eq 1 ]; then
+    extra_json="$(cat)"
+  fi
+
+  [ -n "$extra_json" ] || die "shiplog: --json is required"
+
+  if printf '%s' "$extra_json" | jq -e 'type == "object"' >/dev/null 2>&1; then
+    extra_json=$(printf '%s' "$extra_json" | jq -c .)
+  else
+    die "shiplog: --json payload must be a JSON object"
+  fi
+
+  if [ -z "$service" ]; then
+    die "shiplog: --service (or SHIPLOG_SERVICE) is required in append"
+  fi
+
+  (
+    set -e
+    SHIPLOG_BORING=1
+    SHIPLOG_ASSUME_YES=1
+    export SHIPLOG_BORING SHIPLOG_ASSUME_YES
+    export SHIPLOG_EXTRA_JSON="$extra_json"
+    export SHIPLOG_SERVICE="$service"
+    [ -n "$status" ] && export SHIPLOG_STATUS="$status"
+    [ -n "$reason" ] && export SHIPLOG_REASON="$reason"
+    [ -n "$ticket" ] && export SHIPLOG_TICKET="$ticket"
+    [ -n "$region" ] && export SHIPLOG_REGION="$region"
+    [ -n "$cluster" ] && export SHIPLOG_CLUSTER="$cluster"
+    [ -n "$namespace" ] && export SHIPLOG_NAMESPACE="$namespace"
+    [ -n "$image" ] && export SHIPLOG_IMAGE="$image"
+    [ -n "$tag" ] && export SHIPLOG_TAG="$tag"
+    [ -n "$run_url" ] && export SHIPLOG_RUN_URL="$run_url"
+    [ -n "$log_path" ] && export SHIPLOG_LOG="$log_path"
+    cmd_write --env "$env"
+  )
+  return $?
 }
 
 cmd_ls() {
@@ -608,6 +1029,99 @@ cmd_trust() {
       local dest="${2:-.shiplog/allowed_signers}"
       [ -x "$SHIPLOG_HOME/scripts/shiplog-trust-sync.sh" ] || die "shiplog: trust sync helper missing at $SHIPLOG_HOME/scripts/shiplog-trust-sync.sh"
       "$SHIPLOG_HOME"/scripts/shiplog-trust-sync.sh "$ref" "$dest"
+      ;;
+    show)
+      need jq
+      local ref=""
+      local as_json=0
+      local boring=0
+      if [ $# -gt 0 ]; then
+        case "$1" in
+          -*) : ;; # option; leave for main loop
+          *) ref="$1"; shift ;;
+        esac
+      fi
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --json)
+            as_json=1; shift ;;
+          --boring|-b)
+            boring=1; shift ;;
+          --help|-h)
+            printf 'Usage: git shiplog trust show [REF] [--json]\n'
+            return 0 ;;
+          --)
+            shift; break ;;
+          *)
+            die "shiplog: unknown trust show option: $1" ;;
+        esac
+      done
+      [ -n "$ref" ] || ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
+
+      local trust_json
+      trust_json=$(git show "$ref:trust.json" 2>/dev/null || true)
+      [ -n "$trust_json" ] || die "shiplog: trust metadata not found at $ref:trust.json"
+
+      if [ "$as_json" -eq 1 ]; then
+        printf '%s\n' "$trust_json"
+        return 0
+      fi
+
+      local trust_id threshold maintainer_rows signer_count
+      trust_id=$(printf '%s\n' "$trust_json" | jq -r '.id // "(unknown)"')
+      threshold=$(printf '%s\n' "$trust_json" | jq -r '.threshold // "(unset)"')
+      maintainer_rows=$(printf '%s\n' "$trust_json" | jq -r '.maintainers[]? | [(.name // ""), (.email // ""), (.role // "maintainer"), (if (.revoked // false) then "yes" else "no" end)] | @tsv')
+      signer_count=$(git show "$ref:allowed_signers" 2>/dev/null | awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' || true)
+
+      if [ "$signer_count" = "" ]; then
+        signer_count=0
+      fi
+
+      if [ $boring -eq 1 ]; then
+        SHIPLOG_BORING=1; export SHIPLOG_BORING
+      fi
+
+      printf 'Trust ID: %s\n' "$trust_id"
+      printf 'Threshold: %s\n' "$threshold"
+      printf 'Allowed signers: %s\n' "$signer_count"
+      local signer_rows
+      signer_rows=$(git show "$ref:allowed_signers" 2>/dev/null | awk 'NF && $1 !~ /^#/ {principal=$1; type=$2; if(type=="") type="(unknown)"; print principal"\t"type}' || true)
+
+      if [ -n "$maintainer_rows" ]; then
+        if shiplog_can_use_bosun; then
+          local bosun; bosun=$(shiplog_bosun_bin)
+          printf '%s\n' "$maintainer_rows" | "$bosun" table --columns "Name,Email,Role,Revoked"
+          if [ -n "$signer_rows" ]; then
+            printf '%s\n' "$signer_rows" | "$bosun" table --columns "Signer,KeyType"
+          fi
+        else
+          printf 'Maintainers:\n'
+          printf '%s\n' "$maintainer_rows" | while IFS=$'\t' read -r name email role revoked; do
+            local revoked_note=""
+            [ "$revoked" = "yes" ] && revoked_note=" (revoked)"
+            printf '  - %s <%s> [%s]%s\n' "$name" "$email" "$role" "$revoked_note"
+          done
+          if [ -n "$signer_rows" ]; then
+            printf 'Signers:\n'
+            printf '%s\n' "$signer_rows" | while IFS=$'\t' read -r principal keytype; do
+              printf '  - %s (%s)\n' "$principal" "$keytype"
+            done
+          fi
+        fi
+      else
+        printf 'Maintainers: none\n'
+        if [ -n "$signer_rows" ]; then
+          if shiplog_can_use_bosun; then
+            local bosun; bosun=$(shiplog_bosun_bin)
+            printf '%s\n' "$signer_rows" | "$bosun" table --columns "Signer,KeyType"
+          else
+            printf 'Signers:\n'
+            printf '%s\n' "$signer_rows" | while IFS=$'\t' read -r principal keytype; do
+              printf '  - %s (%s)\n' "$principal" "$keytype"
+            done
+          fi
+        fi
+      fi
       ;;
     *)
       die "Unknown trust subcommand: $action"
@@ -890,6 +1404,8 @@ Usage:
   version             Print Shiplog version
   init                 Initialize shiplog configuration in current repo
   write [ENV]          Create a new deployment log entry
+  append [OPTS]        Append using non-interactive JSON payload
+  run [OPTS] -- CMD    Execute a command, capture output, and log the run
   ls [ENV] [LIMIT]     List recent deployment entries (default: last 20)
   show [COMMIT]        Show detailed deployment entry
   validate-trailer [COMMIT]
@@ -897,6 +1413,7 @@ Usage:
   verify [ENV]         Verify signatures and authorization of entries
   export-json [ENV]    Export entries as JSON lines
   trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
+  trust show [REF]     Display trust roster and metadata (use --json for raw output)
   policy [show]        Show current policy configuration
   policy require-signed <true|false>
                        Set signing requirement in .shiplog/policy.json and sync policy ref
@@ -941,6 +1458,8 @@ run_command() {
     version)       cmd_version "$@";;
     init)          cmd_init "$@";;
     write)         cmd_write "$@";;
+    append)        cmd_append "$@";;
+    run)           cmd_run "$@";;
     ls)            cmd_ls "$@";;
     show)          cmd_show "$@";;
     validate-trailer) cmd_validate_trailer "$@";;

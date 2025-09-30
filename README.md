@@ -1,9 +1,28 @@
 # SHIPLOG • 🚢🪵
-> _Git-native deployment ledger. Every release event is a signed commit for a tamper-evident, immutable audit trail, no new infra._
 
 <p align="center">
 <img src="https://repository-images.githubusercontent.com/1060619650/5194fe70-a78c-4c2d-85d9-b43e8beb8717" width="600" />
 </p>
+
+## TL;DR Shiplog: Your Git Repo is an Ops Flight Recorder
+
+### Your Deployment History Should Live in Git
+
+**Shiplog**: your deployment history should live in the same repo as your code. No external services. No API keys. No monthly bills. Just git, doing what it does best: preserving history with cryptographic integrity.
+
+### Git: An Immutable, Distributed Journal
+
+***Git is a data structure.*** It can do way more than just source control. Shiplog's uses git to create chains of  commits that hang off of `refs/_shiplog/*` refs, creating an append-only journal. 
+
+### Don't Trust; Verify
+
+Shiplog uses a trust roster that's stored right in git, that restricts who may write to the journal, and uses a "policy by commits that require a quorum to change. that commit authors sign their commits to establish cryptographic provenance of each record, perfect for scenarios where you need immutable, auditable deployment and live-ops histories.
+
+### It's just Git.
+
+And best of all, it's all just git! You can fetch, push, clone, and verify using tools and knowledge you already have. No new software, no extra services. Just git.
+
+---
 
 ## Friday, 3:17 PM
 
@@ -103,6 +122,21 @@ Pipe to tools:
 git shiplog export-json | jq .
 ```
 
+Wrap a command and capture its output automatically:
+
+```bash
+git shiplog run --service deploy --reason "Canary" -- env kubectl rollout status deploy/web
+```
+
+Append structured data non-interactively (great for automation):
+
+```bash
+printf '{"checks": {"canary": "green"}}' | \
+  git shiplog append --env prod --region us-west-2 --cluster prod-a \
+    --namespace frontend --service deploy --status success \
+    --reason "post-release smoke" --json -
+```
+
 ---
 
 ## 🔐 Policy & Security
@@ -135,8 +169,11 @@ Shiplog enforces policy as code, stored in Git itself.
 |---------|---------|
 | `git shiplog init` |	Setup refs & configs |
 | `git shiplog write` |	Record a deployment |
+| `git shiplog append` |	Record a deployment via JSON payload (stdin or file) |
+| `git shiplog run` |	Wrap a command, capture logs, and record result |
 | `git shiplog ls` |	List recent entries |
 | `git shiplog show` |	Show entry details |
+| `git shiplog trust show` |	Display trust roster and signer inventory |
 | `git shiplog verify` |	Verify signatures/allowlist |
 | `git shiplog export-json` |	Export NDJSON for tools |
 

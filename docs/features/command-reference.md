@@ -30,6 +30,20 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Env: `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`, `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`, `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`, `SHIPLOG_LOG`, `SHIPLOG_AUTO_PUSH`.
   - Effects: honors allowlists/signing per policy; pushes journal (+notes) to origin unless disabled.
 
+- `append [OPTIONS]`
+  - Purpose: append a new entry non-interactively by supplying a JSON payload via CLI, stdin, or file.
+  - Usage: `printf '{"deployment":"green"}' | git shiplog append --service deploy --status success --json -`
+  - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`).
+  - Notes: sets `SHIPLOG_EXTRA_JSON` automatically with the provided object and runs `write` in boring/auto-confirm mode.
+
+- `run [OPTIONS] -- <command ...>`
+  - Purpose: wrap a shell command, tee its output (when interactive), and append a Shiplog entry describing the run.
+  - Usage:
+    - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
+    - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
+  - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. See `docs/reference/json-schema.md` for the structured payload.
+
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.
   - Usage: `git shiplog ls prod 20`
@@ -71,6 +85,12 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Purpose: sync allowed signers from a trust ref to a local file.
   - Usage: `git shiplog trust sync refs/_shiplog/trust/root .shiplog/allowed_signers`
 
+- `trust show [REF] [--json]`
+  - Purpose: display trust metadata (ID, threshold, maintainer roster, signer list and count).
+  - Usage:
+    - Human readable: `git shiplog trust show`
+    - JSON: `git shiplog trust show --json`
+
 - `refs root show|set`
   - Purpose: view or set the Shiplog ref root.
   - Usage:
@@ -91,4 +111,3 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 - Features docs: init, write, ls, show, export-json, validate-trailer, verify, policy, setup, notes.
 - Modes and signing policy: `docs/features/modes.md`
 - GitHub hosting and protections: `docs/hosting/github.md`, `docs/runbooks/github-protection.md`
-

@@ -43,6 +43,7 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`
 - `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`
 - `SHIPLOG_LOG` — Path to NDJSON log to attach as a git note
+- `SHIPLOG_EXTRA_JSON` — *(internal)* Raw JSON object merged into the structured trailer; set automatically by `git shiplog run`/`git shiplog append`. Do not export this manually—provide custom data with `git shiplog append --json '{...}'` or `git shiplog append --json-file payload.json` (these flags populate the internal value for you).
 
 See: docs/features/write.md for full semantics and examples.
 
@@ -69,4 +70,3 @@ See: docs/features/write.md for full semantics and examples.
 - `TEST_TIMEOUT_SECS` — In-container Bats timeout (seconds). Default: `180`.
 - `BATS_FLAGS` — Extra flags for Bats (e.g., `--print-output-on-failure -T`).
 - `SHIPLOG_USE_LOCAL_SANDBOX` — `1` to avoid network clones in tests (default `1`).
-
