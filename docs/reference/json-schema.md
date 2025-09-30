@@ -189,3 +189,4 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
 - `git shiplog append`
 
 These commands all use the same base schema. `run` populates the `run` object automatically, while `append` merges arbitrary JSON via `SHIPLOG_EXTRA_JSON`.
+

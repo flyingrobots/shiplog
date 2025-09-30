@@ -73,3 +73,4 @@ teardown() {
   [[ "$output" == *"Allowed signers: "* ]]
   [[ "$output" == *"shiplog-tester@example.com"* ]]
 }
+
