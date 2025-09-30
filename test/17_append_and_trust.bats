@@ -5,7 +5,16 @@ load helpers/common
 REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 TRUST_REF=${SHIPLOG_TRUST_REF:-refs/_shiplog/trust/root}
 
+reset_shiplog_env() {
+  unset SHIPLOG_SERVICE SHIPLOG_STATUS SHIPLOG_REASON SHIPLOG_TICKET
+  unset SHIPLOG_REGION SHIPLOG_CLUSTER SHIPLOG_NAMESPACE
+  unset SHIPLOG_IMAGE SHIPLOG_TAG SHIPLOG_RUN_URL
+  unset SHIPLOG_LOG SHIPLOG_EXTRA_JSON SHIPLOG_BORING SHIPLOG_ASSUME_YES
+  export SHIPLOG_ENV=prod
+}
+
 setup() {
+  reset_shiplog_env
   shiplog_standard_setup
   git shiplog init >/dev/null
   export SHIPLOG_SIGN=0
@@ -15,6 +24,7 @@ setup() {
 teardown() {
   shiplog_standard_teardown
   unset SHIPLOG_SIGN SHIPLOG_AUTO_PUSH
+  reset_shiplog_env
 }
 
 @test "write defaults namespace to environment when unset" {
@@ -35,6 +45,19 @@ teardown() {
   [ "$output" = "200" ]
 }
 
+@test "append accepts JSON from stdin" {
+  before=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
+  run bash -lc 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
+  [ "$status" -eq 0 ]
+
+  after=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
+  [ "$before" != "$after" ]
+
+  run bash -lc "git shiplog show --json ${REF_ROOT}/journal/prod | jq -r '.method'"
+  [ "$status" -eq 0 ]
+  [ "$output" = "stdin" ]
+}
+
 @test "trust show prints roster and supports --json" {
   run bash -lc 'git show refs/_shiplog/trust/root:trust.json'
   [ "$status" -eq 0 ]
@@ -47,4 +70,6 @@ teardown() {
   run bash -lc 'git shiplog trust show'
   [ "$status" -eq 0 ]
   [[ "$output" == *"Trust ID"* ]]
+  [[ "$output" == *"Allowed signers: "* ]]
+  [[ "$output" == *"shiplog-tester@example.com"* ]]
 }

@@ -31,8 +31,8 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Effects: honors allowlists/signing per policy; pushes journal (+notes) to origin unless disabled.
 
 - `append [OPTIONS]`
-  - Purpose: append a new entry non-interactively by supplying a JSON payload via CLI or file.
-  - Usage: `git shiplog append --service deploy --status success --json '{"deployment":"green"}'`
+  - Purpose: append a new entry non-interactively by supplying a JSON payload via CLI, stdin, or file.
+  - Usage: `printf '{"deployment":"green"}' | git shiplog append --service deploy --status success --json -`
   - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`).
   - Notes: sets `SHIPLOG_EXTRA_JSON` automatically with the provided object and runs `write` in boring/auto-confirm mode.
 
@@ -42,7 +42,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
     - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
     - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
   - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`.
-  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. See `docs/reference/json-schema.md` for the structured payload.
 
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.
@@ -86,7 +86,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage: `git shiplog trust sync refs/_shiplog/trust/root .shiplog/allowed_signers`
 
 - `trust show [REF] [--json]`
-  - Purpose: display trust metadata (ID, threshold, maintainer roster, signer count).
+  - Purpose: display trust metadata (ID, threshold, maintainer roster, signer list and count).
   - Usage:
     - Human readable: `git shiplog trust show`
     - JSON: `git shiplog trust show --json`

@@ -46,3 +46,4 @@ git shiplog run --service deploy --reason "Smoke test" -- env printf hi
 - `docs/features/write.md`
 - `docs/reference/env.md`
 - `docs/notes/codex-feedback-on-shiplog.md`
+- `docs/reference/json-schema.md`

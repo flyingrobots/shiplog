@@ -181,6 +181,8 @@ cmd_write() {
   local opt
 
   # Parse positional ENV and optional flags to prefill prompts
+  local json_from_stdin=0
+
   while [ $# -gt 0 ]; do
     case "$1" in
       --env)
@@ -681,6 +683,7 @@ cmd_append() {
   local run_url="${SHIPLOG_RUN_URL:-}"
   local log_path="${SHIPLOG_LOG:-}"
   local extra_json=""
+  local json_from_stdin=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -733,9 +736,9 @@ cmd_append() {
       --log=*)
         log_path="${1#*=}"; shift; continue ;;
       --json)
-        shift; extra_json="${1:-}"; shift; continue ;;
+        shift; extra_json="${1:-}"; if [ "$extra_json" = "-" ]; then json_from_stdin=1; extra_json=""; fi; shift; continue ;;
       --json=*)
-        extra_json="${1#*=}"; shift; continue ;;
+        extra_json="${1#*=}"; if [ "$extra_json" = "-" ]; then json_from_stdin=1; extra_json=""; fi; shift; continue ;;
       --json-file)
         shift; [ -n "${1:-}" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "${1}")"; shift; continue ;;
       --json-file=*)
@@ -754,6 +757,10 @@ EOF
         die "shiplog: unknown append option: $1" ;;
     esac
   done
+
+  if [ $json_from_stdin -eq 1 ]; then
+    extra_json="$(cat)"
+  fi
 
   [ -n "$extra_json" ] || die "shiplog: --json is required"
 
@@ -1075,10 +1082,16 @@ cmd_trust() {
       printf 'Trust ID: %s\n' "$trust_id"
       printf 'Threshold: %s\n' "$threshold"
       printf 'Allowed signers: %s\n' "$signer_count"
+      local signer_rows
+      signer_rows=$(git show "$ref:allowed_signers" 2>/dev/null | awk 'NF && $1 !~ /^#/ {principal=$1; type=$2; if(type=="") type="(unknown)"; print principal"\t"type}' || true)
+
       if [ -n "$maintainer_rows" ]; then
         if shiplog_can_use_bosun; then
           local bosun; bosun=$(shiplog_bosun_bin)
           printf '%s\n' "$maintainer_rows" | "$bosun" table --columns "Name,Email,Role,Revoked"
+          if [ -n "$signer_rows" ]; then
+            printf '%s\n' "$signer_rows" | "$bosun" table --columns "Signer,KeyType"
+          fi
         else
           printf 'Maintainers:\n'
           printf '%s\n' "$maintainer_rows" | while IFS=$'\t' read -r name email role revoked; do
@@ -1086,9 +1099,26 @@ cmd_trust() {
             [ "$revoked" = "yes" ] && revoked_note=" (revoked)"
             printf '  - %s <%s> [%s]%s\n' "$name" "$email" "$role" "$revoked_note"
           done
+          if [ -n "$signer_rows" ]; then
+            printf 'Signers:\n'
+            printf '%s\n' "$signer_rows" | while IFS=$'\t' read -r principal keytype; do
+              printf '  - %s (%s)\n' "$principal" "$keytype"
+            done
+          fi
         fi
       else
         printf 'Maintainers: none\n'
+        if [ -n "$signer_rows" ]; then
+          if shiplog_can_use_bosun; then
+            local bosun; bosun=$(shiplog_bosun_bin)
+            printf '%s\n' "$signer_rows" | "$bosun" table --columns "Signer,KeyType"
+          else
+            printf 'Signers:\n'
+            printf '%s\n' "$signer_rows" | while IFS=$'\t' read -r principal keytype; do
+              printf '  - %s (%s)\n' "$principal" "$keytype"
+            done
+          fi
+        fi
       fi
       ;;
     *)

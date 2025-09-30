@@ -59,9 +59,9 @@ SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP re
 Need to script entries without prompts? Use `git shiplog append`:
 
 ```bash
-git shiplog append --service deploy --status success \
-  --reason "Post-release smoke" \
-  --json '{"checks": {"canary": "green"}}'
+printf '{"checks": {"canary": "green"}}' | \
+  git shiplog append --service deploy --status success \
+    --reason "Post-release smoke" --json -
 ```
 
 - Accepts the same metadata flags as `write` but runs in boring/auto-confirm mode.
