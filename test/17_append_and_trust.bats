@@ -57,6 +57,7 @@ teardown() {
   local journal_ref="${REF_ROOT}/journal/${SHIPLOG_ENV}"
   trap "git update-ref -d \"$journal_ref\" >/dev/null 2>&1 || true" RETURN
 
+  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
   before=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
 
   run bash -c 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
