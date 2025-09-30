@@ -52,10 +52,9 @@ teardown() {
 
 @test "append accepts JSON from stdin" {
   local prev_env="${SHIPLOG_ENV:-prod}"
-  export SHIPLOG_ENV="prod-append-stdin"
+  local unique_env="prod-append-stdin-${BATS_TEST_NUMBER:-0}-${RANDOM}${RANDOM}"
+  export SHIPLOG_ENV="$unique_env"
   local journal_ref="${REF_ROOT}/journal/${SHIPLOG_ENV}"
-
-  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
 
   before=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
   [ -z "$before" ]
