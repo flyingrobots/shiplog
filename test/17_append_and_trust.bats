@@ -70,7 +70,7 @@ teardown() {
   threshold=$(printf '%s\n' "$output" | jq -r '.threshold')
   [ "$threshold" = "1" ]
 
-  run bash -lc 'git shiplog trust show'
+  run bash -c 'git shiplog trust show'
   [ "$status" -eq 0 ]
   [[ "$output" == *"Trust ID"* ]]
   [[ "$output" == *"Allowed signers: "* ]]
