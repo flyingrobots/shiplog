@@ -69,7 +69,7 @@ This document captures the layout of the JSON trailer that `git shiplog` writes 
 - `why` — Reason text and optional ticket identifier.
 - `how.run_url` — CI/CD execution URL when provided.
 - `status` — One of `success`, `failed`, `in_progress`, `skipped`, `override`, `revert`, `finalize`.
-- `when.dur_s` — Duration in seconds between `start_ts` and `end_ts`.
+- `when.dur_s` — Duration in whole seconds between `start_ts` and `end_ts`.
 - `seq` — Monotonic counter within the journal.
 - `journal_parent` — SHA of the previous journal entry (or `null` for genesis).
 - `trust_oid` — SHA of the trust ref commit used while writing.
@@ -86,7 +86,7 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
 | `argv` | array[string] | Original argument vector passed to the wrapped command. |
 | `cmd` | string | Shell-quoted command string for human readability. |
 | `exit_code` | integer | Exit status of the wrapped command. |
-| `status` | string | Mapped status (`status-success` or `status-failure`, defaults to `success`/`failed`). |
+| `status` | string | Final status (`success` or `failed` as recorded in the trailer; CLI flags map to these values). |
 | `duration_s` | integer | Execution duration in seconds. |
 | `started_at` | string | UTC timestamp when execution began. |
 | `finished_at` | string | UTC timestamp when execution completed. |
@@ -145,14 +145,17 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
         "run_url": {"type": ["string", "null"]}
       }
     },
-    "status": {"type": "string"},
+    "status": {
+      "type": "string",
+      "enum": ["success", "failed", "in_progress", "skipped", "override", "revert", "finalize"]
+    },
     "when": {
       "type": "object",
       "required": ["start_ts", "end_ts", "dur_s"],
       "properties": {
         "start_ts": {"type": "string", "format": "date-time"},
         "end_ts": {"type": "string", "format": "date-time"},
-        "dur_s": {"type": "number"}
+        "dur_s": {"type": "integer"}
       }
     },
     "seq": {"type": "integer", "minimum": 0},
@@ -170,8 +173,11 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
         },
         "cmd": {"type": "string"},
         "exit_code": {"type": "integer"},
-        "status": {"type": "string"},
-        "duration_s": {"type": "number"},
+        "status": {
+          "type": "string",
+          "enum": ["success", "failed"]
+        },
+        "duration_s": {"type": "integer"},
         "started_at": {"type": "string", "format": "date-time"},
         "finished_at": {"type": "string", "format": "date-time"},
         "log_attached": {"type": "boolean"}
@@ -189,4 +195,3 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
 - `git shiplog append`
 
 These commands all use the same base schema. `run` populates the `run` object automatically, while `append` merges arbitrary JSON via `SHIPLOG_EXTRA_JSON`.
-
