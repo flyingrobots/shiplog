@@ -28,10 +28,10 @@ teardown() {
 }
 
 @test "write defaults namespace to environment when unset" {
-  run bash -lc 'SHIPLOG_BORING=1 SHIPLOG_ASSUME_YES=1 SHIPLOG_SERVICE=api git shiplog write staging'
+  run bash -c 'SHIPLOG_BORING=1 SHIPLOG_ASSUME_YES=1 SHIPLOG_SERVICE=api git shiplog write staging'
   [ "$status" -eq 0 ]
 
-  run bash -lc "git shiplog show --json ${REF_ROOT}/journal/staging | jq -r '.where.namespace'"
+  run bash -c "git shiplog show --json ${REF_ROOT}/journal/staging | jq -r '.where.namespace'"
   [ "$status" -eq 0 ]
   [ "$output" = "staging" ]
 }
@@ -73,4 +73,3 @@ teardown() {
   [[ "$output" == *"Allowed signers: "* ]]
   [[ "$output" == *"shiplog-tester@example.com"* ]]
 }
-
