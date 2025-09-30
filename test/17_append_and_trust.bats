@@ -51,21 +51,28 @@ teardown() {
 }
 
 @test "append accepts JSON from stdin" {
-  before=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
+  local prev_env="${SHIPLOG_ENV:-prod}"
+  export SHIPLOG_ENV="prod-append-stdin"
+  local journal_ref="${REF_ROOT}/journal/${SHIPLOG_ENV}"
+
+  before=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
   if [ -n "$before" ]; then
     before_method=$(git shiplog show --json "$before" | jq -r '.method // ""')
     [ "$before_method" != "stdin" ]
   fi
+
   run bash -c 'printf '\''{"build":"201","method":"stdin"}'\'' | git shiplog append --service api --status success --reason "stdin" --json -'
   [ "$status" -eq 0 ]
 
-  after=$(git rev-parse "${REF_ROOT}/journal/prod" 2>/dev/null || echo "")
+  after=$(git rev-parse "$journal_ref" 2>/dev/null || echo "")
   [ "$before" != "$after" ]
 
-  run bash -c "git shiplog show --json ${REF_ROOT}/journal/prod"
+  run bash -c "git shiplog show --json $journal_ref"
   [ "$status" -eq 0 ]
   method=$(printf '%s\n' "$output" | jq -r '.method')
   [ "$method" = "stdin" ]
+
+  export SHIPLOG_ENV="$prev_env"
 }
 
 @test "trust show prints roster and supports --json" {
