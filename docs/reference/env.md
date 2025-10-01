@@ -67,6 +67,6 @@ See: docs/features/write.md for full semantics and examples.
 
 ## CI/Tests
 
-- `TEST_TIMEOUT_SECS` — In-container Bats timeout (seconds). Default: `180`.
+- `TEST_TIMEOUT_SECS` — Optional Bats timeout (seconds). Set to a positive integer to enable.
 - `BATS_FLAGS` — Extra flags for Bats (e.g., `--print-output-on-failure -T`).
 - `SHIPLOG_USE_LOCAL_SANDBOX` — `1` to avoid network clones in tests (default `1`).

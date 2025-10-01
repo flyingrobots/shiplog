@@ -19,6 +19,10 @@ current_tip() { git rev-parse --verify "$1" 2>/dev/null || true; }
 
 ff_update() {
   local ref="$1" new="$2" old="$3" msg="${4:-append shiplog entry}"
+  if shiplog_is_dry_run; then
+    shiplog_dry_run_notice "Would update $ref"
+    return 0
+  fi
   git update-ref -m "$msg" "$ref" "$new" "${old:-0000000000000000000000000000000000000000}"
 }
 
@@ -181,6 +185,10 @@ sign_commit() {
 attach_note_if_present() {
   local commit="$1" log_path="${2:-}"
   [ -z "${log_path}" ] && return 0
+  if shiplog_is_dry_run; then
+    shiplog_dry_run_notice "Would attach note to $commit"
+    return 0
+  fi
   git notes --ref="$NOTES_REF" add -F "$log_path" "$commit"
 }
 

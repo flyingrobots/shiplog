@@ -50,6 +50,18 @@ teardown() {
   [ "$build" = "200" ]
 }
 
+@test "append --dry-run previews without writing" {
+  run bash -c "git show-ref ${REF_ROOT}/journal/prod"
+  [ "$status" -ne 0 ]
+
+  run bash -c "git shiplog append --dry-run --service api --status success --reason 'dry-run' --json '{\"build\":\"preview\"}'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Would sign & append entry to ${REF_ROOT}/journal/prod"* ]]
+
+  run bash -c "git show-ref ${REF_ROOT}/journal/prod"
+  [ "$status" -ne 0 ]
+}
+
 @test "append accepts JSON from stdin" {
   local prev_env="${SHIPLOG_ENV:-prod}"
   local unique_env="prod-append-stdin-${BATS_TEST_NUMBER:-0}-${RANDOM}${RANDOM}"

@@ -113,9 +113,24 @@ run_with_global_flags() {
         export SHIPLOG_ASSUME_YES
         shift
         ;;
-     --boring)
+      --boring)
         SHIPLOG_BORING=1
         export SHIPLOG_BORING
+        shift
+        ;;
+      --dry-run)
+        SHIPLOG_DRY_RUN=1
+        export SHIPLOG_DRY_RUN
+        shift
+        ;;
+      --dry-run=*)
+        SHIPLOG_DRY_RUN="${1#*=}"
+        export SHIPLOG_DRY_RUN
+        shift
+        ;;
+      --no-dry-run)
+        SHIPLOG_DRY_RUN=0
+        export SHIPLOG_DRY_RUN
         shift
         ;;
       --help|-h)

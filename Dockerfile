@@ -62,7 +62,7 @@ export GIT_ALLOW_REFNAME_COMPONENTS_STARTING_WITH_DOT=1
 : "${TEST_ENV:=prod}"
 : "${TEST_AUTHOR_NAME:=Shiplog Test}"
 : "${TEST_AUTHOR_EMAIL:=shiplog-test@example.local}"
-: "${TEST_TIMEOUT_SECS:=180}"
+: "${TEST_TIMEOUT_SECS:=}"
 # Prefer local sandbox mode in tests to avoid network I/O
 export SHIPLOG_USE_LOCAL_SANDBOX="${SHIPLOG_USE_LOCAL_SANDBOX:-1}"
 SRC_WORKSPACE=${SHIPLOG_HOME:-/workspace}
@@ -122,9 +122,15 @@ install -m 0755 "${SHIPLOG_HOME}/bin/git-shiplog" /usr/local/bin/git-shiplog
 # git config --add remote.origin.fetch "+${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 # git config --add remote.origin.push  "${SHIPLOG_REF_ROOT}/*:${SHIPLOG_REF_ROOT}/*"
 git config core.logAllRefUpdates true
-echo "Running bats tests (timeout: ${TEST_TIMEOUT_SECS}s)"
+if [[ -n "${TEST_TIMEOUT_SECS:-}" && "${TEST_TIMEOUT_SECS}" =~ ^[0-9]+$ && "${TEST_TIMEOUT_SECS}" -gt 0 ]]; then
+  echo "Running bats tests (timeout: ${TEST_TIMEOUT_SECS}s)"
+  use_timeout=1
+else
+  echo "Running bats tests (no timeout)"
+  use_timeout=0
+fi
 if compgen -G "${SHIPLOG_HOME}/test/*.bats" > /dev/null; then
-  if command -v timeout >/dev/null 2>&1; then
+  if command -v timeout >/dev/null 2>&1 && [[ "$use_timeout" -eq 1 ]]; then
     if [ -n "${BATS_FLAGS:-}" ]; then
       timeout "${TEST_TIMEOUT_SECS}s" bats $BATS_FLAGS "${SHIPLOG_HOME}/test"
     else

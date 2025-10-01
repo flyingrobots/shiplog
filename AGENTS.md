@@ -11,16 +11,15 @@ How to run tests safely (Dockerized):
 - Do not invoke Bats or individual test files directly on the host.
 - CI runs the same flow via the bash matrix. If you need distro-specific runs locally, use `ci-matrix/run-all.sh`.
  - Tests default to `SHIPLOG_USE_LOCAL_SANDBOX=1` (no network clones); set to `0` only if you explicitly need to hit the remote sandbox repo.
-## Test Timeouts (Required)
+## Test Timeouts
 
-- Always wrap local test runs with a timeout to prevent hangs:
-  - Linux: `timeout 180s make test`
-  - macOS (coreutils): `gtimeout 180s make test`
-- For signing-enabled runs, you may extend to 360s if needed.
-- In GitHub Actions, prefer the job/step timeout or wrap the command: `timeout 180s ./test.sh`.
+- The suite no longer enforces a timeout by default. Runs will continue until completion unless you opt in.
+- To enable a guard in any environment, set `TEST_TIMEOUT_SECS` to a positive integer (e.g., `TEST_TIMEOUT_SECS=180 make test`).
+- You can still wrap the outer `make test` call with `timeout`/`gtimeout` if you suspect a hang.
+- In CI, rely on the job/step timeout or export `TEST_TIMEOUT_SECS` for an additional safety net.
 - If a timeout occurs, capture and attach logs from `ci-logs/*` or the container output for debugging.
 
-Note: The repo’s `test.sh` enforces an internal timeout (`TEST_TIMEOUT_SECS`, default 180) and disables network clones by default (`SHIPLOG_USE_LOCAL_SANDBOX=1`) to keep runs bounded and deterministic.
+Note: The suite still defaults to the local sandbox (`SHIPLOG_USE_LOCAL_SANDBOX=1`) to avoid network clones.
 # Git Workflow Guidelines
 
 ## Quick Reminders

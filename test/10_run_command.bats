@@ -85,7 +85,7 @@ teardown() {
 
   run bash -lc 'git shiplog run --dry-run --service test --reason "no-op" -- touch dry-run-file'
   [ "$status" -eq 0 ]
-  [[ "$output" == *"would execute: touch dry-run-file"* ]]
+  [[ "$output" == *"Would execute: touch dry-run-file"* ]]
   [ ! -e dry-run-file ]
 
   run git show-ref "${REF_ROOT}/journal/prod"

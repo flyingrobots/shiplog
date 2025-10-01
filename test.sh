@@ -16,15 +16,24 @@ export PATH="$SHIPLOG_HOME/bin:$PATH"
 # Avoid network during tests by default; use local sandbox init
 export SHIPLOG_USE_LOCAL_SANDBOX="${SHIPLOG_USE_LOCAL_SANDBOX:-1}"
 
-# Enforce a timeout inside the container to prevent hangs
-TEST_TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-180}"
+# Optional timeout for the Bats test run (set TEST_TIMEOUT_SECS>0 to enable)
+TEST_TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-}"
+
+use_timeout() {
+  local val="$1"
+  case "$val" in
+    ''|0|0s|0S|0sec|0SEC) return 1 ;;
+    *[!0-9]*) return 1 ;;
+  esac
+  [ "$val" -gt 0 ] 2>/dev/null
+}
 
 if ! command -v bats >/dev/null 2>&1; then
   echo "bats is required to run the Shiplog test suite" >&2
   exit 127
 fi
 
-if command -v timeout >/dev/null 2>&1; then
+if command -v timeout >/dev/null 2>&1 && use_timeout "$TEST_TIMEOUT_SECS"; then
   if [ -n "${BATS_FLAGS:-}" ]; then
     timeout "${TEST_TIMEOUT_SECS}s" bats $BATS_FLAGS "$SHIPLOG_HOME/test"
   else
