@@ -55,6 +55,10 @@ See: docs/features/write.md for full semantics and examples.
 - `SHIPLOG_SETUP_AUTO_PUSH` — `1` to push policy/trust to origin
 - `SHIPLOG_SETUP_DRY_RUN` — `1` to preview without writing/syncing
 
+## Dry Run
+
+- `SHIPLOG_DRY_RUN` — Boolean/string flag (default `0`/`false`). When set to `1`, `true`, `yes`, or `on`, Shiplog enters dry-run mode: write/append/run/setup subcommands log intended actions without updating journals, notes, or pushing refs. Example: `export SHIPLOG_DRY_RUN=1` (bash/zsh) or `set -x SHIPLOG_DRY_RUN 1` (fish). Set `0`, `false`, `no`, or `off` to disable.
+
 ## Trust Bootstrap (non-interactive)
 
 - `SHIPLOG_TRUST_COUNT`, `SHIPLOG_TRUST_ID`, `SHIPLOG_TRUST_THRESHOLD`, `SHIPLOG_TRUST_COMMIT_MESSAGE`

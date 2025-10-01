@@ -77,17 +77,24 @@ teardown() {
 }
 
 @test "run dry-run previews without executing" {
+  local unique_env="prod-run-dryrun-${BATS_TEST_NUMBER:-0}-${RANDOM}${RANDOM}"
+  local journal_ref="${REF_ROOT}/journal/${unique_env}"
+  trap "git update-ref -d \"$journal_ref\" >/dev/null 2>&1 || true" EXIT
+
+  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
+
   rm -f dry-run-file
   [ ! -e dry-run-file ]
 
-  run git show-ref "${REF_ROOT}/journal/prod"
+  run git show-ref "$journal_ref"
   [ "$status" -ne 0 ]
 
-  run bash -lc 'git shiplog run --dry-run --service test --reason "no-op" -- touch dry-run-file'
+  run bash -lc "SHIPLOG_ENV=\"$unique_env\" git shiplog run --dry-run --service test --reason 'no-op' -- touch dry-run-file"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Would execute: touch dry-run-file"* ]]
+  [[ "$output" == *"Would sign & append entry to ${journal_ref}"* ]]
   [ ! -e dry-run-file ]
 
-  run git show-ref "${REF_ROOT}/journal/prod"
+  run git show-ref "$journal_ref"
   [ "$status" -ne 0 ]
 }

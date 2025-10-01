@@ -37,14 +37,20 @@ teardown() {
 }
 
 @test "write --dry-run previews without writing" {
-  run git show-ref "${REF_ROOT}/journal/prod"
+  local unique_env="prod-write-dryrun-${BATS_TEST_NUMBER:-0}-${RANDOM}${RANDOM}"
+  local journal_ref="${REF_ROOT}/journal/${unique_env}"
+  trap "git update-ref -d \"$journal_ref\" >/dev/null 2>&1 || true" EXIT
+
+  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
+
+  run git show-ref "$journal_ref"
   [ "$status" -ne 0 ]
 
-  run git shiplog --boring write --dry-run
+  run env SHIPLOG_ENV="$unique_env" git shiplog --boring write --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Would sign & append entry to ${REF_ROOT}/journal/prod"* ]]
+  [[ "$output" == *"Would sign & append entry to ${REF_ROOT}/journal/${unique_env}"* ]]
 
-  run git show-ref "${REF_ROOT}/journal/prod"
+  run git show-ref "$journal_ref"
   [ "$status" -ne 0 ]
 }
 

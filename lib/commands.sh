@@ -255,10 +255,12 @@ cmd_write() {
   local origin_available=0
   if has_remote_origin; then
     origin_available=1
-    maybe_sync_shiplog_ref "$trust_ref"
-    maybe_sync_shiplog_ref "$journal_ref"
-    if [ -n "$notes_ref" ]; then
-      git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+    if [ "${dry_run:-0}" -ne 1 ]; then
+      maybe_sync_shiplog_ref "$trust_ref"
+      maybe_sync_shiplog_ref "$journal_ref"
+      if [ -n "$notes_ref" ]; then
+        git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+      fi
     fi
   fi
 
@@ -350,14 +352,15 @@ cmd_write() {
   fi
 
   if shiplog_can_use_bosun; then
-    local bosun
+    local bosun structured_preview
     bosun=$(shiplog_bosun_bin)
     "$bosun" style --title "Preview" -- "$msg"
-    shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
+    structured_preview=$(jq -n --arg preview "$env" --arg status "$status" --arg service "$service" '{preview:$preview,status:$status,service:$service}')
+    shiplog_log_structured "$structured_preview"
   else
     printf '%s\n' "$msg"
     if ! is_boring; then
-      shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
+      shiplog_log_structured "$(jq -n --arg preview "$env" --arg status "$status" --arg service "$service" '{preview:$preview,status:$status,service:$service}')"
     fi
   fi
 
@@ -381,14 +384,25 @@ cmd_write() {
   ff_update "$journal_ref" "$new" "$parent" "shiplog: append entry"
   local append_message="✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
   if shiplog_can_use_bosun; then
-    local bosun
+    local bosun structured_log
     bosun=$(shiplog_bosun_bin)
     "$bosun" style --title "Write" -- "$append_message"
-    shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
+    structured_log=$(jq -n \
+      --arg env "$env" --arg status "$status" --arg service "$service" \
+      --arg artifact "$artifact" --arg region "$region" --arg cluster "$cluster" \
+      --arg namespace "$ns" --arg ticket "$ticket" --arg reason "$reason" \
+      '{env:$env,status:$status,service:$service,artifact:$artifact,region:$region,cluster:$cluster,namespace:$namespace,ticket:$ticket,reason:$reason}')
+    shiplog_log_structured "$structured_log"
   else
     printf '%s\n' "$append_message"
     if ! is_boring; then
-      shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
+      shiplog_log_structured "$(
+        jq -n \
+          --arg env "$env" --arg status "$status" --arg service "$service" \
+          --arg artifact "$artifact" --arg region "$region" --arg cluster "$cluster" \
+          --arg namespace "$ns" --arg ticket "$ticket" --arg reason "$reason" \
+          '{env:$env,status:$status,service:$service,artifact:$artifact,region:$region,cluster:$cluster,namespace:$namespace,ticket:$ticket,reason:$reason}'
+      )"
     fi
   fi
 
@@ -428,8 +442,10 @@ cmd_run() {
   local cluster="${SHIPLOG_CLUSTER:-}"
 
   local dry_run=0
+  local skip_execution=0
   if shiplog_is_dry_run; then
     dry_run=1
+    skip_execution=1
   fi
   local -a run_argv=()
   while [ $# -gt 0 ]; do
@@ -471,14 +487,25 @@ cmd_run() {
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
       --dry-run)
-        dry_run=1; SHIPLOG_DRY_RUN=1; export SHIPLOG_DRY_RUN; shift; continue ;;
+        dry_run=1
+        skip_execution=1
+        SHIPLOG_DRY_RUN=1
+        export SHIPLOG_DRY_RUN
+        shift
+        continue ;;
       --dry-run=*)
         local run_dry_val="${1#*=}"
         case "$(printf '%s' "$run_dry_val" | tr '[:upper:]' '[:lower:]')" in
-          0|false|no|off|'')
-            dry_run=0; SHIPLOG_DRY_RUN=0 ;;
+          0|false|no|off|'' )
+            dry_run=0
+            skip_execution=0
+            SHIPLOG_DRY_RUN=0
+            ;;
           *)
-            dry_run=1; SHIPLOG_DRY_RUN="$run_dry_val" ;;
+            dry_run=1
+            skip_execution=1
+            SHIPLOG_DRY_RUN="$run_dry_val"
+            ;;
         esac
         export SHIPLOG_DRY_RUN
         shift; continue ;;
@@ -512,7 +539,6 @@ cmd_run() {
 
   if [ "$dry_run" -eq 1 ]; then
     shiplog_dry_run_notice "Would execute: $cmd_display"
-    return 0
   fi
 
   local started_at finished_at
@@ -523,37 +549,47 @@ cmd_run() {
     tee_output=0
   fi
 
-  started_at="$(fmt_ts)"
-  start_epoch=$(date -u +%s)
-
-  local cmd_status
-  if [ "$tee_output" -eq 1 ]; then
-    set +e
-    "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
-    cmd_status=$?
-    set -e
-  else
-    set +e
-    "${run_argv[@]}" >"$log_path" 2>&1
-    cmd_status=$?
-    set -e
-  fi
-
-  finished_at="$(fmt_ts)"
-  end_epoch=$(date -u +%s)
-  duration_s=$(( end_epoch - start_epoch ))
-  if [ "$duration_s" -lt 0 ]; then
-    duration_s=0
-  fi
-
-  local run_status="$status_failure"
-  if [ "$cmd_status" -eq 0 ]; then
-    run_status="$status_success"
-  fi
-
+  local cmd_status run_status
   local log_attached_bool="false"
-  if [ -s "$log_path" ]; then
-    log_attached_bool="true"
+
+  if [ "$skip_execution" -eq 0 ]; then
+    started_at="$(fmt_ts)"
+    start_epoch=$(date -u +%s)
+
+    if [ "$tee_output" -eq 1 ]; then
+      set +e
+      "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+      cmd_status=$?
+      set -e
+    else
+      set +e
+      "${run_argv[@]}" >"$log_path" 2>&1
+      cmd_status=$?
+      set -e
+    fi
+
+    finished_at="$(fmt_ts)"
+    end_epoch=$(date -u +%s)
+    duration_s=$(( end_epoch - start_epoch ))
+    if [ "$duration_s" -lt 0 ]; then
+      duration_s=0
+    fi
+
+    run_status="$status_failure"
+    if [ "$cmd_status" -eq 0 ]; then
+      run_status="$status_success"
+    fi
+
+    if [ -s "$log_path" ]; then
+      log_attached_bool="true"
+    fi
+  else
+    cmd_status=0
+    run_status="$status_success"
+    started_at="$(fmt_ts)"
+    finished_at="$started_at"
+    duration_s=0
+    log_attached_bool="false"
   fi
 
   local argv_json
@@ -860,10 +896,8 @@ EOF
     [ -n "$tag" ] && export SHIPLOG_TAG="$tag"
     [ -n "$run_url" ] && export SHIPLOG_RUN_URL="$run_url"
     [ -n "$log_path" ] && export SHIPLOG_LOG="$log_path"
-    if [ "$dry_run" -eq 1 ]; then
-      SHIPLOG_DRY_RUN=1
-      export SHIPLOG_DRY_RUN
-    fi
+    SHIPLOG_DRY_RUN="$dry_run"
+    export SHIPLOG_DRY_RUN
     cmd_write --env "$env"
   )
   return $?
@@ -1047,23 +1081,26 @@ cmd_policy() {
           fi
         else
           local rows="" raw_policy
-          rows+=$'Source	'"${POLICY_SOURCE:-default}"$'
+          rows+='Source'$'\t'"${POLICY_SOURCE:-default}"$'
 '
-          rows+=$'Require Signed	'"$signed_status"$'
+          rows+='Require Signed'$'\t'"$signed_status"$'
 '
-          rows+=$'Allowed Authors	'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'
+          rows+='Allowed Authors'$'\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'
 '
-          rows+=$'Allowed Signers File	'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'
+          rows+='Allowed Signers File'$'\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'
 '
-          rows+=$'Notes Ref	'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'
+          rows+='Notes Ref'$'\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'
 '
           raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            printf '%s
-' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)	\(.value.require_signed)"' 2>/dev/null | while IFS=$'	' read -r env_name env_req; do
+            mapfile -t policy_rows < <(
+              printf '%s\n' "$raw_policy" |
+                jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null
+            )
+            for row in "${policy_rows[@]}"; do
+              IFS=$'\t' read -r env_name env_req <<<"$row"
               [ -z "$env_name" ] && continue
-              rows+=$'Require Signed ('"$env_name"$')	'"$env_req"$'
-'
+              rows+='Require Signed ('"$env_name"$')'$'\t'"$env_req"$'\n'
             done
           fi
           local bosun; bosun=$(shiplog_bosun_bin)
@@ -1530,7 +1567,7 @@ Environment Variables:
   SHIPLOG_AUTO_PUSH    Auto-push to origin (default: 1)
   SHIPLOG_ASSUME_YES   Auto-confirm prompts (default: 0)
   SHIPLOG_BORING       Enable non-interactive mode (default: 0)
-  SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on)
+  SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on; 0/false/no/off disables)
 EOF
 }
 run_command() {
