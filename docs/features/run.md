@@ -1,11 +1,12 @@
 # Run Command
 
 ## Summary
-`git shiplog run` wraps a shell command, captures its stdout/stderr, and records the execution as a Shiplog journal entry. The command output is saved as a git note, and the structured trailer gains a `run` payload describing the invocation.
+`git shiplog run` wraps a shell command, captures its stdout/stderr, and records the execution as a Shiplog journal entry. The command output is saved as a git note, and the structured trailer gains a `run` payload describing the invocation. Use `--dry-run` to preview what would happen without executing the command or writing an entry.
 
 ## Usage
 ```bash
 git shiplog run --service deploy --reason "Smoke test" -- env printf hi
+git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf hi
 ```
 
 - `--service` is required in non-interactive mode (and highly recommended in general).
@@ -14,6 +15,7 @@ git shiplog run --service deploy --reason "Smoke test" -- env printf hi
 
 ## Behavior
 - Captures stdout/stderr to a temporary file. When not in boring mode, output is also streamed to your terminal via `tee`.
+- `--dry-run` prints the wrapped command, returns exit code 0, and skips execution, journal writes, and log attachment.
 - Sets `SHIPLOG_BORING=1` and `SHIPLOG_ASSUME_YES=1` while calling `git shiplog write` so no prompts fire.
 - Populates `SHIPLOG_EXTRA_JSON` with:
   ```json
@@ -34,6 +36,7 @@ git shiplog run --service deploy --reason "Smoke test" -- env printf hi
 - Returns the wrapped command’s exit code so it can be chained in scripts or CI pipelines.
 
 ## Options
+- `--dry-run` — Print the command that would execute, then exit without running it or writing a journal entry.
 - `--env <name>` — Target journal environment (defaults to `SHIPLOG_ENV` or `prod`).
 - `--service <name>` — Service/component; required when prompts are disabled.
 - `--reason <text>` — Optional free-form description.
