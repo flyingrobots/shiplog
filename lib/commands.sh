@@ -579,7 +579,6 @@ cmd_run() {
     finished_at="$started_at"
     duration_s=0
     log_attached_bool="false"
-    : > "$log_path"
   fi
 
   local argv_json
