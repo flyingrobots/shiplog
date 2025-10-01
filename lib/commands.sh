@@ -394,6 +394,7 @@ cmd_run() {
   local region="${SHIPLOG_REGION:-}"
   local cluster="${SHIPLOG_CLUSTER:-}"
 
+  local dry_run=0
   local -a run_argv=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -433,6 +434,8 @@ cmd_run() {
         shift; cluster="${1:-}"; shift; continue ;;
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
+      --dry-run)
+        dry_run=1; shift; continue ;;
       --)
         shift
         while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
@@ -451,6 +454,26 @@ cmd_run() {
 
   if [ -z "$service" ]; then
     die "shiplog: --service (or SHIPLOG_SERVICE) is required for run"
+  fi
+
+  local -a quoted_cmd=()
+  local arg
+  for arg in "${run_argv[@]}"; do
+    quoted_cmd+=("$(printf '%q' "$arg")")
+  done
+  local cmd_display
+  cmd_display="${quoted_cmd[*]}"
+
+  if [ "$dry_run" -eq 1 ]; then
+    local dry_message="shiplog run --dry-run: would execute: $cmd_display"
+    if shiplog_can_use_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Dry Run" -- "🚫 ${dry_message#shiplog run --dry-run: }"
+    else
+      printf '%s\n' "ℹ️ $dry_message"
+    fi
+    return 0
   fi
 
   local started_at finished_at
@@ -493,14 +516,6 @@ cmd_run() {
   if [ -s "$log_path" ]; then
     log_attached_bool="true"
   fi
-
-  local -a quoted_cmd=()
-  local arg
-  for arg in "${run_argv[@]}"; do
-    quoted_cmd+=("$(printf '%q' "$arg")")
-  done
-  local cmd_display
-  cmd_display="${quoted_cmd[*]}"
 
   local argv_json
   argv_json=$(printf '%s\n' "${run_argv[@]}" | jq -R . | jq -s .)
