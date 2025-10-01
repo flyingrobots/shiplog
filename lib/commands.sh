@@ -442,8 +442,10 @@ cmd_run() {
   local cluster="${SHIPLOG_CLUSTER:-}"
 
   local dry_run=0
+  local skip_execution=0
   if shiplog_is_dry_run; then
     dry_run=1
+    skip_execution=1
   fi
   local -a run_argv=()
   while [ $# -gt 0 ]; do
@@ -485,14 +487,14 @@ cmd_run() {
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
       --dry-run)
-        dry_run=1; SHIPLOG_DRY_RUN=1; export SHIPLOG_DRY_RUN; shift; continue ;;
+        dry_run=1; skip_execution=1; SHIPLOG_DRY_RUN=1; export SHIPLOG_DRY_RUN; shift; continue ;;
       --dry-run=*)
         local run_dry_val="${1#*=}"
         case "$(printf '%s' "$run_dry_val" | tr '[:upper:]' '[:lower:]')" in
           0|false|no|off|'')
-            dry_run=0; SHIPLOG_DRY_RUN=0 ;;
+            dry_run=0; skip_execution=0; SHIPLOG_DRY_RUN=0 ;;
           *)
-            dry_run=1; SHIPLOG_DRY_RUN="$run_dry_val" ;;
+            dry_run=1; skip_execution=1; SHIPLOG_DRY_RUN="$run_dry_val" ;;
         esac
         export SHIPLOG_DRY_RUN
         shift; continue ;;
@@ -526,7 +528,6 @@ cmd_run() {
 
   if [ "$dry_run" -eq 1 ]; then
     shiplog_dry_run_notice "Would execute: $cmd_display"
-    return 0
   fi
 
   local started_at finished_at
@@ -537,37 +538,48 @@ cmd_run() {
     tee_output=0
   fi
 
-  started_at="$(fmt_ts)"
-  start_epoch=$(date -u +%s)
-
-  local cmd_status
-  if [ "$tee_output" -eq 1 ]; then
-    set +e
-    "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
-    cmd_status=$?
-    set -e
-  else
-    set +e
-    "${run_argv[@]}" >"$log_path" 2>&1
-    cmd_status=$?
-    set -e
-  fi
-
-  finished_at="$(fmt_ts)"
-  end_epoch=$(date -u +%s)
-  duration_s=$(( end_epoch - start_epoch ))
-  if [ "$duration_s" -lt 0 ]; then
-    duration_s=0
-  fi
-
-  local run_status="$status_failure"
-  if [ "$cmd_status" -eq 0 ]; then
-    run_status="$status_success"
-  fi
-
+  local cmd_status run_status
   local log_attached_bool="false"
-  if [ -s "$log_path" ]; then
-    log_attached_bool="true"
+
+  if [ "$skip_execution" -eq 0 ]; then
+    started_at="$(fmt_ts)"
+    start_epoch=$(date -u +%s)
+
+    if [ "$tee_output" -eq 1 ]; then
+      set +e
+      "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+      cmd_status=$?
+      set -e
+    else
+      set +e
+      "${run_argv[@]}" >"$log_path" 2>&1
+      cmd_status=$?
+      set -e
+    fi
+
+    finished_at="$(fmt_ts)"
+    end_epoch=$(date -u +%s)
+    duration_s=$(( end_epoch - start_epoch ))
+    if [ "$duration_s" -lt 0 ]; then
+      duration_s=0
+    fi
+
+    run_status="$status_failure"
+    if [ "$cmd_status" -eq 0 ]; then
+      run_status="$status_success"
+    fi
+
+    if [ -s "$log_path" ]; then
+      log_attached_bool="true"
+    fi
+  else
+    cmd_status=0
+    run_status="$status_success"
+    started_at="$(fmt_ts)"
+    finished_at="$started_at"
+    duration_s=0
+    log_attached_bool="false"
+    : > "$log_path"
   fi
 
   local argv_json
