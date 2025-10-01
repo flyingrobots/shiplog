@@ -79,6 +79,7 @@ teardown() {
 @test "run dry-run previews without executing" {
   local unique_env="prod-run-dryrun-${BATS_TEST_NUMBER:-0}-${RANDOM}${RANDOM}"
   local journal_ref="${REF_ROOT}/journal/${unique_env}"
+  trap "git update-ref -d \"$journal_ref\" >/dev/null 2>&1 || true" EXIT
 
   git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
 
@@ -96,6 +97,4 @@ teardown() {
 
   run git show-ref "$journal_ref"
   [ "$status" -ne 0 ]
-
-  git update-ref -d "$journal_ref" >/dev/null 2>&1 || true
 }
