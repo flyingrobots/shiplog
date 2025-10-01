@@ -255,10 +255,12 @@ cmd_write() {
   local origin_available=0
   if has_remote_origin; then
     origin_available=1
-    maybe_sync_shiplog_ref "$trust_ref"
-    maybe_sync_shiplog_ref "$journal_ref"
-    if [ -n "$notes_ref" ]; then
-      git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+    if [ "${dry_run:-0}" -ne 1 ]; then
+      maybe_sync_shiplog_ref "$trust_ref"
+      maybe_sync_shiplog_ref "$journal_ref"
+      if [ -n "$notes_ref" ]; then
+        git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+      fi
     fi
   fi
 
@@ -350,14 +352,15 @@ cmd_write() {
   fi
 
   if shiplog_can_use_bosun; then
-    local bosun
+    local bosun structured_preview
     bosun=$(shiplog_bosun_bin)
     "$bosun" style --title "Preview" -- "$msg"
-    shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
+    structured_preview=$(jq -n --arg preview "$env" --arg status "$status" --arg service "$service" '{preview:$preview,status:$status,service:$service}')
+    shiplog_log_structured "$structured_preview"
   else
     printf '%s\n' "$msg"
     if ! is_boring; then
-      shiplog_log_structured "{\"preview\":\"$env\",\"status\":\"$status\",\"service\":\"$service\"}"
+      shiplog_log_structured "$(jq -n --arg preview "$env" --arg status "$status" --arg service "$service" '{preview:$preview,status:$status,service:$service}')"
     fi
   fi
 
@@ -381,14 +384,25 @@ cmd_write() {
   ff_update "$journal_ref" "$new" "$parent" "shiplog: append entry"
   local append_message="✅ Appended $(git rev-parse --short "$new") to $(ref_journal "$env")"
   if shiplog_can_use_bosun; then
-    local bosun
+    local bosun structured_log
     bosun=$(shiplog_bosun_bin)
     "$bosun" style --title "Write" -- "$append_message"
-    shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
+    structured_log=$(jq -n \
+      --arg env "$env" --arg status "$status" --arg service "$service" \
+      --arg artifact "$artifact" --arg region "$region" --arg cluster "$cluster" \
+      --arg namespace "$ns" --arg ticket "$ticket" --arg reason "$reason" \
+      '{env:$env,status:$status,service:$service,artifact:$artifact,region:$region,cluster:$cluster,namespace:$namespace,ticket:$ticket,reason:$reason}')
+    shiplog_log_structured "$structured_log"
   else
     printf '%s\n' "$append_message"
     if ! is_boring; then
-      shiplog_log_structured "{\"env\":\"$env\",\"status\":\"$status\",\"service\":\"$service\",\"artifact\":\"$artifact\",\"region\":\"$region\",\"cluster\":\"$cluster\",\"namespace\":\"$ns\",\"ticket\":\"$ticket\",\"reason\":\"$reason\"}"
+      shiplog_log_structured "$(
+        jq -n \
+          --arg env "$env" --arg status "$status" --arg service "$service" \
+          --arg artifact "$artifact" --arg region "$region" --arg cluster "$cluster" \
+          --arg namespace "$ns" --arg ticket "$ticket" --arg reason "$reason" \
+          '{env:$env,status:$status,service:$service,artifact:$artifact,region:$region,cluster:$cluster,namespace:$namespace,ticket:$ticket,reason:$reason}'
+      )"
     fi
   fi
 
@@ -860,10 +874,8 @@ EOF
     [ -n "$tag" ] && export SHIPLOG_TAG="$tag"
     [ -n "$run_url" ] && export SHIPLOG_RUN_URL="$run_url"
     [ -n "$log_path" ] && export SHIPLOG_LOG="$log_path"
-    if [ "$dry_run" -eq 1 ]; then
-      SHIPLOG_DRY_RUN=1
-      export SHIPLOG_DRY_RUN
-    fi
+    SHIPLOG_DRY_RUN="$dry_run"
+    export SHIPLOG_DRY_RUN
     cmd_write --env "$env"
   )
   return $?
@@ -1047,22 +1059,22 @@ cmd_policy() {
           fi
         else
           local rows="" raw_policy
-          rows+=$'Source	'"${POLICY_SOURCE:-default}"$'
+          rows+='Source'$'\t'"${POLICY_SOURCE:-default}"$'
 '
-          rows+=$'Require Signed	'"$signed_status"$'
+          rows+='Require Signed'$'\t'"$signed_status"$'
 '
-          rows+=$'Allowed Authors	'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'
+          rows+='Allowed Authors'$'\t'"${ALLOWED_AUTHORS_EFFECTIVE:-<none>}"$'
 '
-          rows+=$'Allowed Signers File	'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'
+          rows+='Allowed Signers File'$'\t'"${SIGNERS_FILE_EFFECTIVE:-<none>}"$'
 '
-          rows+=$'Notes Ref	'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'
+          rows+='Notes Ref'$'\t'"${NOTES_REF:-refs/_shiplog/notes/logs}"$'
 '
           raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
             printf '%s
 ' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)	\(.value.require_signed)"' 2>/dev/null | while IFS=$'	' read -r env_name env_req; do
               [ -z "$env_name" ] && continue
-              rows+=$'Require Signed ('"$env_name"$')	'"$env_req"$'
+              rows+='Require Signed ('"$env_name"$')'$'\t'"$env_req"$'
 '
             done
           fi
@@ -1530,7 +1542,7 @@ Environment Variables:
   SHIPLOG_AUTO_PUSH    Auto-push to origin (default: 1)
   SHIPLOG_ASSUME_YES   Auto-confirm prompts (default: 0)
   SHIPLOG_BORING       Enable non-interactive mode (default: 0)
-  SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on)
+  SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on; 0/false/no/off disables)
 EOF
 }
 run_command() {
