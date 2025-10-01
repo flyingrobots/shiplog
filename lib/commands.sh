@@ -496,10 +496,16 @@ cmd_run() {
       --dry-run=*)
         local run_dry_val="${1#*=}"
         case "$(printf '%s' "$run_dry_val" | tr '[:upper:]' '[:lower:]')" in
-          0|false|no|off|'')
-            dry_run=0; skip_execution=0; SHIPLOG_DRY_RUN=0 ;;
+          0|false|no|off|'' )
+            dry_run=0
+            skip_execution=0
+            SHIPLOG_DRY_RUN=0
+            ;;
           *)
-            dry_run=1; skip_execution=1; SHIPLOG_DRY_RUN="$run_dry_val" ;;
+            dry_run=1
+            skip_execution=1
+            SHIPLOG_DRY_RUN="$run_dry_val"
+            ;;
         esac
         export SHIPLOG_DRY_RUN
         shift; continue ;;
