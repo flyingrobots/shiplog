@@ -61,6 +61,27 @@ shiplog_can_use_bosun() {
   shiplog_have_bosun
 }
 
+shiplog_is_dry_run() {
+  case "${SHIPLOG_DRY_RUN:-0}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+shiplog_dry_run_notice() {
+  local message="${1:-}"
+  if [ -z "$message" ]; then
+    message="Dry-run: no changes performed"
+  fi
+  if shiplog_can_use_bosun; then
+    local bosun
+    bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Dry Run" -- "$message"
+  else
+    printf 'ℹ️ dry-run: %s\n' "$message"
+  fi
+}
+
 shiplog_log_structured() {
   printf '%s\n' "$1" >&2
 }

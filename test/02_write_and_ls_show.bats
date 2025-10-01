@@ -36,6 +36,18 @@ teardown() {
   [[ "$output" == "Deploy: web"* ]]
 }
 
+@test "write --dry-run previews without writing" {
+  run git show-ref "${REF_ROOT}/journal/prod"
+  [ "$status" -ne 0 ]
+
+  run git shiplog --boring write --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Would sign & append entry to ${REF_ROOT}/journal/prod"* ]]
+
+  run git show-ref "${REF_ROOT}/journal/prod"
+  [ "$status" -ne 0 ]
+}
+
 @test "ls shows a formatted table via bosun" {
   run git shiplog --yes write
   [ "$status" -eq 0 ]

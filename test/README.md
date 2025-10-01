@@ -14,7 +14,7 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 - `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The container mounts the workspace at `/workspace` and executes `/usr/local/bin/run-tests`.
 - The `run-tests` entrypoint copies the repo to a temporary snapshot inside the container and sets `SHIPLOG_HOME` to that snapshot to prevent accidental mutations of the bind mount.
 - Default test mode avoids network clones: `SHIPLOG_USE_LOCAL_SANDBOX=1` (set to `0` only if you explicitly need to hit the remote sandbox).
-- Timeout is enforced in-container: `TEST_TIMEOUT_SECS` (default `180`). You can add `BATS_FLAGS` (e.g., `--print-output-on-failure -T`) for verbose runs.
+- You can opt into an in-container timeout by setting `TEST_TIMEOUT_SECS` to a positive integer. Add `BATS_FLAGS` (e.g., `--print-output-on-failure -T`) for verbose runs.
 - `make test-signing` performs the same flow with `ENABLE_SIGNING=true`, generating a throw‑away GPG key inside the container to exercise signed‑commit verification.
 - The entrypoint installs `bin/git-shiplog` into `/usr/local/bin/git-shiplog` and exports `SHIPLOG_BOSUN_BIN`, then runs Bats (`bats -r`).
 - Each Bats file calls `load helpers/common`, whose `shiplog_install_cli` helper ensures the CLI is present and executable before tests begin.
@@ -47,7 +47,7 @@ The `test/` directory contains the Bats-based integration suite that exercises t
   - In non‑TTY, Bosun does not prompt; tests run with safe fallbacks.
 
 - Hanging or very slow tests
-  - Use timeouts: `TEST_TIMEOUT_SECS=180 BATS_FLAGS="--print-output-on-failure -T" make test`
+  - Opt into a timeout if needed: `TEST_TIMEOUT_SECS=180 BATS_FLAGS="--print-output-on-failure -T" make test`
   - Local sandbox (no network clones) is default: `SHIPLOG_USE_LOCAL_SANDBOX=1` (set to `0` only if required).
 
 - “Signing support not enabled” or skipped signing tests

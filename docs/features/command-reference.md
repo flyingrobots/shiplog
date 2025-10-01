@@ -8,6 +8,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 - `--boring` — Non-interactive mode (plain output; prompts disabled). Also `SHIPLOG_BORING=1`.
 - `--yes` — Auto-confirm prompts (sets `SHIPLOG_ASSUME_YES=1`).
 - `--no-push` / `--push` — Control auto-push behavior for commands that push refs.
+- `--dry-run` — Preview actions without updating Shiplog journals or notes (`SHIPLOG_DRY_RUN=1`).
 - `--version` `-V` — Print version and exit.
 - `--help` `-h` — Show usage.
 
@@ -28,12 +29,13 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
     - Interactive: `git shiplog write prod`
     - Non-interactive: `SHIPLOG_BORING=1 git shiplog --yes write prod`
   - Env: `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`, `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`, `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`, `SHIPLOG_LOG`, `SHIPLOG_AUTO_PUSH`.
+  - Flags: accepts `--dry-run` to preview the entry after prompts without appending to the journal or pushing notes.
   - Effects: honors allowlists/signing per policy; pushes journal (+notes) to origin unless disabled.
 
 - `append [OPTIONS]`
   - Purpose: append a new entry non-interactively by supplying a JSON payload via CLI, stdin, or file.
   - Usage: `printf '{"deployment":"green"}' | git shiplog append --service deploy --status success --json -`
-  - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`).
+  - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`, `--dry-run`).
   - Notes: sets `SHIPLOG_EXTRA_JSON` automatically with the provided object and runs `write` in boring/auto-confirm mode.
 
 - `run [OPTIONS] -- <command ...>`

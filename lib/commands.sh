@@ -182,6 +182,10 @@ cmd_write() {
 
   # Parse positional ENV and optional flags to prefill prompts
   local json_from_stdin=0
+  local dry_run=0
+  if shiplog_is_dry_run; then
+    dry_run=1
+  fi
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -209,6 +213,30 @@ cmd_write() {
       --tag=*) SHIPLOG_TAG="${1#*=}"; export SHIPLOG_TAG; shift; continue ;;
       --run-url) shift; SHIPLOG_RUN_URL="${1:-}"; export SHIPLOG_RUN_URL; shift; continue ;;
       --run-url=*) SHIPLOG_RUN_URL="${1#*=}"; export SHIPLOG_RUN_URL; shift; continue ;;
+      --dry-run)
+        dry_run=1
+        SHIPLOG_DRY_RUN=1
+        export SHIPLOG_DRY_RUN
+        shift
+        continue
+        ;;
+      --dry-run=*)
+        local dry_val
+        dry_val="${1#*=}"
+        case "$(printf '%s' "$dry_val" | tr '[:upper:]' '[:lower:]')" in
+          0|false|no|off|'')
+            dry_run=0
+            SHIPLOG_DRY_RUN=0
+            ;;
+          *)
+            dry_run=1
+            SHIPLOG_DRY_RUN="$dry_val"
+            ;;
+        esac
+        export SHIPLOG_DRY_RUN
+        shift
+        continue
+        ;;
       --) shift; break ;;
       -*) args+=("$1"); shift; continue ;;
       *)
@@ -333,6 +361,11 @@ cmd_write() {
     fi
   fi
 
+  if [ "$dry_run" -eq 1 ]; then
+    shiplog_dry_run_notice "Would sign & append entry to $journal_ref"
+    return 0
+  fi
+
   shiplog_confirm "Sign & append this entry to $journal_ref?" || die "Aborted."
 
   local tree; tree="$(empty_tree)"
@@ -395,6 +428,9 @@ cmd_run() {
   local cluster="${SHIPLOG_CLUSTER:-}"
 
   local dry_run=0
+  if shiplog_is_dry_run; then
+    dry_run=1
+  fi
   local -a run_argv=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -435,7 +471,17 @@ cmd_run() {
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
       --dry-run)
-        dry_run=1; shift; continue ;;
+        dry_run=1; SHIPLOG_DRY_RUN=1; export SHIPLOG_DRY_RUN; shift; continue ;;
+      --dry-run=*)
+        local run_dry_val="${1#*=}"
+        case "$(printf '%s' "$run_dry_val" | tr '[:upper:]' '[:lower:]')" in
+          0|false|no|off|'')
+            dry_run=0; SHIPLOG_DRY_RUN=0 ;;
+          *)
+            dry_run=1; SHIPLOG_DRY_RUN="$run_dry_val" ;;
+        esac
+        export SHIPLOG_DRY_RUN
+        shift; continue ;;
       --)
         shift
         while [ $# -gt 0 ]; do run_argv+=("$1"); shift; done
@@ -465,14 +511,7 @@ cmd_run() {
   cmd_display="${quoted_cmd[*]}"
 
   if [ "$dry_run" -eq 1 ]; then
-    local dry_message="shiplog run --dry-run: would execute: $cmd_display"
-    if shiplog_can_use_bosun; then
-      local bosun
-      bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Dry Run" -- "🚫 ${dry_message#shiplog run --dry-run: }"
-    else
-      printf '%s\n' "ℹ️ $dry_message"
-    fi
+    shiplog_dry_run_notice "Would execute: $cmd_display"
     return 0
   fi
 
@@ -699,6 +738,10 @@ cmd_append() {
   local log_path="${SHIPLOG_LOG:-}"
   local extra_json=""
   local json_from_stdin=0
+  local dry_run=0
+  if shiplog_is_dry_run; then
+    dry_run=1
+  fi
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -758,6 +801,17 @@ cmd_append() {
         shift; [ -n "${1:-}" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "${1}")"; shift; continue ;;
       --json-file=*)
         local json_file; json_file="${1#*=}"; [ -n "$json_file" ] || die "shiplog: --json-file requires a path"; extra_json="$(cat "$json_file")"; shift; continue ;;
+      --dry-run)
+        dry_run=1; SHIPLOG_DRY_RUN=1; export SHIPLOG_DRY_RUN; shift; continue ;;
+      --dry-run=*)
+        local append_dry_val; append_dry_val="${1#*=}";
+        case "$(printf '%s' "$append_dry_val" | tr '[:upper:]' '[:lower:]')" in
+          0|false|no|off|'')
+            dry_run=0; SHIPLOG_DRY_RUN=0 ;;
+          *)
+            dry_run=1; SHIPLOG_DRY_RUN="$append_dry_val" ;;
+        esac
+        export SHIPLOG_DRY_RUN; shift; continue ;;
       --help|-h)
         cat <<'EOF'
 Usage: git shiplog append [--env ENV] --service NAME --json '{...}' [OPTIONS]
@@ -806,6 +860,10 @@ EOF
     [ -n "$tag" ] && export SHIPLOG_TAG="$tag"
     [ -n "$run_url" ] && export SHIPLOG_RUN_URL="$run_url"
     [ -n "$log_path" ] && export SHIPLOG_LOG="$log_path"
+    if [ "$dry_run" -eq 1 ]; then
+      SHIPLOG_DRY_RUN=1
+      export SHIPLOG_DRY_RUN
+    fi
     cmd_write --env "$env"
   )
   return $?
@@ -1201,7 +1259,14 @@ cmd_setup() {
   local dry_run=0
   # Trust passthrough args
   local -a trust_args; trust_args=()
-  local dry_run=0
+
+  if shiplog_is_dry_run; then
+    dry_run=1
+    if [ -z "${SHIPLOG_SETUP_DRY_RUN:-}" ]; then
+      SHIPLOG_SETUP_DRY_RUN=1
+      export SHIPLOG_SETUP_DRY_RUN
+    fi
+  fi
 
   # Parse options (no prompts)
   while [ $# -gt 0 ]; do
@@ -1448,6 +1513,7 @@ Global Options:
   --boring             Non-interactive mode (requires SHIPLOG_* env vars)
   --yes                Auto-confirm all prompts
   --no-push            Skip automatic git push of shiplog refs
+  --dry-run            Preview actions without appending to logs or updating notes
 
 Environment Variables:
   SHIPLOG_SERVICE      Service name (required in --boring mode)
@@ -1464,6 +1530,7 @@ Environment Variables:
   SHIPLOG_AUTO_PUSH    Auto-push to origin (default: 1)
   SHIPLOG_ASSUME_YES   Auto-confirm prompts (default: 0)
   SHIPLOG_BORING       Enable non-interactive mode (default: 0)
+  SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on)
 EOF
 }
 run_command() {
