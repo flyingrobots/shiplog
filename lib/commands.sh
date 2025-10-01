@@ -1082,11 +1082,14 @@ cmd_policy() {
 '
           raw_policy=$(load_raw_policy)
           if [ -n "$raw_policy" ]; then
-            printf '%s
-' "$raw_policy" | jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null | while IFS=$'\t' read -r env_name env_req; do
+            mapfile -t policy_rows < <(
+              printf '%s\n' "$raw_policy" |
+                jq -r '(.deployment_requirements // {}) | to_entries | map(select(.value.require_signed != null)) | .[] | "\(.key)\t\(.value.require_signed)"' 2>/dev/null
+            )
+            for row in "${policy_rows[@]}"; do
+              IFS=$'\t' read -r env_name env_req <<<"$row"
               [ -z "$env_name" ] && continue
-              rows+='Require Signed ('"$env_name"$')'$'\t'"$env_req"$'
-'
+              rows+='Require Signed ('"$env_name"$')'$'\t'"$env_req"$'\n'
             done
           fi
           local bosun; bosun=$(shiplog_bosun_bin)
