@@ -1,4 +1,4 @@
-## 🚢 Shiplog: Your Git Repo is Your Deployment Black Box Recorder
+## 🚢🪵 Shiplog: Your Git Repo is Your Deployment Black Box Recorder
 
 **TL;DR:** Your deployment history should live in the same repo as your code. No external services. No API keys. No monthly bills. Just **Git**, doing what it does best: preserving history with cryptographic integrity.
 
