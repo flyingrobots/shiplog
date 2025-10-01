@@ -92,6 +92,7 @@ teardown() {
   run bash -lc "SHIPLOG_ENV=\"$unique_env\" git shiplog run --dry-run --service test --reason 'no-op' -- touch dry-run-file"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Would execute: touch dry-run-file"* ]]
+  [[ "$output" == *"Would sign & append entry to ${unique_env}"* ]]
   [ ! -e dry-run-file ]
 
   run git show-ref "$journal_ref"

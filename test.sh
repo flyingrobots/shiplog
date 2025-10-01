@@ -28,6 +28,16 @@ use_timeout() {
   [ "$val" -gt 0 ]
 }
 
+run_bats() {
+  local timeout_seconds="${1:-}"
+  shift || true
+  if [ -n "$timeout_seconds" ]; then
+    timeout "${timeout_seconds}s" bats "$@"
+  else
+    bats "$@"
+  fi
+}
+
 if ! command -v bats >/dev/null 2>&1; then
   echo "bats is required to run the Shiplog test suite" >&2
   exit 127
@@ -48,15 +58,15 @@ esac
 if command -v timeout >/dev/null 2>&1; then
   if [ "$timeout_enabled" -eq 1 ]; then
     if [ -n "${BATS_FLAGS:-}" ]; then
-      timeout "${TEST_TIMEOUT_SECS}s" bats $BATS_FLAGS "$SHIPLOG_HOME/test"
+      run_bats "$TEST_TIMEOUT_SECS" $BATS_FLAGS "$SHIPLOG_HOME/test"
     else
-      timeout "${TEST_TIMEOUT_SECS}s" bats -r "$SHIPLOG_HOME/test"
+      run_bats "$TEST_TIMEOUT_SECS" -r "$SHIPLOG_HOME/test"
     fi
   else
     if [ -n "${BATS_FLAGS:-}" ]; then
-      bats $BATS_FLAGS "$SHIPLOG_HOME/test"
+      run_bats "" $BATS_FLAGS "$SHIPLOG_HOME/test"
     else
-      bats -r "$SHIPLOG_HOME/test"
+      run_bats "" -r "$SHIPLOG_HOME/test"
     fi
   fi
 else
@@ -65,8 +75,8 @@ else
     exit 64
   fi
   if [ -n "${BATS_FLAGS:-}" ]; then
-    bats $BATS_FLAGS "$SHIPLOG_HOME/test"
+    run_bats "" $BATS_FLAGS "$SHIPLOG_HOME/test"
   else
-    bats -r "$SHIPLOG_HOME/test"
+    run_bats "" -r "$SHIPLOG_HOME/test"
   fi
 fi
