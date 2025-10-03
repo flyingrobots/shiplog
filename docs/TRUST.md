@@ -107,6 +107,18 @@ Notes:
 
 For a guided choice, see docs/features/setup.md (questionnaire).
 
+### Attestations: Creating and Verifying Signatures
+
+- Canonical payload signed by each maintainer (SSH):
+  ```
+  shiplog-trust-tree-v1\n<trust_tree_oid>\n<trust_id>\n<threshold>\n
+  ```
+- Helper to create signatures:
+  ```bash
+  scripts/shiplog-trust-sign.sh --principal you@example.com   # writes .shiplog/trust_sigs/you@example.com.sig
+  ```
+- Verifier (hooks and CI) checks that at least `threshold` distinct principals produce valid signatures over the payload using the `allowed_signers` roster.
+
 ## Keeping Clients in Sync
 
 Use the helper script to materialize the allowed signers from the trust ref and teach Git where to find it. This avoids copying unsigned files or relying on repository checkout state.
