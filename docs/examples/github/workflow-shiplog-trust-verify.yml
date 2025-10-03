@@ -1,0 +1,48 @@
+name: Shiplog Trust Verify
+
+on:
+  pull_request:
+    paths:
+      - '_shiplog/**'
+      - '.github/workflows/workflow-shiplog-trust-verify.yml'
+  push:
+    branches:
+      - _shiplog/**
+
+permissions:
+  contents: read
+
+jobs:
+  verify-trust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Verify trust update
+        env:
+          SHIPLOG_JQ_BIN: jq
+          # Allow temporarily while migrating (set to 0 to enforce):
+          SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED: 0
+        run: |
+          set -euo pipefail
+          if [ -x scripts/shiplog-verify-trust.sh ]; then
+            # Determine old..new range for trust ref when on PRs
+            ref="refs/heads/_shiplog/trust/root"
+            git fetch origin "+$ref:$ref" || true
+            new=$(git rev-parse -q --verify "$ref" || true)
+            base="0000000000000000000000000000000000000000"
+            if [ -n "$GITHUB_BASE_REF" ]; then
+              # Best-effort: use merge-base between PR base and current trust ref
+              if git show-ref --verify --quiet "refs/remotes/origin/$GITHUB_BASE_REF"; then
+                base=$(git merge-base "refs/remotes/origin/$GITHUB_BASE_REF" "$ref" || echo "$base")
+              fi
+            fi
+            ./scripts/shiplog-verify-trust.sh --old "$base" --new "$new" --ref "$ref"
+          else
+            echo "scripts/shiplog-verify-trust.sh not found; please add it to your repository" >&2
+            exit 1
+          fi
+
