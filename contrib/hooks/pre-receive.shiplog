@@ -108,12 +108,49 @@ validate_trust_update() {
   local old="$1" new="$2"
   ensure_fast_forward "$old" "$new" "$TRUST_REF"
   load_trust_state "$new"
+  enforce_trust_threshold "$new"
 }
 
 validate_policy_update() {
   local old="$1" new="$2"
   ensure_fast_forward "$old" "$new" "$POLICY_REF"
-  load_policy_state "$new"
+load_policy_state "$new"
+}
+
+# Enforce that the new trust commit is properly signed and (eventually) co-signed
+enforce_trust_threshold() {
+  local commit="$1"
+  # Require a valid signature on the trust commit itself (threshold >= 1)
+  if [ -n "$SIGNERS_FILE" ]; then
+    if ! GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1; then
+      error "trust commit $commit has missing or invalid signature"
+    fi
+  else
+    # Fall back to generic verification if signers file is absent (PGP or globally configured)
+    if ! git verify-commit "$commit" >/dev/null 2>&1; then
+      error "trust commit $commit failed signature verification"
+    fi
+  fi
+
+  # Enforce threshold semantics progressively.
+  # NOTE: Git commits carry a single embedded signature. Multi-maintainer co-signing requires a
+  # higher-level pattern (e.g., a linear chain of N commits over the same tree, or detached
+  # attestations stored in the trust tree). Until that is implemented, we fail closed by default
+  # when threshold > 1, with an escape hatch for staged rollouts.
+  local threshold
+  threshold=$(printf '%s' "$CURRENT_TRUST_JSON" | "$JQ_BIN" -r '.threshold // 1')
+  case "$threshold" in
+    ''|null) threshold=1 ;;
+  esac
+  if ! printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$'; then
+    error "trust.json invalid threshold value: $threshold"
+  fi
+
+  if [ "$threshold" -gt 1 ]; then
+    if [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
+      error "trust threshold $threshold not yet enforced by hook; set SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED=1 to allow temporarily"
+    fi
+  fi
 }
 
 read_commit_json() {
