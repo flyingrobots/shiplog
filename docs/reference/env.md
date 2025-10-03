@@ -30,6 +30,12 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_ASSUME_YES` — Auto-confirm prompts (same as `--yes`)
   - Values: `1` or `0` (default)
 
+## UX
+
+- `SHIPLOG_CONFIRM_TEXT` — Override the confirmation line printed by `git shiplog run` after a successful write.
+  - Default: the log emoji `🪵`
+  - Example: `export SHIPLOG_CONFIRM_TEXT="> Shiplogged"`
+
 ## Policy & Signing
 
 - `SHIPLOG_AUTHORS` — Space-separated allowlist of authors (emails). Overrides policy.

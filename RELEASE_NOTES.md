@@ -7,7 +7,7 @@ This note summarizes what’s changing, what you need to do (by scenario), SaaS 
 - Trust quorum modes (sig_mode): choose between `chain` (co‑sign commits) or `attestation` (detached signature files) to meet `threshold` maintainer signatures.
 - Unified trust verifier: a single script validates trust updates for hooks and CI.
 - SaaS‑friendly enforcement: example GitHub workflow added to make trust checks a Required Status Check on `_shiplog/**`.
-- Cleaner CLI output: `git shiplog run` now streams the wrapped command output and prints a short success line instead of a full entry preview.
+- Cleaner CLI output: `git shiplog run` now streams the wrapped command output and prints a minimal confirmation (default `🪵`) instead of a full entry preview; override via `SHIPLOG_CONFIRM_TEXT`.
 - Friendlier headers/tables: optional fields are hidden in human headers; `ls` avoids noisy `?` placeholders.
 
 ## What’s New
@@ -37,7 +37,7 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 
 ### 3) Cleaner Output
 
-- `git shiplog run` no longer prints the full entry preview. It streams the wrapped command, then prints a one‑liner like `Recorded to Shiplog [abcd123]`.
+- `git shiplog run` no longer prints the full entry preview. It streams the wrapped command, then prints a minimal confirmation (default `🪵`; override with `SHIPLOG_CONFIRM_TEXT`).
 - Human headers now hide missing location parts. If you only have `env=prod`, headers render `→ prod` (no `?/?/?`).
 - `git shiplog ls` reads env/service/status from JSON (when jq is available) and prints `-` for missing values instead of `?`.
 
@@ -80,4 +80,3 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 
 - Attestation signature verification: a small helper will be added to emit and verify SSH signatures over a canonical payload (tree OID + context). The verifier will then enforce validity (not just presence) for `.sig` files.
 - Hosting matrix doc: guidance for GitHub/GitLab/Bitbucket/Gitea with prescriptive protection settings and Required Checks.
-

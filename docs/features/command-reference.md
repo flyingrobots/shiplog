@@ -44,7 +44,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
     - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
     - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
   - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`, `--dry-run`.
-  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. `--dry-run` prints the command that would execute and exits without running it or writing a journal entry. See `docs/features/run.md` for detailed behavior (preview output, exit codes, caveats) and `docs/reference/json-schema.md` for the structured payload.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. Prints a minimal confirmation after the run (default `🪵`), configurable via `SHIPLOG_CONFIRM_TEXT`. `--dry-run` prints the command that would execute and exits without running it or writing a journal entry. See `docs/features/run.md` for details.
 
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.

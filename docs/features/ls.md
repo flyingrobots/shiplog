@@ -30,11 +30,9 @@ git shiplog --env staging ls
   3. `SHIPLOG_ENV` environment variable
   4. Falls back to default (`prod`) if none specified
 - **Journal Reference**: Lists from `refs/_shiplog/journal/<env>`. If the ref has no entries, the command fails with an error.
-- **Entry Processing**: Extracts the following metadata from each journal commit:
-  - Status (deployed/failed/etc.)
-  - Service name
-  - Author information
-  - Timestamp
+- **Entry Processing**: When `jq` is available, `ls` reads values from the JSON trailer for robustness. Otherwise it falls back to subject/body parsing.
+- **Columns**: Status, Service, Env, Author, Date.
+- **Missing values**: Rendered as `-` (columns are kept stable; no noisy `?`).
 - **LIMIT**: Caps the number of entries returned (default `20`).
 - **Output**: In interactive mode with Bosun, renders a table. Otherwise prints TSV with header.
 
