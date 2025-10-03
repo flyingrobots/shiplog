@@ -1,4 +1,4 @@
-## 🚢 Shiplog: Your Git Repo is an Ops Flight Recorder
+## 🚢🪵 Shiplog: Your Git Repo is Your Deployment Black Box Recorder
 
 **TL;DR:** Your deployment history should live in the same repo as your code. No external services. No API keys. No monthly bills. Just **Git**, doing what it does best: preserving history with cryptographic integrity.
 
@@ -42,7 +42,7 @@ Shiplog isn’t another deployment platform. It’s a **primitive**: a receipt,
 
 ### Git: An Immutable, Distributed Journal
 
-Git is a data structure. Shiplog uses it to create chains of commits that hang off of dedicated references (`refs/_shiplog/*`), forming an **append-only journal**. This is the core of its power—it can do way more than just source control.
+Git **_is_** a data structure. Shiplog uses it to create chains of commits that hang off of dedicated references (`refs/_shiplog/*`), forming an **append-only journal**. Git is powerful; it can do way more than just source control.
 
 ---
 
