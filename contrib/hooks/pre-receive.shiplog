@@ -108,7 +108,13 @@ validate_trust_update() {
   local old="$1" new="$2"
   ensure_fast_forward "$old" "$new" "$TRUST_REF"
   load_trust_state "$new"
-  enforce_trust_threshold "$new"
+  # Run shared verifier if available (preferred for both modes)
+  if [ -x "$GIT_DIR/../scripts/shiplog-verify-trust.sh" ]; then
+    (cd "$GIT_DIR/.." && ./scripts/shiplog-verify-trust.sh --old "$old" --new "$new" --ref "$TRUST_REF") || error "trust verification failed"
+  else
+    # Fallback: require at least one valid signature and block threshold>1 by default
+    enforce_trust_threshold "$new"
+  fi
 }
 
 validate_policy_update() {
