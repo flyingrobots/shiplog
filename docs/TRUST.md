@@ -76,6 +76,37 @@ git push origin refs/_shiplog/trust/root
 
 After bootstrap, the server hook must reject any trust update that is not a fast-forward or lacks the required number of maintainer signatures. Document this expectation in your repo policies so nobody attempts another bypass.
 
+## Signing Modes (sig_mode)
+
+Shiplog supports two ways to meet a threshold of maintainer signatures on trust updates. The active mode is declared in `.shiplog/trust.json` as `sig_mode`:
+
+- `chain`: A co‑sign chain of commits. Each maintainer creates a commit over the exact same trust tree (no content change). Threshold is met when at least `threshold` distinct maintainer‑signed commits are present in a fast‑forward update.
+- `attestation`: Detached signatures (attestations) are stored under `.shiplog/trust_sigs/` alongside the trust tree. Threshold is met when at least `threshold` valid attestations over the trust tree are present.
+
+Choose a mode during bootstrap:
+
+```bash
+./scripts/shiplog-bootstrap-trust.sh --trust-sig-mode chain
+./scripts/shiplog-bootstrap-trust.sh --trust-sig-mode attestation
+```
+
+Or set an environment variable for non‑interactive runs:
+
+```bash
+export SHIPLOG_TRUST_SIG_MODE=attestation
+```
+
+Verification:
+- Self‑hosted: the pre‑receive hook runs a shared verifier (`scripts/shiplog-verify-trust.sh`).
+- SaaS (GitHub.com, GitLab SaaS, Bitbucket Cloud): use branch namespace `_shiplog/**` and a Required Status Check that runs the same verifier.
+
+Notes:
+- Chain mode is pure Git and simple to enforce in hooks.
+- Attestation mode pairs well with PRs (single commit + signature files) and SaaS required checks.
+- Both modes sign the trust tree OID; replay protection comes from verifying the signed OID equals the tree in the pushed commit range and FF‑only.
+
+For a guided choice, see docs/features/setup.md (questionnaire).
+
 ## Keeping Clients in Sync
 
 Use the helper script to materialize the allowed signers from the trust ref and teach Git where to find it. This avoids copying unsigned files or relying on repository checkout state.
@@ -91,7 +122,10 @@ The script fetches the latest trust ref (you still need `git fetch` beforehand),
 
 * Fail fast when the trust ref or `trust.json` is missing (`❌ SHIPLOG: trust ref missing`).
 * Validate trust.json and policy.json with the pinned jq.
-* Require the trust commit to be co-signed by at least the threshold maintainers (after bootstrap).
+* Enforce `sig_mode`:
+  * chain: trust update must include ≥ threshold maintainer‑signed commits over the exact same tree (FF‑only).
+  * attestation: trust commit must include ≥ threshold valid attestations over the tree.
+* Require the trust commit to be signature‑verified (always).
 * Require policy updates to be signed by a maintainer listed in `trust.json` and keep them fast-forward.
 * When journal entries arrive:
   * Enforce fast-forward pushes.

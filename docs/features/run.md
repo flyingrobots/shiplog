@@ -23,7 +23,7 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - Deterministic output keeps automation safe while rehearsing deploy playbooks.
 
 ## Behavior (Standard Runs)
-- Captures stdout/stderr to a temporary file. When Bosun is available, output streams through a live preview while still being recorded for notes.
+- Captures stdout/stderr to a temporary file. When Bosun is available, output streams live while still being recorded for notes.
 - Sets `SHIPLOG_BORING=1` and `SHIPLOG_ASSUME_YES=1` while delegating to `git shiplog write`, ensuring prompts are bypassed.
 - Populates `SHIPLOG_EXTRA_JSON` with a `run` block such as:
   ```json
@@ -43,6 +43,13 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - Attaches the captured log as a git note under `refs/_shiplog/notes/logs` when an entry is written successfully.
 - Returns the wrapped command’s exit code so it can chain cleanly in scripts or CI pipelines.
 
+### Confirmation Output
+
+- After the wrapped command completes, Shiplog prints a minimal confirmation line.
+- Default: a log emoji only (`🪵`).
+- Customize with `SHIPLOG_CONFIRM_TEXT` (e.g., `> Shiplogged`, `Recorded`).
+- The previous verbose preview is suppressed to keep terminals quiet; use `git shiplog show` if you want to inspect the entry that was written.
+
 ## Exit Codes
 - Dry run
   - `0` when the preview succeeds.
@@ -60,6 +67,7 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - `--status-failure <status>` — Status recorded when the command fails. Default `failed`.
 - `--ticket <id>`, `--region <r>`, `--cluster <c>`, `--namespace <ns>` — Override standard write metadata.
 - When there is no output, log attachment is skipped and `log_attached=false` is recorded in the trailer.
+ - Confirmation text: set `SHIPLOG_CONFIRM_TEXT` to override the default emoji (see above).
 
 ## Caveats
 - Dry runs do not validate connectivity to downstream systems—it only checks CLI argument parsing and policy prerequisites.

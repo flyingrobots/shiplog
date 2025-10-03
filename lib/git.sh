@@ -53,7 +53,7 @@ compose_message() {
   if [ -n "$artifact" ]; then
     artifact_display="$artifact"
   else
-    artifact_display="<none>"
+    artifact_display=""
   fi
 
   if [ -n "$journal_parent" ]; then
@@ -147,8 +147,23 @@ JQ
     json="$extra_merged"
   fi
 
+  # Build a compact location string: always env; append region/cluster when present;
+  # append namespace only when provided and not redundant.
+  local loc="$env"
+  if [ -n "$region" ]; then
+    loc="$loc/$region"
+  fi
+  if [ -n "$cluster" ]; then
+    loc="$loc/$cluster"
+  fi
+  if [ -n "$ns" ]; then
+    if [ -n "$region$cluster" ] || [ "$ns" != "$env" ]; then
+      loc="$loc/$ns"
+    fi
+  fi
+
   cat <<EOF
-Deploy: $service $artifact_display → $env/${region:-?}/${cluster:-?}/${ns:-?}
+Deploy: $service${artifact_display:+ $artifact_display} → $loc
 Reason: ${reason:-"—"} ${ticket:+($ticket)}
 Status: ${status_upper:-?} (${dur_s}s) @ $write_ts
 Seq:    $seq (parent $parent_short, trust $trust_short, anchor $anchor_short)
@@ -298,14 +313,28 @@ pretty_ls() {
   IFS="$old_ifs"
 
   while IFS= read -r c; do
-    local subj author date status service env
+    local author date status service env body json
     author="$(git show -s --format='%ae' "$c")"
     date="$(git show -s --format='%cs' "$c")"
-    subj="$(git show -s --format='%s' "$c")"
-    status="$(git show -s --format=%B "$c" | awk -F': ' '/^Status: /{print $2; exit}')"
-    service="$(echo "$subj" | awk '{print $2}')"
-    env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
-    rows+="$c"$'\t'"${status:-?}"$'\t'"${service:-?}"$'\t'"${env:-?}"$'\t'"$author"$'\t'"$date"$'\n'
+    body="$(git show -s --format=%B "$c")"
+    json="$(awk '/^---/{flag=1;next}flag' <<< "$body")"
+    if command -v jq >/dev/null 2>&1 && [ -n "$json" ]; then
+      service="$(printf '%s' "$json" | jq -r '.what.service // empty')"
+      env="$(printf '%s' "$json" | jq -r '.env // .where.env // empty')"
+      status="$(printf '%s' "$json" | jq -r '.status // empty' | tr '[:lower:]' '[:upper:]')"
+    else
+      # Fallback heuristics
+      local subj
+      subj="$(git show -s --format='%s' "$c")"
+      service="$(echo "$subj" | awk '{print $2}')"
+      env="$(echo "$subj" | awk '{print $4}' | awk -F'→' '{print $2}' | awk -F'/' '{print $1}')"
+      status="$(echo "$body" | awk -F': ' '/^Status: /{print $2; exit}' | awk '{print $1}')"
+      status="$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')"
+    fi
+    [ -n "$service" ] || service="-"
+    [ -n "$env" ] || env="-"
+    [ -n "$status" ] || status="-"
+    rows+="$c"$'\t'"$status"$'\t'"$service"$'\t'"$env"$'\t'"$author"$'\t'"$date"$'\n'
   done < <(git rev-list --max-count="$limit" "$ref")
 
   if is_boring || [ "$bosun_available" -ne 1 ]; then

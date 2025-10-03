@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shiplog: Git-Native Deployment Journal</title>
+    <meta name="description" content="Auditable deployment logs that live in your git repo. Cryptographically signed, append-only, and offline-capable. No SaaS, no external services, just git.">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&family=Space+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-primary: #34495e;
+            --color-secondary: #e74c3c;
+            --color-light: #ecf0f1;
+            --color-accent: #2ecc71;
+            --color-warning: #f39c12;
+            --font-main: 'Roboto', sans-serif;
+            --font-code: 'Space Mono', monospace;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: var(--font-main);
+            color: var(--color-primary);
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-light);
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Hero Section - The Pain */
+        .hero {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 2.8em;
+            margin: 0 0 20px 0;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .hero .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            font-weight: 300;
+        }
+        .hero .problem {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid var(--color-secondary);
+            padding: 20px;
+            margin: 30px auto;
+            max-width: 700px;
+            text-align: left;
+            border-radius: 4px;
+        }
+        .hero .problem p {
+            margin: 0;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        
+        /* CTA Buttons */
+        .cta-primary {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px 35px;
+            background-color: var(--color-accent);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 700;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .cta-primary:hover {
+            background-color: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        .cta-secondary {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px 35px;
+            background-color: transparent;
+            color: white;
+            text-decoration: none;
+            border: 2px solid white;
+            border-radius: 5px;
+            font-weight: 700;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+        .cta-secondary:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        /* The Solution */
+        .solution {
+            background-color: white;
+            padding: 50px 20px;
+            border-bottom: 3px solid var(--color-accent);
+        }
+        .solution h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 15px;
+            color: var(--color-primary);
+        }
+        .solution .tagline {
+            text-align: center;
+            font-size: 1.3em;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+        }
+        
+        /* Code Blocks */
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            font-family: var(--font-code);
+            padding: 25px;
+            border-radius: 8px;
+            margin: 25px 0;
+            overflow-x: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .code-block pre {
+            margin: 0;
+            white-space: pre;
+            line-height: 1.5;
+        }
+        .code-comment {
+            color: #95a5a6;
+            font-style: italic;
+        }
+        .code-prompt {
+            color: var(--color-accent);
+            user-select: none;
+        }
+        .code-output {
+            color: #3498db;
+        }
+        
+        /* Feature Grid */
+        .features {
+            padding: 60px 20px;
+            background-color: var(--color-light);
+        }
+        .features h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 50px;
+            color: var(--color-primary);
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .feature-card {
+            background: white;
+            padding: 35px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+        }
+        .feature-icon {
+            font-size: 3.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+        .feature-card h3 {
+            color: var(--color-primary);
+            margin: 0 0 15px 0;
+            font-size: 1.4em;
+        }
+        .feature-card p {
+            margin: 0;
+            color: #7f8c8d;
+            line-height: 1.7;
+        }
+        
+        /* How It Works */
+        .how-it-works {
+            padding: 60px 20px;
+            background-color: white;
+        }
+        .how-it-works h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 20px;
+            color: var(--color-primary);
+        }
+        .how-it-works .intro {
+            text-align: center;
+            font-size: 1.2em;
+            color: #7f8c8d;
+            margin-bottom: 50px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .demo-section {
+            margin: 50px 0;
+        }
+        .demo-section h3 {
+            font-size: 1.6em;
+            color: var(--color-secondary);
+            margin-bottom: 15px;
+            border-left: 5px solid var(--color-secondary);
+            padding-left: 15px;
+        }
+        .demo-section p {
+            font-size: 1.1em;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        
+        /* Installation */
+        .installation {
+            padding: 60px 20px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+        }
+        .installation h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 20px;
+        }
+        .installation .intro {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        .install-steps {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .install-step {
+            margin-bottom: 30px;
+        }
+        .install-step h4 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: var(--color-accent);
+        }
+        
+        /* Use Cases */
+        .use-cases {
+            padding: 60px 20px;
+            background-color: var(--color-light);
+        }
+        .use-cases h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 50px;
+            color: var(--color-primary);
+        }
+        .use-case-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+        }
+        .use-case {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-accent);
+        }
+        .use-case h4 {
+            margin-top: 0;
+            color: var(--color-primary);
+            font-size: 1.2em;
+        }
+        .use-case ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .use-case li {
+            margin-bottom: 8px;
+            color: #555;
+        }
+        
+        /* FAQ */
+        .faq {
+            padding: 60px 20px;
+            background-color: white;
+        }
+        .faq h2 {
+            text-align: center;
+            font-size: 2.2em;
+            margin-bottom: 50px;
+            color: var(--color-primary);
+        }
+        .faq-item {
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            padding: 25px;
+            background-color: var(--color-light);
+            border-radius: 8px;
+        }
+        .faq-item h4 {
+            margin-top: 0;
+            color: var(--color-secondary);
+            font-size: 1.3em;
+        }
+        .faq-item p {
+            margin-bottom: 0;
+            color: #555;
+            line-height: 1.7;
+        }
+        
+        /* Footer CTA */
+        .footer-cta {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .footer-cta h2 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        .footer-cta p {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+            opacity: 0.95;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            background-color: #2c3e50;
+            color: #95a5a6;
+            font-size: 0.9em;
+        }
+        footer a {
+            color: var(--color-accent);
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2em;
+            }
+            .hero .subtitle {
+                font-size: 1.1em;
+            }
+            .solution h2, .features h2, .how-it-works h2, .use-cases h2, .faq h2 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="container">
+            <h1>🚢 Shiplog: Git-Native Deployment Journal</h1>
+            <p class="subtitle">
+                Auditable deployment logs that live in your git repo. Cryptographically signed, append-only, and offline-capable.
+            </p>
+            
+            <div class="problem">
+                <p><strong>2:47 AM.</strong> Production is on fire. Your logging vendor is down. Slack history caps at 90 days. CI logs expired last week. You need to know: <em>What deployed? When? Who approved it?</em></p>
+                <p style="margin-top: 15px;"><strong>You're fucked.</strong></p>
+            </div>
+            
+            <div style="margin-top: 40px;">
+                <a href="#installation" class="cta-primary">Get Started</a>
+                <a href="https://github.com/flyingrobots/shiplog" class="cta-secondary" target="_blank">View on GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Solution -->
+    <div class="solution">
+        <div class="container">
+            <h2>Shiplog Prevents This</h2>
+            <p class="tagline">Your deployment history lives in your git repo. Forever. Offline. Cryptographically signed.</p>
+            
+            <div class="code-block">
+<pre><span class="code-prompt">$</span> git shiplog show
+<span class="code-output">┌ SHIPLOG Entry ────────────────────────────────────────────────┐
+│ Deploy: api-service v2.1.4 → prod/us-east-1/prod-a/default   │
+│ Reason: Hotfix for rate limiting bug                         │
+│ Status: SUCCESS (2m34s) @ 2025-09-30T02:38:42Z               │
+│ By: alice@example.com (signed)                               │
+│ Commit: a7f3c2d                                               │
+└───────────────────────────────────────────────────────────────┘</span></pre>
+            </div>
+            
+            <p style="text-align: center; font-size: 1.2em; margin-top: 30px;">
+                <strong>Three seconds.</strong> That's how long it takes to know exactly what happened.
+            </p>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <div class="features">
+        <div class="container">
+            <h2>Why Shiplog?</h2>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">🪢</span>
+                    <h3>Git-Native</h3>
+                    <p>Your history lives in git refs. No databases, no APIs, no external services. Just <code>git push</code> and <code>git pull</code>. Works offline. Works in 20 years.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <span class="feature-icon">🔏</span>
+                    <h3>Cryptographically Signed</h3>
+                    <p>Every entry is a signed git commit. Tamper-evident. Auditable. Compliance-ready. Uses your existing GPG/SSH keys.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <span class="feature-icon">📊</span>
+                    <h3>Machine Parseable</h3>
+                    <p>Structured JSON trailers. Pipe to <code>jq</code>, feed to compliance tools, or build dashboards. Human-readable AND automation-friendly.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="how-it-works">
+        <div class="container">
+            <h2>How It Works</h2>
+            <p class="intro">Shiplog wraps your deployment commands and automatically journals their execution. Exit codes, duration, output—everything captured and committed.</p>
+            
+            <div class="demo-section">
+                <h3>1. Wrap Your Deploy Commands</h3>
+                <p>Run any command through Shiplog to automatically capture and journal its execution:</p>
+                <div class="code-block">
+<pre><span class="code-prompt">$</span> git shiplog run \
+    --service api-service \
+    --reason "Rolling out v2.1.4" \
+    --env prod \
+    -- kubectl rollout status deploy/api-service
+
+<span class="code-output">Waiting for deployment "api-service" rollout to finish: 2 of 3 updated replicas...
+deployment "api-service" successfully rolled out
+
+Deploy: api-service v2.1.4 → prod/us-east-1/prod-a/default
+Reason: Rolling out v2.1.4
+Status: SUCCESS (45s) @ 2025-09-30T14:23:17Z</span></pre>
+                </div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>2. Append Custom Metadata</h3>
+                <p>Push structured data from your CI/CD pipeline:</p>
+                <div class="code-block">
+<pre><span class="code-prompt">$</span> echo '{"tests_passed": 847, "coverage": 94.2}' | \
+  git shiplog append \
+    --env prod \
+    --service api-service \
+    --status success \
+    --json -
+
+<span class="code-output">Record: api-service → prod
+Status: SUCCESS @ 2025-09-30T14:25:03Z</span></pre>
+                </div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>3. Audit & Export</h3>
+                <p>Query your deployment history with tools you already know:</p>
+                <div class="code-block">
+<pre><span class="code-prompt">$</span> git log --oneline refs/_shiplog/journal/prod | head -5
+<span class="code-output">a7f3c2d Deploy api-service v2.1.4 → prod (SUCCESS)
+f8e2b1a Deploy web-frontend v1.8.2 → prod (SUCCESS)  
+d4a9c7f Deploy api-service v2.1.3 → prod (FAILURE)
+c3f8e2d Deploy worker-service v3.0.1 → prod (SUCCESS)</span>
+
+<span class="code-prompt">$</span> git shiplog export-json | jq '.[] | select(.status == "FAILURE")'
+<span class="code-output">{
+  "service": "api-service",
+  "version": "v2.1.3",
+  "status": "FAILURE",
+  "timestamp": "2025-09-29T18:42:11Z",
+  "reason": "Database migration timeout"
+}</span></pre>
+                </div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>4. Verify Signatures</h3>
+                <p>Prove who performed each deployment:</p>
+                <div class="code-block">
+<pre><span class="code-prompt">$</span> git log --show-signature refs/_shiplog/journal/prod -1
+<span class="code-output">commit a7f3c2d3f8e2b1a9c7f4d6e8
+gpg: Signature made Mon 30 Sep 2025 02:38:42 PM UTC
+gpg: Good signature from "Alice Engineer &lt;alice@example.com&gt;"
+Deploy api-service v2.1.4 → prod (SUCCESS)</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installation -->
+    <div class="installation" id="installation">
+        <div class="container">
+            <h2>Installation</h2>
+            <p class="intro">Get started in under 60 seconds. No package managers, no dependencies beyond bash and git.</p>
+            
+            <div class="install-steps">
+                <div class="install-step">
+                    <h4>1. Clone the repo</h4>
+                    <div class="code-block">
+<pre><span class="code-prompt">$</span> git clone https://github.com/flyingrobots/shiplog.git ~/.shiplog</pre>
+                    </div>
+                </div>
+                
+                <div class="install-step">
+                    <h4>2. Add to your PATH</h4>
+                    <div class="code-block">
+<pre><span class="code-prompt">$</span> export PATH="$HOME/.shiplog/bin:$PATH"
+<span class="code-comment"># Add to ~/.bashrc or ~/.zshrc to make permanent</span></pre>
+                    </div>
+                </div>
+                
+                <div class="install-step">
+                    <h4>3. Initialize in your repo</h4>
+                    <div class="code-block">
+<pre><span class="code-prompt">$</span> cd your-project
+<span class="code-prompt">$</span> git shiplog init --env prod
+<span class="code-output">Initialized Shiplog journal: refs/_shiplog/journal/prod</span></pre>
+                    </div>
+                </div>
+                
+                <div class="install-step">
+                    <h4>4. Start logging</h4>
+                    <div class="code-block">
+<pre><span class="code-prompt">$</span> git shiplog run --service myapp --reason "First deploy" -- echo "Hello Shiplog"
+<span class="code-output">Hello Shiplog
+Deploy: myapp → prod
+Status: SUCCESS (0s) @ 2025-09-30T14:30:00Z</span></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px;">
+                <a href="https://github.com/flyingrobots/shiplog#installation" class="cta-primary">Full Installation Guide</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Use Cases -->
+    <div class="use-cases">
+        <div class="container">
+            <h2>Who Uses Shiplog?</h2>
+            
+            <div class="use-case-grid">
+                <div class="use-case">
+                    <h4>🏢 Compliance Teams</h4>
+                    <ul>
+                        <li>Immutable audit trail</li>
+                        <li>Cryptographic signatures</li>
+                        <li>SOC2/HIPAA-ready</li>
+                        <li>Export to compliance tools</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case">
+                    <h4>🔧 DevOps Engineers</h4>
+                    <ul>
+                        <li>Incident forensics</li>
+                        <li>Deployment tracking</li>
+                        <li>No vendor lock-in</li>
+                        <li>Works offline</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case">
+                    <h4>🤖 CI/CD Pipelines</h4>
+                    <ul>
+                        <li>Automation-friendly API</li>
+                        <li>Structured JSON output</li>
+                        <li>Zero external services</li>
+                        <li>No API rate limits</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case">
+                    <h4>🔐 Security Teams</h4>
+                    <ul>
+                        <li>Tamper-evident logs</li>
+                        <li>Trust roster management</li>
+                        <li>Multi-signature support</li>
+                        <li>Policy as code</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="faq">
+        <div class="container">
+            <h2>Frequently Asked Questions</h2>
+            
+            <div class="faq-item">
+                <h4>Why not just use CloudWatch/Datadog/Splunk?</h4>
+                <p>Those are excellent for log aggregation and real-time monitoring. Shiplog solves a different problem: <strong>immutable audit trail that can't be deleted by an outage or a billing lapse.</strong> It's complementary, not competitive. Plus, it's free and works offline.</p>
+            </div>
+            
+            <div class="faq-item">
+                <h4>Is bash really the right choice for production tooling?</h4>
+                <p>Yes. Bash keeps dependencies at zero, runs everywhere git runs, and makes the code auditable in 5 minutes. You're journaling deployments, not parsing petabytes of logs. The bottleneck is git, not bash. If that changes, we'll port the hot paths. But it won't.</p>
+            </div>
+            
+            <div class="faq-item">
+                <h4>What about scale? Can it handle 1000s of deployments?</h4>
+                <p>Even aggressive teams deploy ~100 times per day. Git handles that trivially. We've tested with 10,000+ entries—works fine. Remember: this is append-only history, not real-time log streaming.</p>
+            </div>
+            
+            <div class="faq-item">
+                <h4>How do I share deployment history across my team?</h4>
+                <p>It's just git. <code>git push origin refs/_shiplog/journal/*</code> and your team can <code>git fetch</code>. No special infrastructure needed. Works with any git hosting (GitHub, GitLab, Bitbucket, self-hosted).</p>
+            </div>
+            
+            <div class="faq-item">
+                <h4>What if someone force-pushes and rewrites history?</h4>
+                <p>Git's signature verification catches that. Every entry is signed, and tampering breaks the signature chain. Plus, you can enforce branch protection rules on your journal refs just like you do for main.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer CTA -->
+    <div class="footer-cta">
+        <div class="container">
+            <h2>Ready to Ship?</h2>
+            <p>Stop losing deployment history to vendor outages and expired logs.</p>
+            <a href="#installation" class="cta-primary" style="background-color: white; color: var(--color-secondary);">Install Shiplog Now</a>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>MIT License © 2025 • Built by <a href="https://github.com/flyingrobots" target="_blank">J. Kirby Ross</a></p>
+        <p>Shiplog is a primitive, not a platform. <a href="https://github.com/flyingrobots/shiplog" target="_blank">Fork it</a> • <a href="https://github.com/flyingrobots/shiplog/issues" target="_blank">Issues</a> • <a href="https://github.com/flyingrobots/shiplog/blob/main/docs/README.md" target="_blank">Docs</a></p>
+    </footer>
+
+</body>
+</html>

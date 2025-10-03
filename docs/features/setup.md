@@ -19,6 +19,22 @@ SHIPLOG_SETUP_AUTHORS="you@example.com teammate@example.com" \
 SHIPLOG_SETUP_AUTO_PUSH=1 \
   git shiplog setup
 
+### Choose a Trust Signing Mode (chain vs attestation)
+
+When bootstrapping trust, you can pick how quorum signatures are recorded and verified:
+
+- `chain` — co‑sign chain of commits (pure Git; great with server hooks)
+- `attestation` — detached signatures stored under `.shiplog/trust_sigs/` (great for PRs on SaaS hosts)
+
+Set explicitly via flags or env during setup/bootstrap:
+
+```bash
+git shiplog setup --trust-sig-mode chain   # or attestation
+SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
+```
+
+See docs/TRUST.md for details and a comparison.
+
 ## Modes
 
 - Open (unsigned):
@@ -33,6 +49,7 @@ SHIPLOG_SETUP_AUTO_PUSH=1 \
   - Global strict: `require_signed=true` for all environments.
   - Per‑environment strict: `require_signed=false` globally and `deployment_requirements.<env>.require_signed=true` for selected envs (e.g., prod only).
   - Non‑interactive trust bootstrap supported via `SHIPLOG_TRUST_*` env vars (see docs/features/modes.md). The wizard runs the bootstrap script and can auto‑push the trust ref with `--auto-push`.
+  - Signing mode: pass `--trust-sig-mode chain|attestation` (default `chain`).
 
 ## CLI Trust Bootstrap (No Prompts)
 

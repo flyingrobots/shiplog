@@ -407,24 +407,39 @@ cmd_write() {
   fi
 
   if [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
-    local push_output
-    if ! push_output=$(git push origin "$journal_ref" 2>&1); then
-      die "shiplog: failed to push $journal_ref to origin: $push_output"
-    fi
-    if [ "$note_attached" -eq 1 ]; then
-      if ! push_output=$(git push origin "$notes_ref" 2>&1); then
-        die "shiplog: failed to push $notes_ref to origin: $push_output"
+    # Determine effective auto-push: flags > git config > env/default
+    local autopush_effective
+    if [ "${SHIPLOG_AUTO_PUSH_FLAG:-0}" = "1" ]; then
+      autopush_effective="${SHIPLOG_AUTO_PUSH:-1}"
+    else
+      local cfg
+      cfg=$(git config --bool shiplog.autoPush 2>/dev/null || true)
+      if [ -n "$cfg" ]; then
+        case "$cfg" in true|1|yes|on) autopush_effective=1 ;; *) autopush_effective=0 ;; esac
+      else
+        autopush_effective="${SHIPLOG_AUTO_PUSH:-1}"
       fi
     fi
-    if shiplog_can_use_bosun; then
-      local bosun
-      bosun=$(shiplog_bosun_bin)
-      "$bosun" style --title "Push" -- "📤 Pushed $journal_ref to origin"
-    elif ! is_boring; then
-      printf '📤 Pushed %s to origin\n' "$journal_ref"
+    if [ "$autopush_effective" != "0" ]; then
+      local push_output
+      if ! push_output=$(git push origin "$journal_ref" 2>&1); then
+        die "shiplog: failed to push $journal_ref to origin: $push_output"
+      fi
+      if [ "$note_attached" -eq 1 ]; then
+        if ! push_output=$(git push origin "$notes_ref" 2>&1); then
+          die "shiplog: failed to push $notes_ref to origin: $push_output"
+        fi
+      fi
+      if shiplog_can_use_bosun; then
+        local bosun
+        bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "Push" -- "📤 Pushed $journal_ref to origin"
+      elif ! is_boring; then
+        printf '📤 Pushed %s to origin\n' "$journal_ref"
+      fi
+    elif [ "$origin_available" -eq 1 ] && [ "$autopush_effective" = "0" ] && ! is_boring; then
+      printf 'ℹ️ shiplog: auto-push disabled; remember to publish %s when ready.\n' "$journal_ref"
     fi
-  elif [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" = "0" ] && ! is_boring; then
-    printf 'ℹ️ shiplog: auto-push disabled; remember to push %s manually.\n' "$journal_ref"
   fi
 }
 
@@ -679,9 +694,10 @@ cmd_run() {
   SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
 
   local write_status
+  # Suppress verbose preview/output from cmd_write; show a concise summary instead
   (
     cmd_write --env "$env"
-  )
+  ) >/dev/null 2>&1
   write_status=$?
 
   if [ $had_boring -eq 1 ]; then
@@ -748,6 +764,21 @@ cmd_run() {
 
   if [ $write_status -eq 0 ]; then
     rm -f "$log_path"
+    # Emit a compact confirmation to the user
+    local tip
+    tip=$(git rev-parse --short "$(ref_journal "$env")" 2>/dev/null || echo "")
+    local msg
+    # Minimal confirmation; customizable via SHIPLOG_CONFIRM_TEXT (default: log emoji)
+    local confirm_text
+    confirm_text="${SHIPLOG_CONFIRM_TEXT:-🪵}"
+    msg="$confirm_text"
+    if shiplog_can_use_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Shiplog" -- "$msg"
+    else
+      printf '%s\n' "$msg"
+    fi
   else
     printf '❌ shiplog: failed to record run entry; log preserved at %s\n' "$log_path" >&2
     return $write_status
@@ -999,6 +1030,56 @@ cmd_export_json() {
   git rev-list "$ref" | while read -r c; do
     git show -s --format=%B "$c" | awk '/^---/{flag=1;next}flag' | jq -c --arg sha "$c" '. + {commit:$sha}'
   done
+}
+
+cmd_publish() {
+  ensure_in_repo
+  local env="$DEFAULT_ENV" push_notes=1 push_policy=0 push_trust=0 all_envs=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) shift; env="${1:-$env}"; shift; continue ;;
+      --env=*) env="${1#*=}"; shift; continue ;;
+      --no-notes) push_notes=0; shift; continue ;;
+      --policy) push_policy=1; shift; continue ;;
+      --trust) push_trust=1; shift; continue ;;
+      --all|--all-envs) all_envs=1; shift; continue ;;
+      --help|-h)
+        cat <<'EOF'
+Usage: git shiplog publish [--env ENV] [--no-notes] [--policy] [--trust] [--all]
+
+Push Shiplog refs to origin without writing a new entry. By default pushes the
+current environment journal and its notes. Use --env to pick a journal; --all to
+push all journals under the ref root. Optionally include policy/trust refs.
+EOF
+        return 0 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
+
+  has_remote_origin || die "shiplog: no origin configured"
+
+  local refs=()
+  if [ "$all_envs" -eq 1 ]; then
+    while read -r j; do [ -n "$j" ] && refs+=("$j"); done < <(git for-each-ref "${REF_ROOT}/journal/*" --format='%(refname)')
+  else
+    refs+=("$(ref_journal "$env")")
+  fi
+
+  for r in "${refs[@]}"; do
+    git push origin "$r" || die "shiplog: failed to push $r"
+    if [ "$push_notes" -eq 1 ]; then
+      git push origin "$NOTES_REF" >/dev/null 2>&1 || true
+    fi
+  done
+
+  [ "$push_policy" -eq 1 ] && git push origin "$POLICY_REF" >/dev/null 2>&1 || true
+  [ "$push_trust" -eq 1 ] && git push origin "${TRUST_REF:-$TRUST_REF_DEFAULT}" >/dev/null 2>&1 || true
+
+  if shiplog_can_use_bosun; then
+    local bosun; bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Publish" -- "📤 Pushed Shiplog refs to origin"
+  fi
 }
 
 
@@ -1339,6 +1420,10 @@ cmd_setup() {
         shift; [ -n "${1:-}" ] || die "shiplog: --trust-maintainer requires a value"; trust_args+=("--trust-maintainer" "$1"); shift ;;
       --trust-maintainer=*)
         trust_args+=("--trust-maintainer=${1#*=}"); shift ;;
+      --trust-sig-mode)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-sig-mode requires a value"; trust_args+=("--trust-sig-mode" "$1"); shift ;;
+      --trust-sig-mode=*)
+        trust_args+=("--trust-sig-mode=${1#*=}"); shift ;;
       --trust-message)
         shift; [ -n "${1:-}" ] || die "shiplog: --trust-message requires a value"; trust_args+=("--trust-message" "$1"); shift ;;
       --trust-message=*)
@@ -1529,6 +1614,7 @@ Usage:
                        Validate the JSON trailer for the given entry (defaults to latest)
   verify [ENV]         Verify signatures and authorization of entries
   export-json [ENV]    Export entries as JSON lines
+  publish [ENV]        Push/publish journal (and notes) for ENV (default: current env)
   trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
   trust show [REF]     Display trust roster and metadata (use --json for raw output)
   policy [show]        Show current policy configuration
@@ -1584,6 +1670,7 @@ run_command() {
     validate-trailer) cmd_validate_trailer "$@";;
     verify)        cmd_verify "$@";;
     export-json)   cmd_export_json "$@";;
+    publish)       cmd_publish "$@";;
     trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
     refs)          cmd_refs "$@";;
