@@ -1,0 +1,14 @@
+{
+  // Globs to lint (exclude HTML landing page and node_modules)
+  "globs": [
+    "**/*.md",
+    "!**/node_modules/**",
+    "!docs/index.html"
+  ],
+  // Rule config (keep lines readable; allow inline HTML in docs when needed)
+  "config": {
+    "MD013": false,
+    "MD033": true
+  }
+}
+
