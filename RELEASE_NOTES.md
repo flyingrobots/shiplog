@@ -60,6 +60,21 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 2) Add the “Shiplog Trust Verify” workflow as a Required Status Check on `_shiplog/**`.
 3) If `threshold>1`, pick a `sig_mode` and follow the pattern for co‑signing or attaching signatures in PRs.
 
+### Optional: Disable Auto‑Push During Deploys
+
+- Some teams prefer not to push during the deploy (pre‑push hooks can be disruptive). You can disable auto‑push and publish at the end:
+
+```
+git config shiplog.autoPush false   # per repo default
+# during the deploy
+git shiplog run ...                 # records locally
+# after success
+git shiplog publish                 # push journals/notes to origin
+```
+
+- Flags still override the default: `--push` or `--no-push`.
+- CI can keep auto‑push on (set `shiplog.autoPush true` or pass `--push`).
+
 ## Compatibility
 
 - If `sig_mode` is missing in `trust.json`, verification defaults to `chain` and still requires the trust commit to be signature‑verified.

@@ -14,6 +14,7 @@ AUTHOR_ALLOWLIST="${SHIPLOG_AUTHORS:-}"
 ALLOWED_SIGNERS_FILE="${SHIPLOG_ALLOWED_SIGNERS:-.shiplog/allowed_signers}"
 SHIPLOG_BORING="${SHIPLOG_BORING:-0}"
 SHIPLOG_AUTO_PUSH="${SHIPLOG_AUTO_PUSH:-1}"
+SHIPLOG_AUTO_PUSH_FLAG="${SHIPLOG_AUTO_PUSH_FLAG:-0}"
 export SHIPLOG_BORING
 export SHIPLOG_AUTO_PUSH
 
@@ -96,12 +97,16 @@ run_with_global_flags() {
         ;;
       --no-push)
         SHIPLOG_AUTO_PUSH=0
+        SHIPLOG_AUTO_PUSH_FLAG=1
         export SHIPLOG_AUTO_PUSH
+        export SHIPLOG_AUTO_PUSH_FLAG
         shift
         ;;
       --push)
         SHIPLOG_AUTO_PUSH=1
+        SHIPLOG_AUTO_PUSH_FLAG=1
         export SHIPLOG_AUTO_PUSH
+        export SHIPLOG_AUTO_PUSH_FLAG
         shift
         ;;
       --version|-V)

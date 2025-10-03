@@ -74,6 +74,11 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage: `git shiplog export-json prod | jq '.'`
   - Requires: `jq`.
 
+- `publish [ENV] [--no-notes] [--policy] [--trust] [--all]`
+  - Purpose: push Shiplog refs (journals/notes, and optionally policy/trust) to origin without writing a new entry.
+  - Usage: `git shiplog publish` (current env), `git shiplog publish --env prod`, `git shiplog publish --all --policy`
+  - Notes: use this at the end of a deployment if you disable auto-push.
+
 - `policy [show|validate|require-signed|toggle] [--json] [--boring]`
   - Purpose: inspect/change effective policy and signing requirement.
   - Usage:
