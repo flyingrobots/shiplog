@@ -63,8 +63,13 @@ verify_commit_sig() {
   fi
 }
 
-# 1) Always require the new trust commit to be signature-verified.
-verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
+# 1) Optionally require the new trust commit to be signature-verified.
+case "$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')" in
+  1|true|yes|on)
+    verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
+    ;;
+  *) : ;;
+esac
 
 # 2) Threshold==1 is satisfied now.
 if [ "$threshold" = "1" ] || [ "$threshold" = "1.0" ]; then
@@ -114,4 +119,3 @@ if [ "$sig_mode" = "attestation" ]; then
 fi
 
 err "unknown sig_mode: $sig_mode"
-

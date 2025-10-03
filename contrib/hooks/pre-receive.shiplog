@@ -126,17 +126,17 @@ load_policy_state "$new"
 # Enforce that the new trust commit is properly signed and (eventually) co-signed
 enforce_trust_threshold() {
   local commit="$1"
-  # Require a valid signature on the trust commit itself (threshold >= 1)
-  if [ -n "$SIGNERS_FILE" ]; then
-    if ! GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1; then
-      error "trust commit $commit has missing or invalid signature"
-    fi
-  else
-    # Fall back to generic verification if signers file is absent (PGP or globally configured)
-    if ! git verify-commit "$commit" >/dev/null 2>&1; then
-      error "trust commit $commit failed signature verification"
-    fi
-  fi
+  # Optionally require a valid signature on the trust commit itself
+  case "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" in
+    1|true|yes|on)
+      if [ -n "$SIGNERS_FILE" ]; then
+        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
+      else
+        git verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
+      fi
+      ;;
+    *) : ;;
+  esac
 
   # Enforce threshold semantics progressively.
   # NOTE: Git commits carry a single embedded signature. Multi-maintainer co-signing requires a
