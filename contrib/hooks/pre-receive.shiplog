@@ -131,6 +131,7 @@ enforce_trust_threshold() {
   # - For production, set to 1/true/yes/on to enforce signed trust commits
   #   (leaving it off reduces integrity of trust updates)
   # Normalize gate safely under set -u
+  local gate
   gate=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')
   case "$gate" in
     1|true|yes|on)
