@@ -754,9 +754,9 @@ cmd_run() {
     tip=$(git rev-parse --short "$(ref_journal "$env")" 2>/dev/null || echo "")
     local msg
     if [ -n "$tip" ]; then
-      msg="Recorded to Shiplog [$tip]"
+      msg="Stowed away [$tip]"
     else
-      msg="Recorded to Shiplog"
+      msg="Stowed away"
     fi
     if shiplog_can_use_bosun; then
       local bosun
