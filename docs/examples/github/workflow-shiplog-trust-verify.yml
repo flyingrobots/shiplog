@@ -1,6 +1,6 @@
 name: Shiplog Trust Verify
 
-on:
+"on":
   pull_request:
     paths:
       - '_shiplog/**'
@@ -45,4 +45,3 @@ jobs:
             echo "scripts/shiplog-verify-trust.sh not found; please add it to your repository" >&2
             exit 1
           fi
-
