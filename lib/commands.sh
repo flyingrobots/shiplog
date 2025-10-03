@@ -679,9 +679,10 @@ cmd_run() {
   SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
 
   local write_status
+  # Suppress verbose preview/output from cmd_write; show a concise summary instead
   (
     cmd_write --env "$env"
-  )
+  ) >/dev/null 2>&1
   write_status=$?
 
   if [ $had_boring -eq 1 ]; then
@@ -748,6 +749,22 @@ cmd_run() {
 
   if [ $write_status -eq 0 ]; then
     rm -f "$log_path"
+    # Emit a compact confirmation to the user
+    local tip
+    tip=$(git rev-parse --short "$(ref_journal "$env")" 2>/dev/null || echo "")
+    local msg
+    if [ -n "$tip" ]; then
+      msg="Recorded to Shiplog [$tip]"
+    else
+      msg="Recorded to Shiplog"
+    fi
+    if shiplog_can_use_bosun; then
+      local bosun
+      bosun=$(shiplog_bosun_bin)
+      "$bosun" style --title "Shiplog" -- "$msg"
+    else
+      printf '✅ %s\n' "$msg"
+    fi
   else
     printf '❌ shiplog: failed to record run entry; log preserved at %s\n' "$log_path" >&2
     return $write_status
