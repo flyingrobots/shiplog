@@ -762,7 +762,7 @@ cmd_run() {
       bosun=$(shiplog_bosun_bin)
       "$bosun" style --title "Shiplog" -- "$msg"
     else
-      printf '✅ %s\n' "$msg"
+      printf '%s\n' "$msg"
     fi
   else
     printf '❌ shiplog: failed to record run entry; log preserved at %s\n' "$log_path" >&2
