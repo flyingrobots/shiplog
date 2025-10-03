@@ -753,11 +753,10 @@ cmd_run() {
     local tip
     tip=$(git rev-parse --short "$(ref_journal "$env")" 2>/dev/null || echo "")
     local msg
-    if [ -n "$tip" ]; then
-      msg="Stowed away [$tip]"
-    else
-      msg="Stowed away"
-    fi
+    # Minimal confirmation; customizable via SHIPLOG_CONFIRM_TEXT (default: log emoji)
+    local confirm_text
+    confirm_text="${SHIPLOG_CONFIRM_TEXT:-🪵}"
+    msg="$confirm_text"
     if shiplog_can_use_bosun; then
       local bosun
       bosun=$(shiplog_bosun_bin)
