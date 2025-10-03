@@ -130,7 +130,9 @@ enforce_trust_threshold() {
   # - SHIPLOG_REQUIRE_SIGNED_TRUST defaults to 0 (signature checks skipped)
   # - For production, set to 1/true/yes/on to enforce signed trust commits
   #   (leaving it off reduces integrity of trust updates)
-  case "${SHIPLOG_REQUIRE_SIGNED_TRUST,,}" in
+  # Normalize gate safely under set -u
+  gate=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')
+  case "$gate" in
     1|true|yes|on)
       if [ -n "$SIGNERS_FILE" ]; then
         GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
