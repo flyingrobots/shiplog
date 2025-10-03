@@ -765,8 +765,6 @@ cmd_run() {
   if [ $write_status -eq 0 ]; then
     rm -f "$log_path"
     # Emit a compact confirmation to the user
-    local tip
-    tip=$(git rev-parse --short "$(ref_journal "$env")" 2>/dev/null || echo "")
     local msg
     # Minimal confirmation; customizable via SHIPLOG_CONFIRM_TEXT (default: log emoji)
     local confirm_text

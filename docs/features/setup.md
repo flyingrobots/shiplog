@@ -28,7 +28,7 @@ When bootstrapping trust, you can pick how quorum signatures are recorded and ve
 
 Set explicitly via flags or env during setup/bootstrap:
 
-```
+```bash
 git shiplog setup --trust-sig-mode chain   # or attestation
 SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 ```

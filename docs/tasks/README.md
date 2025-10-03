@@ -55,6 +55,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 <!-- progress bar: Overall -->
 #### Overall
+
 ```text
 ███████████████████████████████░░░░░░░░░░░░░░░░░░░ 62% (weighted)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|

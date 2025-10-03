@@ -84,7 +84,6 @@ if [ "$sig_mode" = "chain" ]; then
   if [ "$OLD" = "0000000000000000000000000000000000000000" ]; then
     err "threshold>1 requires multiple co-signed commits in chain mode"
   fi
-  local tree expected
   expected=$(trust_tree_oid "$NEW")
   count=0
   authors_seen=""
