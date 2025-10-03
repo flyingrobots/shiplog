@@ -156,7 +156,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 <!-- progress bar: Beta -->
 #### Beta
 ```text
-████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 9% (2/18)
+████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 8% (2/20)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -178,6 +178,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.BETA.013 — Improve split helper implementation](docs/tasks/backlog/SLT.BETA.013_improve_bosun_split_helper.md)
   - [SLT.BETA.017 — Enforce policy fields: require_ticket/require_where/ff_only](docs/tasks/backlog/SLT.BETA.017_enforce_policy_fields_require_ticket_where_ff_only.md)
   - [SLT.BETA.018 — Anchors lifecycle: commands and flow](docs/tasks/backlog/SLT.BETA.018_anchor_commands_and_flow.md)
+  - [SLT.BETA.019 — Git hosting enforcement matrix and guidance](docs/tasks/backlog/SLT.BETA.019_git_hosting_enforcement_matrix.md)
+  - [SLT.BETA.020 — Setup Questionnaire (guided configuration)](docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md)
 
 <!-- progress bar: v1.0.0 -->
 #### v1.0.0
