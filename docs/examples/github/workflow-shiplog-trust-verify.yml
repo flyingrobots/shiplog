@@ -8,7 +8,6 @@ name: Shiplog Trust Verify
   push:
     branches:
       - _shiplog/**
-
 permissions:
   contents: read
 

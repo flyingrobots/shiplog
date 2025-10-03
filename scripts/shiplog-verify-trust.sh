@@ -84,7 +84,6 @@ if [ "$sig_mode" = "chain" ]; then
   if [ "$OLD" = "0000000000000000000000000000000000000000" ]; then
     err "threshold>1 requires multiple co-signed commits in chain mode"
   fi
-  local tree expected
   expected=$(trust_tree_oid "$NEW")
   count=0
   authors_seen=""
@@ -103,15 +102,47 @@ if [ "$sig_mode" = "chain" ]; then
 fi
 
 if [ "$sig_mode" = "attestation" ]; then
-  # Minimal: require at least <threshold> files under .shiplog/trust_sigs/
+  # Verify detached signatures over canonical payload using ssh-keygen -Y verify.
+  # Build payload
+  trust_id=$(printf '%s' "$TRUST_JSON" | "$JQ_BIN" -r '.id // "shiplog-trust-root"')
+  payload=$(printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$(trust_tree_oid "$NEW")" "$trust_id" "$threshold")
+  tmp_in=$(mktemp)
+  printf '%s' "$payload" > "$tmp_in"
+
+  # Collect signatures
   mapfile -t sigs < <(git ls-tree -r --name-only "$NEW" | awk '/^\.shiplog\/trust_sigs\//{print}')
   nsigs=${#sigs[@]}
   if [ "$nsigs" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
     err "found $nsigs attestation files; threshold is $threshold"
   fi
-  # TODO: Verify each signature over canonical payload when ssh-keygen is present.
+
+  need ssh-keygen || true
+  if ! command -v ssh-keygen >/dev/null 2>&1; then
+    [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" = "1" ] && exit 0
+    err "ssh-keygen not available; cannot verify attestations"
+  fi
+
+  [ -n "$SIGNERS_FILE" ] || err "allowed_signers missing; cannot verify attestations"
+
+  verified=0
+  principals_seen=""
+  for path in "${sigs[@]}"; do
+    principal=$(basename "$path" | sed 's/\.sig$//')
+    sigblob=$(git show "$NEW:$path" 2>/dev/null || true)
+    [ -n "$sigblob" ] || continue
+    sigfile=$(mktemp)
+    printf '%s' "$sigblob" > "$sigfile"
+    if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
+      case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
+    fi
+    rm -f "$sigfile"
+  done
+  rm -f "$tmp_in"
+
+  if [ "$verified" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
+    err "verified $verified attestations; threshold is $threshold"
+  fi
   exit 0
 fi
 
 err "unknown sig_mode: $sig_mode"
-
