@@ -694,10 +694,16 @@ cmd_run() {
   SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
 
   local write_status
-  # Suppress verbose preview/output from cmd_write; show a concise summary instead
-  (
-    cmd_write --env "$env"
-  ) >/dev/null 2>&1
+  # For dry-run, surface cmd_write's preview lines; otherwise suppress verbose preview
+  if [ "$dry_run" -eq 1 ] || [ "$skip_execution" -eq 1 ]; then
+    (
+      cmd_write --env "$env"
+    )
+  else
+    (
+      cmd_write --env "$env"
+    ) >/dev/null 2>&1
+  fi
   write_status=$?
 
   if [ $had_boring -eq 1 ]; then
