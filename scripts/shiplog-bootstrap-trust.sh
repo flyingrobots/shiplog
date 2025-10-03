@@ -123,6 +123,7 @@ CLI_TRUST=0
 CLI_TRUST_ID=""
 CLI_TRUST_THRESHOLD=""
 CLI_TRUST_MESSAGE=""
+CLI_TRUST_SIG_MODE=""
 declare -a CLI_MAINTS
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -146,6 +147,10 @@ while [ $# -gt 0 ]; do
       shift; [ -n "${1:-}" ] || { echo "missing value for --trust-maintainer" >&2; exit 2; }; CLI_MAINTS+=("$1") ;;
     --trust-maintainer=*)
       CLI_MAINTS+=("${1#*=}") ;;
+    --trust-sig-mode)
+      shift; CLI_TRUST_SIG_MODE="${1:-}" ;;
+    --trust-sig-mode=*)
+      CLI_TRUST_SIG_MODE="${1#*=}" ;;
     --no-color) NO_COLOR=1 ;;
     -h|--help)
       usage
@@ -214,6 +219,11 @@ commit_message=""
 if [ "$non_interactive_bootstrap" = "2" ]; then
   # CLI-driven non-interactive
   trust_id="${CLI_TRUST_ID:-shiplog-trust-root}"
+  sig_mode="${CLI_TRUST_SIG_MODE:-chain}"
+  case "$(printf '%s' "$sig_mode" | tr '[:upper:]' '[:lower:]')" in
+    chain|attestation) : ;;
+    *) die "invalid --trust-sig-mode: $sig_mode (expected chain|attestation)" ;;
+  esac
   has_cli_maint=0
   if declare -p CLI_MAINTS >/dev/null 2>&1; then
     if [ "${CLI_MAINTS+set}" = "set" ] && [ ${#CLI_MAINTS[@]} -gt 0 ]; then
@@ -266,6 +276,11 @@ if [ "$non_interactive_bootstrap" = "2" ]; then
   commit_message="${CLI_TRUST_MESSAGE:-shiplog: trust root v1 (GENESIS)}"
 elif [ "$non_interactive_bootstrap" = "1" ]; then
   trust_id="${SHIPLOG_TRUST_ID:-shiplog-trust-root}"
+  sig_mode="${SHIPLOG_TRUST_SIG_MODE:-chain}"
+  case "$(printf '%s' "$sig_mode" | tr '[:upper:]' '[:lower:]')" in
+    chain|attestation) : ;;
+    *) die "invalid SHIPLOG_TRUST_SIG_MODE: $sig_mode (expected chain|attestation)" ;;
+  esac
   count="$SHIPLOG_TRUST_COUNT"
   i=1
   while [ "$i" -le "$count" ]; do
@@ -333,6 +348,11 @@ else
   done
 
   trust_id=$(prompt_input "Trust identifier" "shiplog-trust-root")
+  sig_mode=$(prompt_input "Signing mode [chain|attestation]" "chain")
+  case "$(printf '%s' "$sig_mode" | tr '[:upper:]' '[:lower:]')" in
+    chain|attestation) : ;;
+    *) echo "Invalid signing mode; defaulting to chain" >&2; sig_mode="chain" ;;
+  esac
 
   index=1
   while [ "$index" -le "$maint_count" ]; do
@@ -412,7 +432,7 @@ fi
 
 summary="Trust ID: $trust_id\nThreshold: $threshold\nMaintainers:"
 for i in "${!maint_names[@]}"; do
-  summary+=$'\n  - '
+summary+=$'\n  - '
   summary+="${maint_names[$i]} <${maint_emails[$i]}> (role: ${maint_roles[$i]}, revoked: ${maint_revoked[$i]})"
 done
 
@@ -458,10 +478,12 @@ for i in "${!maint_names[@]}"; do
 done
 
 trust_id_q=$(json_quote "$trust_id" | tr -d '\n')
+sig_mode_q=$(json_quote "${sig_mode:-chain}" | tr -d '\n')
 cat > "$trust_path" <<JSON_DOC
 {
   "version": 1,
   "id": $trust_id_q,
+  "sig_mode": $sig_mode_q,
   "threshold": $threshold,
   "maintainers": [
 $maintainers_json

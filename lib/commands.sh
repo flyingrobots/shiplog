@@ -1339,6 +1339,10 @@ cmd_setup() {
         shift; [ -n "${1:-}" ] || die "shiplog: --trust-maintainer requires a value"; trust_args+=("--trust-maintainer" "$1"); shift ;;
       --trust-maintainer=*)
         trust_args+=("--trust-maintainer=${1#*=}"); shift ;;
+      --trust-sig-mode)
+        shift; [ -n "${1:-}" ] || die "shiplog: --trust-sig-mode requires a value"; trust_args+=("--trust-sig-mode" "$1"); shift ;;
+      --trust-sig-mode=*)
+        trust_args+=("--trust-sig-mode=${1#*=}"); shift ;;
       --trust-message)
         shift; [ -n "${1:-}" ] || die "shiplog: --trust-message requires a value"; trust_args+=("--trust-message" "$1"); shift ;;
       --trust-message=*)
