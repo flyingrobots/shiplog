@@ -2,6 +2,8 @@
 
 The setup wizard helps you choose how strict Shiplog should be for this repository, writes a starter policy, and (optionally) bootstraps trust and pushes refs.
 
+Note: The host‑aware questionnaire lives under `git shiplog config --interactive` (see `docs/features/config.md`). A richer flow is planned (see docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md). The current `setup` wizard is non‑interactive and flag‑driven.
+
 ## Usage
 
 ```

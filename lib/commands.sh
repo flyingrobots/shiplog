@@ -1594,6 +1594,134 @@ cmd_setup() {
   fi
 }
 
+# Interactive configuration wizard (questionnaire)
+cmd_config() {
+  ensure_in_repo
+
+  local interactive=0 apply=0 answers_file="" dry_run=1
+  if shiplog_is_dry_run; then dry_run=1; fi
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --interactive|--wizard) interactive=1; shift; continue ;;
+      --answers-file) shift; answers_file="${1:-}"; shift; continue ;;
+      --answers-file=*) answers_file="${1#*=}"; shift; continue ;;
+      --apply) apply=1; dry_run=0; shift; continue ;;
+      --dry-run) dry_run=1; shift; continue ;;
+      --help|-h)
+        printf 'Usage: git shiplog config --interactive|--wizard [--apply] [--answers-file file] [--dry-run]\n'
+        return 0 ;;
+      --) shift; break ;;
+      *) break ;;
+    esac
+  done
+
+  if [ "$interactive" -ne 1 ] && [ -n "$answers_file" ]; then :; elif [ "$interactive" -ne 1 ]; then
+    die "shiplog: config requires --interactive (or --wizard) or --answers-file"
+  fi
+
+  # Detect host from origin URL
+  local origin host_kind
+  origin=$(git config --get remote.origin.url 2>/dev/null || true)
+  host_kind="self-hosted"
+  case "$origin" in
+    *github.com*) host_kind="github.com" ;;
+    *gitlab.com*) host_kind="gitlab.com" ;;
+    *bitbucket.org*) host_kind="bitbucket.org" ;;
+  esac
+
+  # Answers with defaults
+  local q_host q_ref_root q_threshold q_sig_mode q_per_env_signed q_autopush
+  q_host="$host_kind"
+  q_ref_root=""; q_threshold=1; q_sig_mode="chain"; q_per_env_signed="prod-only"; q_autopush="disable"
+
+  if [ -n "$answers_file" ]; then
+    if command -v jq >/dev/null 2>&1; then
+      q_host=$(jq -r '.host // empty' "$answers_file" 2>/dev/null || true)
+      q_ref_root=$(jq -r '.ref_root // empty' "$answers_file" 2>/dev/null || true)
+      q_threshold=$(jq -r '.threshold // empty' "$answers_file" 2>/dev/null || true)
+      q_sig_mode=$(jq -r '.sig_mode // empty' "$answers_file" 2>/dev/null || true)
+      q_per_env_signed=$(jq -r '.require_signed // empty' "$answers_file" 2>/dev/null || true)
+      q_autopush=$(jq -r '.autoPush // empty' "$answers_file" 2>/dev/null || true)
+    else
+      die "shiplog: jq required for --answers-file parsing"
+    fi
+  fi
+
+  if [ "$interactive" -eq 1 ]; then
+    q_host=$(shiplog_prompt_choice "Git host" "SHIPLOG_CONFIG_HOST" github.com gitlab.com bitbucket.org self-hosted)
+    local default_root="refs/_shiplog"
+    case "$q_host" in github.com|gitlab.com|bitbucket.org) default_root="refs/heads/_shiplog";; esac
+    local root_ans; root_ans="$(shiplog_prompt_choice "Ref namespace" "SHIPLOG_CONFIG_REFROOT" "$default_root" refs/heads/_shiplog refs/_shiplog)"
+    q_ref_root="$root_ans"
+    local team_hint; team_hint=$(shiplog_prompt_choice "Team size" "SHIPLOG_CONFIG_TEAM" solo solo 2-5 6-plus)
+    case "$team_hint" in solo) q_threshold=1 ;; 2-5) q_threshold=2 ;; 6-plus) q_threshold=3 ;; esac
+    if [ "$q_threshold" -gt 1 ] && [ "$q_host" != "self-hosted" ]; then q_sig_mode="attestation"; else q_sig_mode="chain"; fi
+    q_sig_mode=$(shiplog_prompt_choice "Signing mode" "SHIPLOG_CONFIG_SIGMODE" "$q_sig_mode" chain attestation)
+    q_per_env_signed=$(shiplog_prompt_choice "Require signatures" "SHIPLOG_CONFIG_REQSIG" prod-only prod-only global none)
+    q_autopush=$(shiplog_prompt_choice "Auto-push during deploys" "SHIPLOG_CONFIG_AUTOPUSH" disable disable enable)
+  fi
+
+  # Compute plan
+  local ref_root="$q_ref_root"
+  if [ -z "$ref_root" ]; then
+    case "$q_host" in github.com|gitlab.com|bitbucket.org) ref_root="refs/heads/_shiplog" ;; *) ref_root="refs/_shiplog" ;; esac
+  fi
+  local require_signed_global=0 require_signed_prod=0
+  case "$(printf '%s' "$q_per_env_signed" | tr '[:upper:]' '[:lower:]')" in
+    global|all|true|yes) require_signed_global=1 ;;
+    prod-only) require_signed_prod=1 ;;
+    none|false|no|off|'') ;; esac
+  local autopush_cfg=1
+  case "$(printf '%s' "$q_autopush" | tr '[:upper:]' '[:lower:]')" in disable|0|no|off|false) autopush_cfg=0 ;; *) autopush_cfg=1 ;; esac
+
+  # Render plan JSON
+  local plan_json
+  plan_json='{'
+  plan_json+="\"host\":\"$q_host\",\"ref_root\":\"$ref_root\",\"sig_mode\":\"$q_sig_mode\",\"threshold\":$q_threshold,"
+  if [ $require_signed_global -eq 1 ]; then
+    plan_json+="\"require_signed\":\"global\","
+  elif [ $require_signed_prod -eq 1 ]; then
+    plan_json+="\"require_signed\":\"prod-only\","
+  else
+    plan_json+="\"require_signed\":\"none\","
+  fi
+  plan_json+="\"autoPush\":${autopush_cfg}"
+  plan_json+='}'
+
+  if shiplog_can_use_bosun; then
+    local bosun; bosun=$(shiplog_bosun_bin)
+    "$bosun" style --title "Shiplog Config Plan" -- "$plan_json"
+  else
+    printf '%s\n' "$plan_json"
+  fi
+
+  # Apply actions (local-only) when requested
+  if [ "$apply" -eq 1 ]; then
+    git config shiplog.refRoot "$ref_root"
+    if [ "$autopush_cfg" -eq 1 ]; then
+      git config shiplog.autoPush true
+    else
+      git config shiplog.autoPush false
+    fi
+    mkdir -p .shiplog
+    local tmp; tmp=$(mktemp)
+    if [ $require_signed_global -eq 1 ]; then
+      printf '{"version":1,"require_signed":true}\n' >"$tmp"
+    elif [ $require_signed_prod -eq 1 ]; then
+      printf '{"version":1,"require_signed":false,"deployment_requirements":{"prod":{"require_signed":true}}}\n' >"$tmp"
+    else
+      printf '{"version":1,"require_signed":false}\n' >"$tmp"
+    fi
+    policy_install_file "$tmp" ".shiplog/policy.json"
+    if shiplog_can_use_bosun; then
+      local bosun2; bosun2=$(shiplog_bosun_bin)
+      "$bosun2" style --title "Next Steps" -- "Bootstrap trust (threshold=$q_threshold, sig_mode=$q_sig_mode) and add CI checks/rulesets per host. See docs/hosting/matrix.md and docs/TRUST.md."
+    else
+      printf 'Next steps: bootstrap trust (threshold=%s, sig_mode=%s). See docs/hosting/matrix.md and docs/TRUST.md\n' "$q_threshold" "$q_sig_mode"
+    fi
+  fi
+}
+
 usage() {
   local cmd="$(basename "$0")"
   if [ "$cmd" = "git-shiplog" ]; then
@@ -1628,6 +1756,12 @@ Usage:
   refs root show       Show current Shiplog ref root
   refs root set REF    Set Shiplog ref root (e.g., refs/_shiplog or refs/heads/_shiplog)
   refs migrate [OPTS]  Mirror refs between roots (wrapper). Options: --to <refs/...> [--from <refs/...>] [--push] [--remove-old] [--dry-run]
+  config               Interactive configuration wizard (questionnaire)
+                       Options:
+                         --interactive | --wizard    Start TTY questionnaire
+                         --answers-file <path>       Non-interactive answers (JSON)
+                         --apply                     Apply recommendations (policy/config)
+                         --dry-run                   Print plan only (default)
   setup                Non-interactive setup wrapper to write .shiplog/policy.json and sync policy ref
                        Options:
                          --strictness open|balanced|strict
@@ -1678,6 +1812,7 @@ run_command() {
     trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
     refs)          cmd_refs "$@";;
+    config)        cmd_config "$@";;
     setup)         cmd_setup "$@";;
     *)             usage; exit 1;;
   esac

@@ -1,169 +1,160 @@
-## 🚢🪵 Shiplog: Your Git Repo is Your Deployment Black Box Recorder
+## 🚢🪵 Shiplog — Git‑Native Deployment Ledger
 
-**TL;DR:** Your deployment history should live in the same repo as your code. No external services. No API keys. No monthly bills. Just **Git**, doing what it does best: preserving history with cryptographic integrity.
+Your deployment history should live next to your code. No SaaS. No secrets. Just Git doing what Git does best: immutable, replicated history with cryptographic integrity.
 
----
+—
 
-## The Chaos Scenario: Friday, 3:17 PM
+## Why Shiplog
 
-*Bzzzt. Bzzzzzt. Bzzzzzzzzt.* The intern looks like they just saw a ghost. Dashboards flip from green to red. Slack explodes. Bob mutters, "It worked on my laptop."
+- Single source of truth: deployments, rollbacks, hotfixes, and ops events become signed Git records.
+- Human + JSON: readable TTY views and script‑friendly output (`--json|--json-compact|--jsonl`).
+- Trust & policy in Git: quorum‑guarded policy; allowlists; optional signature gates.
+- Zero new infra: uses refs under your repo; works offline; mirrors automatically via Git.
 
-You're about to dive into six different dashboards to piece together the truth when you remember: **We use Shiplog.**
+—
 
-In a flash, you run a single command and the chaos dissolves:
+## Quick Start
 
-```bash
-git shiplog show
-┌ SHIPLOG Entry ────────────────────────────────────────────────┐
-│ Deploy: boring-web v1.2.3 → prod/us-east-1/prod-a/default     │
-│ Reason: Starting Migration...                                 │
-│ Status: FAILURE (7m12s) @ 2025-09-21T22:38:42Z                │
-└───────────────────────────────────────────────────────────────┘
-```
-
-The truth is revealed: a failed migration, a clear timestamp, and the exact commit that triggered it.
-
----
-
-## ✨ What Is Shiplog?
-
-Shiplog is your deployment **black box recorder**. Think `git commit`—but for every release and live-ops event. Every deployment leaves a cryptographically signed receipt in Git.
-
-### The Philosophy
-
-Shiplog isn’t another deployment platform. It’s a **primitive**: a receipt, a ledger. Build your automated workflows around it, the same way you build around `git commit`.
-
-**Why you want it:**
-
-- 🧑‍💻 **Readable:** Debug deployments at 3 a.m. without archeology.
-- 🤖 **Parseable:** Pipe machine-readable JSON to dashboards, alerts, or bots.
-- 🔏 **Signed:** Clear provenance and compliance via commit signing.
-- 🪢 **Git-Native:** No infra. No SaaS. **Just Git commits.**
-
-### Git: An Immutable, Distributed Journal
-
-Git **_is_** a data structure. Shiplog uses it to create chains of commits that hang off of dedicated references (`refs/_shiplog/*`), forming an **append-only journal**. Git is powerful; it can do way more than just source control.
-
----
-
-## 🔐 Policy, Security, and Trust
-
-**Don't Trust; Verify.** Shiplog establishes cryptographic provenance for every record and enforces policy _as code_, stored as a commit in your Git repository.
-
-- **Trust Roster:** A list of approved authors is stored in Git, restricting who may write to the journal.
-- **Policy by Quorum:** Policies themselves require a quorum of authorized signers to change.
-- **Cryptographic Provenance:** Commit authors **sign their commits** to establish who created each record, perfect for auditable histories.
-
-### Example Policy (`.shiplog/policy.json`)
-
-```json
-{
-  "require_signed": true,
-  "authors": {
-    "prod": ["deploy-bot@ci", "james@flyingrobots.dev"]
-  },
-  "deployment_requirements": {
-    "prod": { "require_ticket": true }
-  }
-}
-```
-
-- `refs/_shiplog/journal/<env>` → Append-only logs for each environment.
-- `refs/_shiplog/policy/current` → Signed policy references.
-
----
-
-## 🚀 Getting Started
-
-It's all just Git! You can fetch, push, clone, and verify using tools and knowledge you already have.
-
-### Installation
+Install once on your workstation or CI runner:
 
 ```bash
 git clone https://github.com/flyingrobots/shiplog.git "$HOME/.shiplog"
-export SHIPLOG_HOME="$HOME/.shiplog"
-export PATH="$SHIPLOG_HOME/bin:$PATH"
+export SHIPLOG_HOME="$HOME/.shiplog" && export PATH="$SHIPLOG_HOME/bin:$PATH"
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
-```
-
-**Verify install:**
-
-```bash
 git shiplog --version
 ```
 
-### Basic Usage
-
-1. Initialize Shiplog in your repository:
+Initialize in a repo and record the first entry:
 
 ```bash
-cd your-project
+cd your-repo
 git shiplog init
+export SHIPLOG_ENV=prod SHIPLOG_SERVICE=web
+git shiplog write   # prompts for metadata; respects policy allowlists
+
+# Optional: publish refs explicitly (see Auto‑push & Publish below)
+git shiplog publish --env prod
 ```
 
-_(NOTE: See [`docs/TRUST.md`](docs/TRUST.md) for one-time policy and trust setup instructions)_
-   
-2. Record a deployment event:
+Optionally, run the config wizard to pick host‑aware defaults:
 
 ```bash
-export SHIPLOG_ENV=prod
-export SHIPLOG_SERVICE=web
-git shiplog write
+git shiplog config --interactive   # prints a plan; add --apply to write policy/config
 ```
- 
-3. Inspect history:
+
+Inspect history (human + JSON):
 
 ```bash
 git shiplog ls --env prod
-git shiplog show --json
-```
-   
-4. Wrap a command and capture its output automatically:
-
-```bash
-git shiplog run --service deploy --reason "Canary" -- env kubectl rollout status deploy/web
-```
- 
-5. Append structured data non-interactively (great for automation):
-
-```bash
-printf '{"checks": {"canary": "green"}}' | \
-  git shiplog append --env prod --region us-west-2 --cluster prod-a \
-	--namespace frontend --service deploy --status success \
-	--reason "post-release smoke" --json -
-``` 
-
----
-
-## ⚙️ Core Commands
-
-|Command|Purpose|
-|---|---|
-|`git shiplog init`|Setup references (`refs`) and configuration.|
-|`git shiplog write`|Record a deployment interactively.|
-|`git shiplog append`|Record a deployment via JSON payload (stdin or file).|
-|`git shiplog run`|Wrap a command, capture logs, and record the result.|
-|`git shiplog ls`|List recent entries.|
-|`git shiplog show`|Show entry details.|
-|`git shiplog trust show`|Display trust roster and signer inventory.|
-|`git shiplog verify`|Verify signatures and policy compliance.|
-|`git shiplog export-json`|Export NDJSON for tools.|
-
----
-
-## 🧪 Testing
-
-> ⚠️ **Warning to Shiplog Developers:** Avoid running Shiplog in its own repository path. Shiplog mutates Git refs! By default, tests are configured to run in a Docker container. Use it!
-
-```bash
-make test         # Unsigned, fast
-make test-signing # With loopback GPG key
+git shiplog show --json-compact   # single entry JSON
+git shiplog export-json           # NDJSON stream
 ```
 
----
+Wrap a command and capture its logs:
 
-## 📜 License
+```bash
+git shiplog run --service deploy --reason "canary" -- \
+  kubectl rollout status deploy/web
+# prints a minimal confirmation (default "🪵"); set SHIPLOG_CONFIRM_TEXT to override
+```
 
-MIT © J. Kirby Ross • [@flyingrobots](https://github.com/flyingrobots)
+—
 
-_Jenkins was not harmed in the making of this project._
+## Core Concepts
+
+- Refs (where data lives)
+  - Journals: `refs/_shiplog/journal/<env>`
+  - Policy:   `refs/_shiplog/policy/current`
+  - Trust:    `refs/_shiplog/trust/root`
+- Policy as code: required fields, allowlists per env, signature requirements. See docs/features/policy.md and docs/TRUST.md.
+- Environments: each environment has its own append‑only journal (fast‑forward only).
+
+—
+
+## Trust Modes (Multi‑Sig)
+
+Choose how maintainer approval is expressed. Both are supported; pick per‑repo during setup.
+
+- Chain (sig_mode=chain)
+  - What: maintainers sign trust commits; threshold distinct signers over the evolving trust tree.
+  - Pros: Git‑native flow; familiar commit signatures; great audit trail.
+  - Cons: requires signing trust commits (often via a maintainer workflow).
+
+- Attestation (sig_mode=attestation)
+  - What: maintainers sign a canonical payload (tree OID + context) and attach signatures; verified via `ssh-keygen -Y verify`.
+  - Pros: flexible; easy to automate with SSH keys; decouples signatures from trust commit authoring.
+  - Cons: extra artifact management; be precise about canonicalization.
+
+Fast pick:
+- Prefer chain if maintainers are comfortable signing Git commits.
+- Prefer attestation if you already manage SSH keys for approvals or want signatures produced outside Git.
+
+See docs/TRUST.md for bootstrapping and scripts.
+
+—
+
+## Git Hosts & Enforcement
+
+- GitHub.com (SaaS): no custom server hooks. Use Branch/Push Rulesets and Required Status Checks. For strong protections on SaaS, use branch namespace (`refs/heads/_shiplog/**`) so branch rules can protect your Shiplog refs. See docs/hosting/github.md.
+- Self‑hosted (GH Enterprise, GitLab self‑managed, Gitea, Bitbucket DC): install the pre‑receive hook (`contrib/hooks/pre-receive.shiplog`) and enforce trust/policy server‑side.
+- Matrix & recipes: see docs/hosting/matrix.md for a side‑by‑side of capabilities and recommended configs.
+
+Switching namespaces is supported (custom refs ↔ branch namespace) via scripts/shiplog-migrate-ref-root.sh and `git config shiplog.refRoot`.
+
+—
+
+## Auto‑push & Publish
+
+To avoid tripping pre‑push hooks mid‑deploy, Shiplog separates writing from publishing. Control behavior via flags, repo config, or env:
+
+- Precedence: command flags > `git config shiplog.autoPush` > environment/default.
+- Explicit publish: `git shiplog publish [--env <env>|--all] [--no-notes] [--policy] [--trust]`.
+
+Examples:
+- Disable auto‑push per repo: `git config shiplog.autoPush false`; publish at the end of a deploy: `git shiplog publish --env prod`.
+- Force publish for one command: `git shiplog write --push` (overrides config).
+
+—
+
+## Output UX
+
+- Minimal confirmations: `git shiplog run` prints emoji‑only by default (🪵). Set `SHIPLOG_CONFIRM_TEXT` for a plain alternative (e.g., `> Shiplogged`).
+- Clean headers: optional fields are hidden rather than shown as `?`.
+
+—
+
+## What’s Live vs Roadmap
+
+Live now
+- Journals (append‑only by env) with human and JSON views.
+- Policy and trust refs; allowlists per env; threshold‑based verification.
+- Two trust modes (chain, attestation) and a shared verifier script.
+- `run`, `write`, `append`, `ls`, `show`, `export-json`, `publish`.
+- GitHub SaaS guidance + self‑hosted hook; hosting matrix docs.
+- Dockerized cross‑distro test matrix; lint workflows (shell, markdown, yaml).
+
+On the roadmap
+- Interactive “Setup Questionnaire” to recommend trust mode, thresholds, namespace, CI checks, and rulesets (see docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md).
+- More end‑to‑end tests for attestation verification across distros.
+- Flip linters to blocking once baseline is clean.
+
+—
+
+## Upgrading
+
+See RELEASE_NOTES.md for version‑specific guidance and any one‑time steps (e.g., ref namespace changes, publish defaults, or trust signature gates such as `SHIPLOG_REQUIRE_SIGNED_TRUST`).
+
+—
+
+## Contributing & Tests
+
+- Please read AGENTS.md before running tests or editing hooks/scripts.
+- Run tests only via Docker: `make test` (and `TEST_TIMEOUT_SECS=180 make test` to guard hangs). Do not run Bats directly on your host.
+
+—
+
+## License
+
+MIT © J. Kirby Ross (@flyingrobots)
+
+Jenkins was not harmed in the making of this project.
