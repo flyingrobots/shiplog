@@ -1605,7 +1605,7 @@ cmd_config() {
       --interactive|--wizard) interactive=1; shift; continue ;;
       --answers-file) shift; answers_file="${1:-}"; shift; continue ;;
       --answers-file=*) answers_file="${1#*=}"; shift; continue ;;
-      --apply) apply=1; dry_run=0; shift; continue ;;
+      --apply) apply=1; shift; continue ;;
       --dry-run) dry_run=1; shift; continue ;;
       --help|-h)
         printf 'Usage: git shiplog config --interactive|--wizard [--apply] [--answers-file file] [--dry-run]\n'
@@ -1614,6 +1614,11 @@ cmd_config() {
       *) break ;;
     esac
   done
+
+  # Invalid combo: --apply with --dry-run
+  if [ "$apply" -eq 1 ] && [ "$dry_run" -eq 1 ]; then
+    die "shiplog: --apply and --dry-run are mutually exclusive"
+  fi
 
   if [ "$interactive" -ne 1 ] && [ -n "$answers_file" ]; then :; elif [ "$interactive" -ne 1 ]; then
     die "shiplog: config requires --interactive (or --wizard) or --answers-file"
@@ -1661,32 +1666,52 @@ cmd_config() {
     q_autopush=$(shiplog_prompt_choice "Auto-push during deploys" "SHIPLOG_CONFIG_AUTOPUSH" disable disable enable)
   fi
 
-  # Compute plan
+  # Normalize/coerce answers and compute plan inputs
+  # host
+  q_host="$(printf '%s' "${q_host:-$host_kind}" | tr '[:upper:]' '[:lower:]')"
+  case "$q_host" in github.com|gitlab.com|bitbucket.org) : ;; self-hosted|'') q_host="self-hosted" ;; *) q_host="self-hosted" ;; esac
+  # threshold (integer, >=1)
+  if ! printf '%s' "${q_threshold:-}" | grep -Eq '^[0-9]+$'; then q_threshold=1; fi
+  if [ "${q_threshold}" -lt 1 ]; then q_threshold=1; fi
+  # sig_mode
+  q_sig_mode="${q_sig_mode:-}"
+  if [ -z "$q_sig_mode" ]; then
+    if [ "$q_threshold" -gt 1 ] && [ "$q_host" != "self-hosted" ]; then q_sig_mode="attestation"; else q_sig_mode="chain"; fi
+  fi
+  case "$(printf '%s' "$q_sig_mode" | tr '[:upper:]' '[:lower:]')" in chain|attestation) : ;; *) q_sig_mode="chain" ;; esac
+  # require_signed scope
+  q_per_env_signed="$(printf '%s' "${q_per_env_signed:-prod-only}" | tr '[:upper:]' '[:lower:]')"
+  local require_signed_global=0 require_signed_prod=0
+  case "$q_per_env_signed" in global|all|true|yes) require_signed_global=1 ;; prod-only) require_signed_prod=1 ;; none|false|no|off|'') ;; *) require_signed_prod=1 ;; esac
+  # autopush
+  q_autopush="$(printf '%s' "${q_autopush:-disable}" | tr '[:upper:]' '[:lower:]')"
+  local autopush_cfg=1
+  case "$q_autopush" in disable|0|no|off|false) autopush_cfg=0 ;; *) autopush_cfg=1 ;; esac
+  # ref root
   local ref_root="$q_ref_root"
   if [ -z "$ref_root" ]; then
     case "$q_host" in github.com|gitlab.com|bitbucket.org) ref_root="refs/heads/_shiplog" ;; *) ref_root="refs/_shiplog" ;; esac
   fi
-  local require_signed_global=0 require_signed_prod=0
-  case "$(printf '%s' "$q_per_env_signed" | tr '[:upper:]' '[:lower:]')" in
-    global|all|true|yes) require_signed_global=1 ;;
-    prod-only) require_signed_prod=1 ;;
-    none|false|no|off|'') ;; esac
-  local autopush_cfg=1
-  case "$(printf '%s' "$q_autopush" | tr '[:upper:]' '[:lower:]')" in disable|0|no|off|false) autopush_cfg=0 ;; *) autopush_cfg=1 ;; esac
 
-  # Render plan JSON
+  # Final plan JSON (use jq when available)
   local plan_json
-  plan_json='{'
-  plan_json+="\"host\":\"$q_host\",\"ref_root\":\"$ref_root\",\"sig_mode\":\"$q_sig_mode\",\"threshold\":$q_threshold,"
-  if [ $require_signed_global -eq 1 ]; then
-    plan_json+="\"require_signed\":\"global\","
-  elif [ $require_signed_prod -eq 1 ]; then
-    plan_json+="\"require_signed\":\"prod-only\","
+  if command -v jq >/dev/null 2>&1; then
+    local req_scope
+    if [ $require_signed_global -eq 1 ]; then req_scope="global"; elif [ $require_signed_prod -eq 1 ]; then req_scope="prod-only"; else req_scope="none"; fi
+    plan_json=$(jq -n \
+      --arg host "$q_host" \
+      --arg ref_root "$ref_root" \
+      --arg sig_mode "$q_sig_mode" \
+      --arg req "$req_scope" \
+      --argjson threshold "$q_threshold" \
+      --argjson autoPush "$autopush_cfg" \
+      '{host:$host,ref_root:$ref_root,sig_mode:$sig_mode,threshold:$threshold,require_signed:$req,autoPush:$autoPush}')
   else
-    plan_json+="\"require_signed\":\"none\","
+    plan_json=$(printf '{"host":"%s","ref_root":"%s","sig_mode":"%s","threshold":%s,"require_signed":"%s","autoPush":%s}\n' \
+      "$q_host" "$ref_root" "$q_sig_mode" "$q_threshold" \
+      "$([ $require_signed_global -eq 1 ] && echo global || { [ $require_signed_prod -eq 1 ] && echo prod-only || echo none; })" \
+      "$autopush_cfg")
   fi
-  plan_json+="\"autoPush\":${autopush_cfg}"
-  plan_json+='}'
 
   if shiplog_can_use_bosun; then
     local bosun; bosun=$(shiplog_bosun_bin)
@@ -1695,8 +1720,8 @@ cmd_config() {
     printf '%s\n' "$plan_json"
   fi
 
-  # Apply actions (local-only) when requested
-  if [ "$apply" -eq 1 ]; then
+  # Apply actions (local-only) when requested and not in dry-run
+  if [ "$apply" -eq 1 ] && [ "$dry_run" -eq 0 ]; then
     git config shiplog.refRoot "$ref_root"
     if [ "$autopush_cfg" -eq 1 ]; then
       git config shiplog.autoPush true
