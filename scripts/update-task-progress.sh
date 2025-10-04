@@ -105,7 +105,8 @@ render_pb() { # args: title pct completed total
   local bs
   bs=$(bar "$pct")
   printf '#### %s\n' "$title"
-  printf '```text\n'
+  # Keep a blank line between heading and fence to satisfy Markdown style
+  printf '\n```text\n' 
   printf '%s %s%% (%s/%s)\n' "$bs" "$pct" "$comp" "$tot"
   printf '|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n'
   printf '0   10   20   30   40   50   60   70   80   90  100%%\n'
@@ -142,7 +143,7 @@ content_alpha=$(render_pb "Alpha" "$palpha" "$done_count_Alpha" "$total_count_Al
 content_beta=$(render_pb "Beta" "$pbeta" "$done_count_Beta" "$total_count_Beta" )
 content_v1=$(render_pb "v1.0.0" "$pv1" "$done_count_v1" "$total_count_v1" )
 bos=$(bar "$overall")
-content_overall=$(printf '#### %s\n```text\n%s %s%% (weighted)\n|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n0   10   20   30   40   50   60   70   80   90  100%%\n```\n' "Overall" "$bos" "$overall")
+content_overall=$(printf '#### %s\n\n```text\n%s %s%% (weighted)\n|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n0   10   20   30   40   50   60   70   80   90  100%%\n```\n' "Overall" "$bos" "$overall")
 
 replace_block "$README_TASKS" "MVP" "$content_mvp"
 replace_block "$README_TASKS" "Alpha" "$content_alpha"

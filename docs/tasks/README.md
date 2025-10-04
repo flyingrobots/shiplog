@@ -66,6 +66,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ### MVP
 <!-- progress bar: MVP -->
 #### MVP
+
 ```text
 ██████████████████████████████████████████████████ 100% (1/1)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
@@ -80,6 +81,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 <!-- progress bar: Alpha -->
 #### Alpha
+
 ```text
 ██████████████████████████████████░░░░░░░░░░░░░░░░ 68% (48/67)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
@@ -156,6 +158,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 <!-- progress bar: Beta -->
 #### Beta
+
 ```text
 ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 8% (2/20)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
@@ -184,6 +187,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 <!-- progress bar: v1.0.0 -->
 #### v1.0.0
+
 ```text
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
