@@ -105,7 +105,7 @@ Notes:
 - Attestation mode pairs well with PRs (single commit + signature files) and SaaS required checks.
 - Both modes sign the trust tree OID; replay protection comes from verifying the signed OID equals the tree in the pushed commit range and FF‑only.
 
-For a guided choice, see docs/features/setup.md (questionnaire).
+For a guided choice, see docs/features/setup.md. An interactive questionnaire is planned (see docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md) and will surface these choices with host‑aware recommendations.
 
 ### Attestations: Creating and Verifying Signatures
 
@@ -130,6 +130,25 @@ Use the helper script to materialize the allowed signers from the trust ref and 
 
 The script fetches the latest trust ref (you still need `git fetch` beforehand), reads `allowed_signers` from the signed commit, writes it to the chosen destination, and sets `gpg.ssh.allowedSignersFile` to point at that file.
 
+## Trust‑Commit Signature Gate (Server Hook)
+
+The pre‑receive hook can require the trust commit itself to be signed (separately from meeting the maintainer threshold). Control this with `SHIPLOG_REQUIRE_SIGNED_TRUST` in the hook environment.
+
+- Default: `0` (do not require the trust commit itself to be signed). This keeps local/dev flows and CI tests simple.
+- Recommended for production: `1` (require a valid Git signature on the trust commit).
+- Case‑insensitive: values like `1|true|yes|on` enable; `0|false|no|off` disable.
+
+Example (bare repo on a self‑hosted server):
+
+```
+sudo -u git sh -c 'echo SHIPLOG_REQUIRE_SIGNED_TRUST=1 >> repos/your.git/hooks/env'
+# ensure hooks read this env (e.g., `set -a; . hooks/env; set +a` in your hook wrapper)
+```
+
+Notes:
+- The threshold verification (chain/attestation) is independent of this gate.
+- On SaaS, you cannot enforce this at push time; include signature checks in your Required Status Check.
+
 ## Server Enforcement Checklist
 
 * Fail fast when the trust ref or `trust.json` is missing (`❌ SHIPLOG: trust ref missing`).
@@ -137,7 +156,7 @@ The script fetches the latest trust ref (you still need `git fetch` beforehand),
 * Enforce `sig_mode`:
   * chain: trust update must include ≥ threshold maintainer‑signed commits over the exact same tree (FF‑only).
   * attestation: trust commit must include ≥ threshold valid attestations over the tree.
-* Require the trust commit to be signature‑verified (always).
+* Require the trust commit to be signature‑verified when `SHIPLOG_REQUIRE_SIGNED_TRUST` is enabled.
 * Require policy updates to be signed by a maintainer listed in `trust.json` and keep them fast-forward.
 * When journal entries arrive:
   * Enforce fast-forward pushes.

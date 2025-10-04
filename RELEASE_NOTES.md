@@ -35,6 +35,14 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 - Pre‑receive hook now calls the verifier when present (self‑hosted). Fallback still requires a valid signature and blocks `threshold>1` without an env escape hatch.
 - SaaS (GitHub.com et al.): example workflow at `docs/examples/github/workflow-shiplog-trust-verify.yml` you can mark as a Required Status Check for `_shiplog/**`.
 
+#### Trust‑Commit Signature Gate (self‑hosted)
+
+- New environment gate for the pre‑receive hook: `SHIPLOG_REQUIRE_SIGNED_TRUST`.
+  - Default: `0` (do not require the trust commit itself to be signed) to keep local/dev flows simple and tests green.
+  - Recommended for production: set to `1` to require a valid Git signature on the trust commit in addition to meeting the maintainer threshold.
+  - Case‑insensitive values: `1|true|yes|on` enable; `0|false|no|off` disable.
+  - On SaaS, enforce via Required Status Checks instead of hooks.
+
 ### 3) Cleaner Output
 
 - `git shiplog run` no longer prints the full entry preview. It streams the wrapped command, then prints a minimal confirmation (default `🪵`; override with `SHIPLOG_CONFIRM_TEXT`).
@@ -52,12 +60,13 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
    - Ensure `scripts/shiplog-verify-trust.sh` is in the repo alongside the hook.
 2) If `threshold==1` today, you’re done. If `threshold>1` or will be:
    - Choose a `sig_mode` (`chain` or `attestation`) and create the next trust update accordingly.
+3) Optional but recommended: enable trust‑commit signature gate by exporting `SHIPLOG_REQUIRE_SIGNED_TRUST=1` in your hook environment.
 3) Optional: re‑run `./scripts/shiplog-trust-sync.sh` on workstations/CI to refresh `gpg.ssh.allowedSignersFile`.
 
 ### SaaS (GitHub.com, GitLab SaaS, Bitbucket Cloud)
 
 1) Use branch namespace for Shiplog refs (`refs/heads/_shiplog/**`) and protect it (no deletions, no force‑push, require PRs).
-2) Add the “Shiplog Trust Verify” workflow as a Required Status Check on `_shiplog/**`.
+2) Add the “Shiplog Trust Verify” workflow as a Required Status Check on `_shiplog/**`; optionally add the journal/policy verify workflow as well.
 3) If `threshold>1`, pick a `sig_mode` and follow the pattern for co‑signing or attaching signatures in PRs.
 
 ### Optional: Disable Auto‑Push During Deploys

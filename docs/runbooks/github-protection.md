@@ -38,13 +38,14 @@ GitHub → Settings → Rules → Rulesets → New ruleset → Import from JSON.
 
 Note: `required_signatures` enforces GitHub Account‑verified signatures; it does not enforce Shiplog’s trust/allowed signers.
 
-## 4) Add a Required Status Check (Policy/Trust)
+## 4) Add Required Status Checks (Trust and Journals)
 
-Add a GitHub Actions workflow that verifies Shiplog policy and trust on pushes to `_shiplog/**` (branch namespace). Import the example:
+Add GitHub Actions workflows that verify Shiplog trust and journals on pushes to `_shiplog/**` (branch namespace). Import examples:
 
-- `docs/examples/github/workflow-shiplog-verify.yml`
+- Trust: `docs/examples/github/workflow-shiplog-trust-verify.yml`
+- Journals/Policy: `docs/examples/github/workflow-shiplog-verify.yml`
 
-Make this check required in branch protections or Branch Rulesets.
+Make these checks required in branch protections or Branch Rulesets.
 
 ## 5) Custom Refs (refs/_shiplog/**)
 
@@ -59,4 +60,3 @@ GitHub UI Rulesets do not match custom refs. You have two options:
 - List remote Shiplog refs: `git ls-remote origin 'refs/_shiplog/**'`
 - Delete an unwanted journal ref (if permitted): `git push origin :refs/_shiplog/journal/prod`
 - Verify latest journal entry locally: `git shiplog show --json`
-

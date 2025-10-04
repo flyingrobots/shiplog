@@ -41,6 +41,7 @@ SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP re
 | `SHIPLOG_RUN_URL` | CI/CD run link | URL/text | Prompted | `SHIPLOG_RUN_URL=https://ci/run/123` |
 | `SHIPLOG_LOG` | Path to NDJSON log to attach as a note | File path | unset | `SHIPLOG_LOG=log.ndjson` |
 | `SHIPLOG_AUTO_PUSH` | Auto-push journals to origin | `1` or `0` | `1` | `SHIPLOG_AUTO_PUSH=0` |
+|  |  |  |  | Precedence: flags > `git config shiplog.autoPush` > env |
 | `SHIPLOG_BORING` | Non-interactive mode (disables prompts) | `1` or `0` | `0` | `SHIPLOG_BORING=1` |
 | `SHIPLOG_ASSUME_YES` | Auto-confirm prompts (`--yes`) | `1` or `0` | `0` | `SHIPLOG_ASSUME_YES=1` |
 
