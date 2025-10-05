@@ -71,4 +71,3 @@ jobs:
           echo "Audited $TOTAL journal commits"
           [ "$FAIL" -eq 0 ] || { echo "Shiplog audit found policy/signature violations" >&2; exit 1; }
           echo "Shiplog audit passed"
-
