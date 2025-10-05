@@ -1,6 +1,6 @@
 # Git Hosting Enforcement Matrix
 
-This page summarizes what you can (and cannot) enforce on common Git hosts for Shiplog’s custom refs, and gives prescriptive configurations. Use it together with docs/hosting/github.md.
+This page summarizes what you can (and cannot) enforce on common Git hosts for Shiplog’s custom refs, and gives prescriptive configurations. Use it together with [docs/hosting/github.md](./github.md).
 
 ## TL;DR
 
@@ -19,18 +19,18 @@ This page summarizes what you can (and cannot) enforce on common Git hosts for S
     - Require PRs; restrict who can push
     - Optional: Required Signatures (GitHub account signatures) — not Shiplog trust
   - Required Status Checks:
-    - Trust Verify (docs/examples/github/workflow-shiplog-trust-verify.yml)
-    - Journal Verify (policy compliance, signatures; docs/examples/github/workflow-shiplog-verify.yml)
+    - Trust Verify ([../examples/github/workflow-shiplog-trust-verify.yml](../examples/github/workflow-shiplog-trust-verify.yml))
+    - Journal Verify (policy compliance and signatures; [../examples/github/workflow-shiplog-verify.yml](../examples/github/workflow-shiplog-verify.yml))
   - Ruleset JSON examples (branch namespace):
-    - docs/examples/github/ruleset-branch-shiplog-protect.json
-    - docs/examples/github/ruleset-branch-shiplog-restricted.json
+    - [../examples/github/ruleset-branch-shiplog-protect.json](../examples/github/ruleset-branch-shiplog-protect.json)
+    - [../examples/github/ruleset-branch-shiplog-restricted.json](../examples/github/ruleset-branch-shiplog-restricted.json)
 - Custom refs option: keep `refs/_shiplog/**` and run periodic audit workflows; cannot block pushes in real-time from the UI.
 
 ## GitHub Enterprise Server (self-hosted)
 
 - Server hooks: supported.
 - Recommended:
-  - Install `contrib/hooks/pre-receive.shiplog` on the bare repo.
+  - Install [`contrib/hooks/pre-receive.shiplog`](../../contrib/hooks/pre-receive.shiplog) on the bare repo.
   - Use branch or custom refs — both are enforceable with hooks.
   - Optional: mirror to a WORM remote for recovery.
 
@@ -62,7 +62,7 @@ Whether in hooks or CI checks, enforce:
 
 ## Reference
 
-- Hook: `contrib/hooks/pre-receive.shiplog`
-- Verifier: `scripts/shiplog-verify-trust.sh`
-- GitHub workflow: `docs/examples/github/workflow-shiplog-trust-verify.yml`
-- Setup: `git shiplog setup --trust-sig-mode {chain|attestation}`
+- Hook: [`contrib/hooks/pre-receive.shiplog`](../../contrib/hooks/pre-receive.shiplog)
+- Verifier: [`scripts/shiplog-verify-trust.sh`](../../scripts/shiplog-verify-trust.sh)
+- GitHub workflow: [`docs/examples/github/workflow-shiplog-trust-verify.yml`](../examples/github/workflow-shiplog-trust-verify.yml)
+- Setup: [`git shiplog setup --trust-sig-mode {chain|attestation}`](../cli/setup.md)
