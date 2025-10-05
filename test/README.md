@@ -1,6 +1,7 @@
 # Shiplog Test Suite
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Test Runner](#test-runner)
 - [Adding or Updating Tests](#adding-or-updating-tests)
@@ -8,9 +9,11 @@
 - [Troubleshooting](#troubleshooting)
 
 ## Overview
+
 The `test/` directory contains the Bats-based integration suite that exercises the Shiplog CLI via the `git shiplog` porcelain. Each file ending in `.bats` is automatically picked up by the Docker test harness, and helper scripts live under `test/helpers/`.
 
 ## Test Runner
+
 - `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The container mounts the workspace at `/workspace` and executes `/usr/local/bin/run-tests`.
 - The `run-tests` entrypoint copies the repo to a temporary snapshot inside the container and sets `SHIPLOG_HOME` to that snapshot to prevent accidental mutations of the bind mount.
 - Default test mode avoids network clones: `SHIPLOG_USE_LOCAL_SANDBOX=1` (set to `0` only if you explicitly need to hit the remote sandbox).
@@ -27,6 +30,7 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 5. Document new scenarios by updating `docs/features/` or the README feature table so tooling stays in sync.
 
 ## Running Specific Tests
+
 - Build the test image once with `make build` (produces the `shiplog-tests` image used below).
 - Run a single test file: `docker run --rm -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`.
 - Add verbosity or timeouts: `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" -e TEST_TIMEOUT_SECS=180 -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`.

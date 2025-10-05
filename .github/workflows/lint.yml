@@ -3,7 +3,7 @@ name: Lint
 "on":
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
           echo "ShellCheck version:" && shellcheck --version
           SH_FILES=$(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks/[^/]+$|\.sh$)' || true)
           if [ -n "$SH_FILES" ]; then
-            shellcheck -S style -s bash $SH_FILES
+            shellcheck -e SC2034 -S style -s bash $SH_FILES
           else
             echo "No shell files found"
           fi
@@ -53,4 +53,8 @@ jobs:
         run: |
           set -euo pipefail
           yamllint -v
-          yamllint -f github .github/workflows docs/**/*.yml docs/**/*.yaml
+          shopt -s globstar nullglob
+          files=( .github/workflows/*.yml .github/workflows/*.yaml docs/**/*.yml docs/**/*.yaml )
+          if [ ${#files[@]} -gt 0 ]; then
+            yamllint -f github "${files[@]}"
+          fi

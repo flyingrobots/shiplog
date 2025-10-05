@@ -73,7 +73,7 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 2) If `threshold==1` today, you’re done. If `threshold>1` or will be:
    - Choose a `sig_mode` (`chain` or `attestation`) and create the next trust update accordingly.
 3) Optional but recommended: enable trust‑commit signature gate by exporting `SHIPLOG_REQUIRE_SIGNED_TRUST=1` in your hook environment.
-3) Optional: re‑run `./scripts/shiplog-trust-sync.sh` on workstations/CI to refresh `gpg.ssh.allowedSignersFile`.
+4) Optional: re‑run `./scripts/shiplog-trust-sync.sh` on workstations/CI to refresh `gpg.ssh.allowedSignersFile`.
 
 ### SaaS (GitHub.com, GitLab SaaS, Bitbucket Cloud)
 

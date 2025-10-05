@@ -2,7 +2,7 @@ name: Bash Matrix CI
 
 on:
   push:
-    branches: [ main, trunk, master ]
+    branches: [main, trunk, master]
   pull_request:
 
 permissions:
@@ -91,4 +91,3 @@ jobs:
             ci-logs/${{ matrix.id }}.log
             test/**/*.log
           if-no-files-found: warn
-

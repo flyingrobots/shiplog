@@ -2,7 +2,7 @@ name: Task Progress Check
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   task-progress:
