@@ -46,9 +46,15 @@ jobs:
           esac
 
           # Effective signing requirement: env override > global
-          REQ_SIGN_GLOBAL=$(printf '%s' "$POLICY_JSON" | jq -r '(.require_signed // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+          REQ_SIGN_GLOBAL=$(printf '%s' "$POLICY_JSON" \
+            | jq -r '(.require_signed // false) | if . then 1 else 0 end' \
+            2>/dev/null || echo 0)
           if [ -n "$ENV" ]; then
-            REQ_SIGN_ENV=$(printf '%s' "$POLICY_JSON" | jq -r --arg env "$ENV" '((.deployment_requirements[$env].require_signed // null) // false) | if . then 1 else 0 end' 2>/dev/null || echo 0)
+            REQ_SIGN_ENV=$(printf '%s' "$POLICY_JSON" \
+              | jq -r --arg env "$ENV" \
+                '((.deployment_requirements[$env].require_signed // null) // false)
+                 | if . then 1 else 0 end' \
+              2>/dev/null || echo 0)
           else
             REQ_SIGN_ENV=0
           fi
@@ -56,7 +62,12 @@ jobs:
           [ "$REQ_SIGN_ENV" = "1" ] && REQUIRE_SIGN=1
 
           # Allowed authors (space separated)
-          ALLOWED_AUTHORS=$(printf '%s' "$POLICY_JSON" | jq -r '[(.authors.default_allowlist // []), (.authors.env_overrides.default // []), (if env then (.authors.env_overrides[env] // []) else [] end)] | flatten | unique | join(" ")' --arg env "$ENV" 2>/dev/null || true)
+          JQ_AUTH_FILTER='[(.authors.default_allowlist // []),
+                            (.authors.env_overrides.default // []),
+                            (if env then (.authors.env_overrides[env] // []) else [] end)]
+                           | flatten | unique | join(" ")'
+          ALLOWED_AUTHORS=$(printf '%s' "$POLICY_JSON" \
+            | jq -r "$JQ_AUTH_FILTER" --arg env "$ENV" 2>/dev/null || true)
 
           echo "Ref: $GITHUB_REF (env=$ENV)"
           echo "Require signed: $REQUIRE_SIGN"
@@ -82,11 +93,12 @@ jobs:
                   echo "SSH signature verification failed on $c" >&2; FAIL=1
                 fi
               else
-                echo "Require-signed is true but no allowed_signers found at $REF_ROOT/trust/root:.shiplog/allowed_signers" >&2; FAIL=1
+                echo "Require-signed is true but no allowed_signers found" >&2
+                echo "at $REF_ROOT/trust/root:.shiplog/allowed_signers" >&2
+                FAIL=1
               fi
             fi
           done < <(git rev-list "$RANGE")
 
           [ "$FAIL" -eq 0 ] || { echo "Shiplog verification failed" >&2; exit 1; }
           echo "Shiplog verification passed"
-

@@ -151,6 +151,13 @@ Notes:
 
 ## Server Enforcement Checklist
 
+## Trust Modes Diagram
+
+![Trust Modes](img/trust-modes.svg)
+
+*Source: [trust-modes.mmd](img/trust-modes.mmd)*
+
+
 * Fail fast when the trust ref or `trust.json` is missing (`❌ SHIPLOG: trust ref missing`).
 * Validate trust.json and policy.json with the pinned jq.
 * Enforce `sig_mode`:

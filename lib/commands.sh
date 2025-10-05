@@ -189,6 +189,27 @@ cmd_write() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
+      --help|-h)
+        cat <<'EOF'
+Usage: git shiplog write [ENV] [OPTIONS]
+
+Options:
+  --env ENV               Environment (defaults to SHIPLOG_ENV or prod)
+  --service NAME          Service/component name (required in non-interactive)
+  --status STATUS         success|failed|in_progress|skipped|override|revert|finalize
+  --reason TEXT           Free-form reason/summary
+  --ticket ID             Ticket/PR reference
+  --region R              Region
+  --cluster C             Cluster
+  --namespace NS          Namespace (defaults to ENV when blank)
+  --image IMG             Artifact image
+  --tag TAG               Artifact tag
+  --run-url URL           CI/CD run URL
+  --dry-run               Preview without writing
+
+Global flags: --boring (plain), --yes (auto-confirm), --no-push/--push
+EOF
+        return 0 ;;
       --env)
         shift; env="${1:-$env}"; shift; continue ;;
       --env=*)
@@ -1600,6 +1621,8 @@ cmd_config() {
 
   local interactive=0 apply=0 answers_file="" dry_run=0 dry_run_explicit=0 env_dry_run=0
   if shiplog_is_dry_run; then dry_run=1; env_dry_run=1; fi
+  # Track if caller explicitly passed a global --dry-run flag
+  case "${SHIPLOG_DRY_RUN_EXPLICIT:-0}" in 1|true|yes|on) dry_run_explicit=1 ;; esac
   while [ $# -gt 0 ]; do
     case "$1" in
       --interactive|--wizard) interactive=1; shift; continue ;;
@@ -1711,7 +1734,7 @@ cmd_config() {
     refs/*) : ;;
     *)
       # If user provided e.g. "heads/_shiplog" or "_shiplog", prepend "refs/"
-      ref_root="refs/${ref_root#*/}"
+      ref_root="refs/${ref_root}"
       ;;
   esac
 

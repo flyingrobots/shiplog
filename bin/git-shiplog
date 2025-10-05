@@ -125,17 +125,23 @@ run_with_global_flags() {
         ;;
       --dry-run)
         SHIPLOG_DRY_RUN=1
+        SHIPLOG_DRY_RUN_EXPLICIT=1
         export SHIPLOG_DRY_RUN
+        export SHIPLOG_DRY_RUN_EXPLICIT
         shift
         ;;
       --dry-run=*)
         SHIPLOG_DRY_RUN="${1#*=}"
+        SHIPLOG_DRY_RUN_EXPLICIT=1
         export SHIPLOG_DRY_RUN
+        export SHIPLOG_DRY_RUN_EXPLICIT
         shift
         ;;
       --no-dry-run)
         SHIPLOG_DRY_RUN=0
+        SHIPLOG_DRY_RUN_EXPLICIT=1
         export SHIPLOG_DRY_RUN
+        export SHIPLOG_DRY_RUN_EXPLICIT
         shift
         ;;
       --help|-h)

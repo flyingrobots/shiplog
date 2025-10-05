@@ -4,6 +4,8 @@ This note summarizes what’s changing, what you need to do (by scenario), SaaS 
 
 ## Highlights
 
+- Config Wizard: guided, host-aware onboarding (see section below).
+
 - Trust quorum modes (sig_mode): choose between `chain` (co‑sign commits) or `attestation` (detached signature files) to meet `threshold` maintainer signatures.
 - Unified trust verifier: a single script validates trust updates for hooks and CI.
 - SaaS‑friendly enforcement: example GitHub workflow added to make trust checks a Required Status Check on `_shiplog/**`.
@@ -11,6 +13,16 @@ This note summarizes what’s changing, what you need to do (by scenario), SaaS 
 - Friendlier headers/tables: optional fields are hidden in human headers; `ls` avoids noisy `?` placeholders.
 
 ## What’s New
+
+### 4) Config Wizard (Guided Onboarding)
+
+- New: `git shiplog config --interactive` recommends host-aware defaults (SaaS vs self-hosted),
+  signing mode (chain vs attestation), threshold, ref namespace, and auto-push policy.
+- `--apply` writes `.shiplog/policy.json` and sets `shiplog.refRoot` / `shiplog.autoPush` locally.
+  It never pushes.
+- `--answers-file answers.json` supports non-interactive setups.
+- On SaaS, pair with Required Checks; on self-hosted, install server hooks.
+
 
 ### 1) Trust Signing Modes
 
@@ -61,7 +73,7 @@ SHIPLOG_TRUST_SIG_MODE=attestation git shiplog setup
 2) If `threshold==1` today, you’re done. If `threshold>1` or will be:
    - Choose a `sig_mode` (`chain` or `attestation`) and create the next trust update accordingly.
 3) Optional but recommended: enable trust‑commit signature gate by exporting `SHIPLOG_REQUIRE_SIGNED_TRUST=1` in your hook environment.
-3) Optional: re‑run `./scripts/shiplog-trust-sync.sh` on workstations/CI to refresh `gpg.ssh.allowedSignersFile`.
+4) Optional: re‑run `./scripts/shiplog-trust-sync.sh` on workstations/CI to refresh `gpg.ssh.allowedSignersFile`.
 
 ### SaaS (GitHub.com, GitLab SaaS, Bitbucket Cloud)
 

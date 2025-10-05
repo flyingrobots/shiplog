@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Shiplog Trust Modes Diagram</title>
+  <desc id="desc">Rendered from docs/img/trust-modes.mmd (Mermaid source). Flow: Trust update proposal -> sig_mode (chain or attestation) -> threshold check -> verifier -> host (self-hosted hooks or SaaS Required Checks).</desc>
+  <rect x="0" y="0" width="960" height="540" fill="#ffffff"/>
+  <g font-family="Helvetica, Arial, sans-serif" fill="#111" stroke="#333" stroke-width="1">
+    <text x="40" y="60" font-size="24" font-weight="bold">Shiplog Trust Modes (chain vs attestation)</text>
+    <text x="40" y="110" font-size="16">A: Trust update proposal → B: sig_mode</text>
+    <text x="60" y="140" font-size="16">B → chain → C: Maintainers co-sign commits over identical tree</text>
+    <text x="60" y="165" font-size="16">B → attestation → D: Maintainers add .sig files over tree OID + context</text>
+    <text x="40" y="200" font-size="16">C/D → E: threshold met? (≥ threshold distinct signatures)</text>
+    <text x="40" y="230" font-size="16">E → yes → F: Verifier checks threshold + fast-forward</text>
+    <text x="40" y="255" font-size="16">E → no → Reject</text>
+    <text x="40" y="290" font-size="16">F → Host: self-hosted → pre-receive hook enforces</text>
+    <text x="40" y="315" font-size="16">F → Host: SaaS → Required Status Checks enforce</text>
+    <text x="40" y="360" font-size="12" fill="#666">Source: docs/img/trust-modes.mmd</text>
+  </g>
+</svg>
