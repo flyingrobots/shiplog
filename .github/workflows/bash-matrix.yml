@@ -47,23 +47,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-matrix-${{ matrix.id }}-${{ github.sha }}
+          key: ${{runner.os}}-matrix-${{matrix.id}}-${{github.sha}}
           restore-keys: |
-            ${{ runner.os }}-matrix-${{ matrix.id }}-
-            ${{ runner.os }}-matrix-
+            ${{runner.os}}-matrix-${{matrix.id}}-
+            ${{runner.os}}-matrix-
 
-      - name: Build test image (${{ matrix.name }})
+      - name: Build test image (${{matrix.name}})
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ci-matrix/Dockerfile
           push: false
           load: true
-          tags: shiplog-ci:${{ matrix.id }}
+          tags: shiplog-ci:${{matrix.id}}
           build-args: |
-            BASE_IMAGE=${{ matrix.base_image }}
-            DISTRO_FAMILY=${{ matrix.distro_family }}
-            MATRIX_NAME=${{ matrix.name }}
+            BASE_IMAGE=${{matrix.base_image}}
+            DISTRO_FAMILY=${{matrix.distro_family}}
+            MATRIX_NAME=${{matrix.name}}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
@@ -72,22 +72,22 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-      - name: Run tests in container (${{ matrix.name }})
+      - name: Run tests in container (${{matrix.name}})
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ci-logs
-          logfile="ci-logs/${{ matrix.id }}.log"
-          echo "Running: ${{ matrix.name }}" | tee "$logfile"
+          logfile="ci-logs/${{matrix.id}}.log"
+          echo "Running: ${{matrix.name}}" | tee "$logfile"
           # Mount repo read-only at /work; container entrypoint runs /usr/local/bin/run-tests
-          docker run --rm -v "$PWD":/work:ro shiplog-ci:${{ matrix.id }} 2>&1 | tee -a "$logfile"
+          docker run --rm -v "$PWD":/work:ro shiplog-ci:${{matrix.id}} 2>&1 | tee -a "$logfile"
 
       - name: Upload per-distro logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bash-matrix-logs-${{ matrix.id }}
+          name: bash-matrix-logs-${{matrix.id}}
           path: |
-            ci-logs/${{ matrix.id }}.log
+            ci-logs/${{matrix.id}}.log
             test/**/*.log
           if-no-files-found: warn

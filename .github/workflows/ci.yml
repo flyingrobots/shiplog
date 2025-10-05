@@ -27,12 +27,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ matrix.signing }}-${{ github.sha }}
+          key: ${{runner.os}}-buildx-${{matrix.signing}}-${{github.sha}}
           restore-keys: |
-            ${{ runner.os }}-buildx-${{ matrix.signing }}-
-            ${{ runner.os }}-buildx-
+            ${{runner.os}}-buildx-${{matrix.signing}}-
+            ${{runner.os}}-buildx-
 
-      - name: Build test image (signing=${{ matrix.signing }})
+      - name: Build test image (signing=${{matrix.signing}})
         uses: docker/build-push-action@v6
         with:
           context: .
