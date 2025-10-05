@@ -17,9 +17,10 @@ Merging policy
 - CODEOWNERS requires a review from @flyingrobots on all paths.
 
 Local pre-commit linters (optional but recommended)
-- Install hook: `ln -sf ../../contrib/hooks/pre-commit.shiplog-lints .git/hooks/pre-commit`
-- The hook runs staged-file linters:
+- Enable repo-local hooks path (recommended): `git config core.hooksPath contrib/hooks`
+- The pre-commit hook runs staged-file linters:
   - shellcheck (`bin/git-shiplog`, `contrib/hooks/*`, `*.sh`)
   - markdownlint-cli2 (`*.md`)
   - yamllint (`*.yml`, `*.yaml`)
 - If a tool is missing, the hook fails by default. To skip missing tools (not lint failures), set `SHIPLOG_LINT_SKIP_MISSING=1` for a single commit.
+- Alternative (global hooks): `git config --global core.hooksPath ~/.config/git/hooks` then place Shiplog's pre-commit script there.
