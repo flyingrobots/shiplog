@@ -12,6 +12,16 @@ This note summarizes what’s changing, what you need to do (by scenario), SaaS 
 
 ## What’s New
 
+### 4) Config Wizard (Guided Onboarding)
+
+- New: `git shiplog config --interactive` recommends host-aware defaults (SaaS vs self-hosted),
+  signing mode (chain vs attestation), threshold, ref namespace, and auto-push policy.
+- `--apply` writes `.shiplog/policy.json` and sets `shiplog.refRoot` / `shiplog.autoPush` locally.
+  It never pushes.
+- `--answers-file answers.json` supports non-interactive setups.
+- On SaaS, pair with Required Checks; on self-hosted, install server hooks.
+
+
 ### 1) Trust Signing Modes
 
 - New field in `.shiplog/trust.json`:
