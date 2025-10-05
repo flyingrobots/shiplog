@@ -1215,8 +1215,58 @@ cmd_policy() {
       fi
       ;;
     validate)
-      printf '%s
-' "Policy source: ${POLICY_SOURCE:-default}" >&2 ;;
+      need jq
+      # Load raw policy JSON: prefer policy ref, fallback to working tree file
+      local raw_policy
+      raw_policy=$(load_raw_policy)
+      if [ -z "$raw_policy" ]; then
+        die "shiplog: no policy found (expected at $POLICY_REF:.shiplog/policy.json or ./.shiplog/policy.json)"
+      fi
+
+      # Ensure JSON parses
+      if ! printf '%s\n' "$raw_policy" | jq . >/dev/null 2>&1; then
+        die "shiplog: policy JSON is not parseable"
+      fi
+
+      # Structural checks (jq-only; AJV lives in CI)
+      # - require_signed must be boolean
+      # - authors.default_allowlist must be array of strings (>=1)
+      # - Optional: deployment_requirements, if present, must be an object
+      # - Optional ref fields, if present, must start with refs/
+      local errs
+      errs=$(printf '%s\n' "$raw_policy" | jq -r '
+        . as $root |
+        def is_string_array: type=="array" and (all(.[]?; type=="string"));
+        def err($m): $m;
+        [
+          ( if ($root|has("require_signed")) and (($root.require_signed)|type=="boolean") then empty else err("require_signed: boolean required") end ),
+          ( if ($root|has("authors")) and (($root.authors|has("default_allowlist")) and ($root.authors.default_allowlist|is_string_array) and (($root.authors.default_allowlist|length) > 0)) then empty else err("authors.default_allowlist: non-empty array of strings required") end ),
+          ( if ($root|has("deployment_requirements")) then ( if ($root.deployment_requirements|type=="object") then empty else err("deployment_requirements: object required") end ) else empty end ),
+          ( if ($root|has("notes_ref")) then ( if (($root.notes_ref|type=="string") and ($root.notes_ref|startswith("refs/"))) then empty else err("notes_ref: must start with refs/") end ) else empty end ),
+          ( if ($root|has("journals_ref_prefix")) then ( if (($root.journals_ref_prefix|type=="string") and ($root.journals_ref_prefix|startswith("refs/"))) then empty else err("journals_ref_prefix: must start with refs/") end ) else empty end ),
+          ( if ($root|has("anchors_ref_prefix")) then ( if (($root.anchors_ref_prefix|type=="string") and ($root.anchors_ref_prefix|startswith("refs/"))) then empty else err("anchors_ref_prefix: must start with refs/") end ) else empty end )
+        ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
+
+      if [ -n "$errs" ]; then
+        if shiplog_can_use_bosun; then
+          local bosun; bosun=$(shiplog_bosun_bin)
+          "$bosun" style --title "Policy Validation" -- "❌ Invalid policy (${POLICY_SOURCE:-default})"
+          printf '%s\n' "$errs" | "$bosun" style --title "Errors" --
+        else
+          # Print to stdout to make assertions simpler in tests
+          printf '❌ shiplog: policy validation failed (%s)\n' "${POLICY_SOURCE:-default}"
+          printf '%s\n' "$errs"
+        fi
+        return 1
+      fi
+
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "Policy Validation" -- "✅ Policy OK (${POLICY_SOURCE:-default})"
+      else
+        printf '✅ Policy OK (%s)\n' "${POLICY_SOURCE:-default}"
+      fi
+      ;;
     require-signed)
       local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) val=true ;; 0|false|no|off) val=false ;; *) die "Usage: git shiplog policy require-signed <true|false>" ;; esac
       mkdir -p .shiplog; local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
