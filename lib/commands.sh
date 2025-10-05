@@ -1598,15 +1598,24 @@ cmd_setup() {
 cmd_config() {
   ensure_in_repo
 
-  local interactive=0 apply=0 answers_file="" dry_run=1
-  if shiplog_is_dry_run; then dry_run=1; fi
+  local interactive=0 apply=0 answers_file="" dry_run=0 dry_run_explicit=0 env_dry_run=0
+  if shiplog_is_dry_run; then dry_run=1; env_dry_run=1; fi
   while [ $# -gt 0 ]; do
     case "$1" in
       --interactive|--wizard) interactive=1; shift; continue ;;
       --answers-file) shift; answers_file="${1:-}"; shift; continue ;;
       --answers-file=*) answers_file="${1#*=}"; shift; continue ;;
-      --apply) apply=1; shift; continue ;;
-      --dry-run) dry_run=1; shift; continue ;;
+      --apply)
+        apply=1
+        # Unless user explicitly asked for --dry-run or environment forced it, ensure apply clears dry-run
+        if [ "$dry_run_explicit" -eq 0 ] && [ "$env_dry_run" -eq 0 ]; then
+          dry_run=0
+        fi
+        shift; continue ;;
+      --dry-run)
+        dry_run=1
+        dry_run_explicit=1
+        shift; continue ;;
       --help|-h)
         printf 'Usage: git shiplog config --interactive|--wizard [--apply] [--answers-file file] [--dry-run]\n'
         return 0 ;;
@@ -1615,8 +1624,8 @@ cmd_config() {
     esac
   done
 
-  # Invalid combo: --apply with --dry-run
-  if [ "$apply" -eq 1 ] && [ "$dry_run" -eq 1 ]; then
+  # Invalid combo: only when the user explicitly requested both
+  if [ "$apply" -eq 1 ] && [ "$dry_run_explicit" -eq 1 ]; then
     die "shiplog: --apply and --dry-run are mutually exclusive"
   fi
 
