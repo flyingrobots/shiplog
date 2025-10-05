@@ -151,6 +151,24 @@ Notes:
 
 ## Server Enforcement Checklist
 
+## Trust Modes Diagram
+
+```mermaid
+
+flowchart TD
+  A[Trust update proposal] --> B{sig_mode}
+  B -->|chain| C[Maintainers co-sign commits over identical tree]
+  B -->|attestation| D[Maintainers add .sig files over tree OID + context]
+  C --> E{threshold met?}
+  D --> E
+  E -->|yes| F[Verifier checks threshold + fast-forward]
+  E -->|no| G[Reject]
+  F --> H{Host}
+  H -->|self-hosted| I[pre-receive hook enforces]
+  H -->|SaaS| J[Required Status Checks enforce]
+```
+
+
 * Fail fast when the trust ref or `trust.json` is missing (`❌ SHIPLOG: trust ref missing`).
 * Validate trust.json and policy.json with the pinned jq.
 * Enforce `sig_mode`:
