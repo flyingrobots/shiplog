@@ -3,7 +3,7 @@
   "labels": ["tests", "cli", "config", "ci"],
   "milestone": "Alpha",
   "name": "Config wizard tests (Dockerized Bats)",
-  "description": "Add Bats tests for `git shiplog config` covering dry-run plan output, apply mode side-effects, SaaS vs self-host defaults, threshold coercion, ref_root normalization, explicit vs env dry-run precedence, and mutual exclusion when both --apply and --dry-run are passed explicitly.",
+  "description": "Bats tests cover dry-run plan output, apply side-effects, SaaS vs self-host defaults, threshold coercion, ref_root normalization, explicit vs env dry-run precedence, and mutual exclusion for --apply + --dry-run.",
   "priority": "P1",
   "impact": "Prevents regressions in the new onboarding flow; raises confidence for Alpha readiness.",
   "steps": [
@@ -15,10 +15,11 @@
     "Precedence: env dry-run vs explicit; mutual exclusion error on explicit both"
   ],
   "blocked_by": [],
-  "notes": ["Add minimal jq assertions to validate plan JSON shape"],
+  "notes": ["Implemented in v0.3.0; green in matrix"],
   "created": "2025-10-05",
   "updated": "2025-10-05",
   "estimate": "med",
-  "expected_complexity": "medium"
+  "expected_complexity": "medium",
+  "status": "complete"
 }
 

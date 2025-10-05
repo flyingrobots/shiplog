@@ -58,3 +58,25 @@ jobs:
           if [ ${#files[@]} -gt 0 ]; then
             yamllint -f github "${files[@]}"
           fi
+
+  policy_schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli
+      - name: Validate policy files against schema
+        run: |
+          set -euo pipefail
+          echo "Validating policy files with ajv"
+          shopt -s globstar nullglob
+          files=( .shiplog/policy.json docs/**/*.policy.json examples/**/*.policy.json )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No policy files found; skipping."
+            exit 0
+          fi
+          ajv validate --spec=draft2020 -s examples/policy.schema.json -d "${files[@]}"
