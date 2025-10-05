@@ -11,3 +11,7 @@ Thank you for your interest in contributing! We welcome issues, docs fixes, and 
 Code of Conduct: see CODE_OF_CONDUCT.md.
 Security reports: see SECURITY.md.
 
+Merging policy
+- Do not merge PRs without explicit owner approval.
+- All PRs must have the label `approved-by-owner` and a passing check from the `require-owner-approval` workflow.
+- CODEOWNERS requires a review from @flyingrobots on all paths.

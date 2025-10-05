@@ -1,0 +1,26 @@
+name: require-owner-approval
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require owner label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # This check fails unless the PR has label: approved-by-owner
+          labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels -q '.labels[].name')
+          echo "Labels: $labels"
+          if ! grep -Fxq "approved-by-owner" <<<"$labels"; then
+            echo "Missing required label: approved-by-owner" >&2
+            exit 1
+          fi
