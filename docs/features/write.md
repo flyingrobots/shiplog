@@ -15,6 +15,8 @@ git shiplog write [ENV] \
 SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP release"
 ```
 
+Tip (non‑interactive/CI): avoid prompts by passing required fields via flags or env and using `--boring --yes` when appropriate.
+
 ## Behavior
 - Validates the author against the resolved allowlist and performs a signing precheck when signatures are required.
 - Prompts for service, status, change details, and artifact information. You can prefill or bypass prompts with flags (`--service`, `--reason`, etc.) or environment variables listed below.
