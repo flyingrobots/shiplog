@@ -39,6 +39,17 @@ git shiplog write
 printf '{"checks":{"smoke":"green"}}' | git shiplog append --service web --status success --json -
 ```
 
+Tip (non‑interactive/CI): pass required fields via flags or env so prompts are not needed. For example:
+
+```bash
+SHIPLOG_ENV=prod SHIPLOG_SERVICE=web \
+  git shiplog --boring --yes write --status success --reason "first run"
+
+# or use append with JSON payload (no prompts)
+printf '{"checks":{"smoke":"green"}}' | \
+  git shiplog append --service web --status success --json -
+```
+
 ## 4) Inspect
 
 ```bash
