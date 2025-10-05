@@ -11,27 +11,24 @@ permissions:
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Install shellcheck
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-      - name: Run shellcheck (non-blocking)
+      - name: Run shellcheck
         run: |
-          set +e
           echo "ShellCheck version:" && shellcheck --version
           SH_FILES=$(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks/[^/]+$|\.sh$)' || true)
           if [ -n "$SH_FILES" ]; then
-            shellcheck -S style -s bash $SH_FILES || true
+            shellcheck -S style -s bash $SH_FILES
           else
             echo "No shell files found"
           fi
 
   markdownlint:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -40,10 +37,9 @@ jobs:
           node-version: '20'
       - name: Install markdownlint-cli2
         run: npm install -g markdownlint-cli2
-      - name: Run markdownlint-cli2 (non-blocking)
+      - name: Run markdownlint-cli2
         run: |
-          set +e
-          markdownlint-cli2 || true
+          markdownlint-cli2
 
   yamllint:
     runs-on: ubuntu-latest
@@ -57,4 +53,4 @@ jobs:
         run: |
           set -euo pipefail
           yamllint -v
-          yamllint -f github .github/workflows docs/**/*.yml docs/**/*.yaml || true
+          yamllint -f github .github/workflows docs/**/*.yml docs/**/*.yaml
