@@ -18,10 +18,9 @@ jobs:
         run: |
           set -euo pipefail
           # This check fails unless the PR has label: approved-by-owner
-          labels=$(gh pr view "$PR" --json labels -q '.labels[].name')
+          labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels -q '.labels[].name')
           echo "Labels: $labels"
           if ! grep -Fxq "approved-by-owner" <<<"$labels"; then
             echo "Missing required label: approved-by-owner" >&2
             exit 1
           fi
-
