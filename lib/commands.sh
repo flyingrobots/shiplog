@@ -1600,6 +1600,8 @@ cmd_config() {
 
   local interactive=0 apply=0 answers_file="" dry_run=0 dry_run_explicit=0 env_dry_run=0
   if shiplog_is_dry_run; then dry_run=1; env_dry_run=1; fi
+  # Track if caller explicitly passed a global --dry-run flag
+  case "${SHIPLOG_DRY_RUN_EXPLICIT:-0}" in 1|true|yes|on) dry_run_explicit=1 ;; esac
   while [ $# -gt 0 ]; do
     case "$1" in
       --interactive|--wizard) interactive=1; shift; continue ;;
