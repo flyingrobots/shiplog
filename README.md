@@ -1,15 +1,16 @@
 ## 🚢🪵 Shiplog — Git‑Native Deployment Ledger
 
-Your deployment history should live next to your code. No SaaS. No secrets. Just Git doing what Git does best: immutable, replicated history with cryptographic integrity.
+Your deployment history belongs next to your code. Shiplog turns deployments, rollbacks, hotfixes, and ops events into immutable Git records — human‑readable for people, structured for machines.
 
 —
 
-## Why Shiplog
+## Highlights
 
-- Single source of truth: deployments, rollbacks, hotfixes, and ops events become signed Git records.
-- Human + JSON: readable TTY views and script‑friendly output (`--json|--json-compact|--jsonl`).
-- Trust & policy in Git: quorum‑guarded policy; allowlists; optional signature gates.
-- Zero new infra: uses refs under your repo; works offline; mirrors automatically via Git.
+- Git all the way down: no new databases, no SaaS; data lives under refs in your repo.
+- Human + JSON: clean TTY views and script‑friendly output (`--json`, `--json-compact`, `--jsonl`).
+- Policy as code: allowlists, per‑env requirements, and signature rules stored in Git.
+- Multi‑sig trust: choose chain (commit signatures) or attestation (SSH `-Y verify`) quorum.
+- Opt‑in publish: write locally, publish when you decide; avoids noisy hooks mid‑deploy.
 
 —
 
@@ -24,144 +25,150 @@ export SHIPLOG_HOME="$HOME/.shiplog" && export PATH="$SHIPLOG_HOME/bin:$PATH"
 git shiplog --version
 ```
 
-Initialize in a repo and record the first entry:
+Initialize in your repo and record the first entry:
 
 ```bash
 cd your-repo
 git shiplog init
 export SHIPLOG_ENV=prod SHIPLOG_SERVICE=web
-git shiplog write   # prompts for metadata; respects policy allowlists
+git shiplog write    # prompts for metadata; enforces policy/allowlists
 
-# Optional: publish refs explicitly (see Auto‑push & Publish below)
+# Publish explicitly when ready (journals + notes)
 git shiplog publish --env prod
 ```
 
-Optionally, run the config wizard to pick host‑aware defaults:
+Prefer a plan first? Use the config wizard:
 
 ```bash
-git shiplog config --interactive   # prints a plan; add --apply to write policy/config
+git shiplog config --interactive        # Prints a plan; add --apply to write policy/config
+git shiplog config --interactive --emit-github-ruleset    # Prints example GitHub Rulesets
+git shiplog config --interactive --emit-github-workflow   # Prints a CI verify workflow
 ```
 
-Inspect history (human + JSON):
+Browse history (human + JSON):
 
 ```bash
 git shiplog ls --env prod
-git shiplog show --json-compact   # single entry JSON
-git shiplog export-json           # NDJSON stream
+git shiplog show --json-compact     # single entry, compact JSON
+git shiplog export-json             # NDJSON stream for dashboards
 ```
 
-Wrap a command and capture its logs:
+Wrap and capture a run:
 
 ```bash
 git shiplog run --service deploy --reason "canary" -- \
   kubectl rollout status deploy/web
-# prints a minimal confirmation (default "🪵"); set SHIPLOG_CONFIRM_TEXT to override
+# Prints a minimal confirmation (default "🪵"); set SHIPLOG_CONFIRM_TEXT to override
 ```
 
-Tip (non‑interactive/CI): avoid prompts by passing required fields via flags or env.
+Non‑interactive/CI tip: pass required fields via flags or env to avoid prompts.
 
 ```bash
-# Non‑interactive write (no prompts)
 SHIPLOG_ENV=prod SHIPLOG_SERVICE=web \
   git shiplog --boring --yes write --status success --reason "first run"
 
-# Or append with JSON payload
 printf '{"checks":{"smoke":"green"}}' | \
   git shiplog append --service web --status success --json -
 ```
 
 —
 
-## Core Concepts
+## How It Works
 
 - Refs (where data lives)
-  - Journals: `refs/_shiplog/journal/<env>`
+  - Journals: `refs/_shiplog/journal/<env>` (append‑only, fast‑forward)
   - Policy:   `refs/_shiplog/policy/current`
   - Trust:    `refs/_shiplog/trust/root`
-- Policy as code: required fields, allowlists per env, signature requirements. See docs/features/policy.md and docs/TRUST.md.
-- Environments: each environment has its own append‑only journal (fast‑forward only).
+- Policy resolution: merges CLI/env overrides, repo config, policy ref, and working fallback. See docs/features/policy.md.
+- Notes: attachments (e.g., logs) under `refs/_shiplog/notes/logs` are associated with entries.
 
 —
 
-## Trust Modes (Multi‑Sig)
+## Multi‑Sig Trust Modes
 
-Choose how maintainer approval is expressed. Both are supported; pick per‑repo during setup.
+Choose how maintainer approval is expressed. Both are supported; pick what fits your workflow.
 
 - Chain (sig_mode=chain)
-  - What: maintainers sign trust commits; threshold distinct signers over the evolving trust tree.
-  - Pros: Git‑native flow; familiar commit signatures; great audit trail.
-  - Cons: requires signing trust commits (often via a maintainer workflow).
+  - Maintainers co‑sign trust commits; threshold distinct signers over the same trust tree.
+  - Pros: fully Git‑native, great audit trail.
+  - Cons: maintainers sign trust commits (often via a maintainer workflow).
 
 - Attestation (sig_mode=attestation)
-  - What: maintainers sign a canonical payload (tree OID + context) and attach signatures; verified via `ssh-keygen -Y verify`.
-  - Pros: flexible; easy to automate with SSH keys; decouples signatures from trust commit authoring.
-  - Cons: extra artifact management; be precise about canonicalization.
+  - Maintainers sign a canonical payload (tree OID + context); verified via `ssh-keygen -Y verify`.
+  - Pros: flexible; easy to automate with SSH keys.
+  - Cons: additional artifact handling; precise canonicalization matters.
 
-Fast pick:
-- Prefer chain if maintainers are comfortable signing Git commits.
-- Prefer attestation if you already manage SSH keys for approvals or want signatures produced outside Git.
-
-See docs/TRUST.md for bootstrapping and scripts.
+Fast pick: chain if maintainers can sign commits; attestation when signatures come from automation/SSH. See docs/TRUST.md for bootstrapping and verifier details.
 
 —
 
 ## Git Hosts & Enforcement
 
-- GitHub.com (SaaS): no custom server hooks. Use Branch/Push Rulesets and Required Status Checks. For strong protections on SaaS, use branch namespace (`refs/heads/_shiplog/**`) so branch rules can protect your Shiplog refs. See docs/hosting/github.md.
-- Self‑hosted (GH Enterprise, GitLab self‑managed, Gitea, Bitbucket DC): install the pre‑receive hook (`contrib/hooks/pre-receive.shiplog`) and enforce trust/policy server‑side.
-- Matrix & recipes: see docs/hosting/matrix.md for a side‑by‑side of capabilities and recommended configs.
+- GitHub.com (SaaS): no custom server hooks. Protect Shiplog refs with Branch/Push Rulesets and Required Status Checks. For SaaS, prefer a branch namespace (`refs/heads/_shiplog/**`) so rules apply. See docs/hosting/github.md.
+- Self‑hosted (GH Enterprise, GitLab self‑managed, Gitea, Bitbucket DC): install the pre‑receive hook (`contrib/hooks/pre-receive.shiplog`) to enforce policy/trust server‑side.
+- Matrix & recipes: docs/hosting/matrix.md summarizes capabilities and recommended configs.
 
-Switching namespaces is supported (custom refs ↔ branch namespace) via scripts/shiplog-migrate-ref-root.sh and `git config shiplog.refRoot`.
+Switching namespaces (custom refs ↔ branch namespace) is supported via scripts/shiplog-migrate-ref-root.sh and `git config shiplog.refRoot`.
 
 —
 
-## Auto‑push & Publish
+## Publish vs Auto‑push
 
-To avoid tripping pre‑push hooks mid‑deploy, Shiplog separates writing from publishing. Control behavior via flags, repo config, or env:
+To avoid tripping hooks mid‑deploy, Shiplog separates writing from publishing.
 
 - Precedence: command flags > `git config shiplog.autoPush` > environment/default.
-- Explicit publish: `git shiplog publish [--env <env>|--all] [--no-notes] [--policy] [--trust]`.
+- Publish explicitly when ready:
+
+```bash
+git shiplog publish [--env <env>|--all] [--no-notes] [--policy] [--trust]
+```
 
 Examples:
-- Disable auto‑push per repo: `git config shiplog.autoPush false`; publish at the end of a deploy: `git shiplog publish --env prod`.
-- Force publish for one command: `git shiplog write --push` (overrides config).
-
-—
-
-## Output UX
-
-- Minimal confirmations: `git shiplog run` prints emoji‑only by default (🪵). Set `SHIPLOG_CONFIRM_TEXT` for a plain alternative (e.g., `> Shiplogged`).
-- Clean headers: optional fields are hidden rather than shown as `?`.
+- Disable auto‑push per repo: `git config shiplog.autoPush false` then publish at the end of a deploy: `git shiplog publish --env prod`.
+- Force a one‑off publish: `git shiplog write --push` (overrides config).
 
 —
 
 ## What’s Live vs Roadmap
 
 Live now
-- Journals (append‑only by env) with human and JSON views.
-- Policy and trust refs; allowlists per env; threshold‑based verification.
-- Two trust modes (chain, attestation) and a shared verifier script.
-- `run`, `write`, `append`, `ls`, `show`, `export-json`, `publish`.
-- GitHub SaaS guidance + self‑hosted hook; hosting matrix docs.
-- Dockerized cross‑distro test matrix; lint workflows (shell, markdown, yaml).
+- Journals (append‑only by env) with human + JSON views.
+- Policy/trust refs; allowlists by env; threshold verification.
+- Two trust modes (chain, attestation) + shared verifier script.
+- Commands: `run`, `write`, `append`, `ls`, `show`, `export-json`, `publish`.
+- Hosting docs: GitHub SaaS guidance and self‑hosted hooks; enforcement matrix.
+- Dockerized cross‑distro tests; CI lint (shell/markdown/yaml); policy validate (CLI + CI schema).
 
-On the roadmap
-- Interactive “Setup Questionnaire” to recommend trust mode, thresholds, namespace, CI checks, and rulesets (see docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md).
-- More end‑to‑end tests for attestation verification across distros.
-- Flip linters to blocking once baseline is clean.
+Roadmap (short‑term)
+- Setup Questionnaire improvements and emitters (Rulesets + CI snippets per host).
+- Attestation E2E fixtures across distros.
+- Flip CI linters to blocking after baseline cleanup.
 
 —
 
 ## Upgrading
 
-See RELEASE_NOTES.md for version‑specific guidance and any one‑time steps (e.g., ref namespace changes, publish defaults, or trust signature gates such as `SHIPLOG_REQUIRE_SIGNED_TRUST`).
+See RELEASE_NOTES.md for version‑specific guidance (e.g., namespace changes, publish defaults, or trust signature gates like `SHIPLOG_REQUIRE_SIGNED_TRUST`).
 
 —
 
 ## Contributing & Tests
 
 - Please read AGENTS.md before running tests or editing hooks/scripts.
-- Run tests only via Docker: `make test` (and `TEST_TIMEOUT_SECS=180 make test` to guard hangs). Do not run Bats directly on your host.
+- Run tests inside Docker: `make test` (optionally: `TEST_TIMEOUT_SECS=180 make test`). Do not run Bats directly on your host.
+
+—
+
+## FAQ
+
+- What is AJV and why does CI mention it?
+  - AJV is a fast JSON Schema validator for Node.js. CI uses it to validate `.shiplog/policy.json` against `examples/policy.schema.json`. Locally, `git shiplog policy validate` performs jq‑based checks without Node.
+
+- Can Shiplog enforce policy on GitHub.com (SaaS)?
+  - SaaS doesn’t run custom server hooks; use Branch/Push Rulesets + Required Checks and a branch namespace so rules apply to Shiplog refs. See docs/hosting/github.md and docs/hosting/matrix.md.
+
+- Should I use chain or attestation for multi‑sig?
+  - Chain if maintainers can sign commits; attestation if signatures come from automation/SSH. Both are supported.
 
 —
 
