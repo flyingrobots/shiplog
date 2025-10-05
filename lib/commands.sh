@@ -1711,7 +1711,7 @@ cmd_config() {
     refs/*) : ;;
     *)
       # If user provided e.g. "heads/_shiplog" or "_shiplog", prepend "refs/"
-      ref_root="refs/${ref_root#*/}"
+      ref_root="refs/${ref_root}"
       ;;
   esac
 
