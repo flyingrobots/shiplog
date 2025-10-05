@@ -58,6 +58,18 @@ git shiplog run --service deploy --reason "canary" -- \
 # prints a minimal confirmation (default "🪵"); set SHIPLOG_CONFIRM_TEXT to override
 ```
 
+Tip (non‑interactive/CI): avoid prompts by passing required fields via flags or env.
+
+```bash
+# Non‑interactive write (no prompts)
+SHIPLOG_ENV=prod SHIPLOG_SERVICE=web \
+  git shiplog --boring --yes write --status success --reason "first run"
+
+# Or append with JSON payload
+printf '{"checks":{"smoke":"green"}}' | \
+  git shiplog append --service web --status success --json -
+```
+
 —
 
 ## Core Concepts
