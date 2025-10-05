@@ -1705,6 +1705,15 @@ cmd_config() {
   if [ -z "$ref_root" ]; then
     case "$q_host" in github.com|gitlab.com|bitbucket.org) ref_root="refs/heads/_shiplog" ;; *) ref_root="refs/_shiplog" ;; esac
   fi
+  # Normalize ref root: enforce refs/* prefix and strip trailing slashes
+  ref_root="${ref_root%/}"
+  case "$ref_root" in
+    refs/*) : ;;
+    *)
+      # If user provided e.g. "heads/_shiplog" or "_shiplog", prepend "refs/"
+      ref_root="refs/${ref_root#*/}"
+      ;;
+  esac
 
   # Final plan JSON (use jq when available)
   local plan_json
