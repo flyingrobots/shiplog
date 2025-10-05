@@ -5,7 +5,7 @@ Shiplog supports two modes of operation:
 - Unsigned mode (default): Entries are not required to be signed. Useful for fast adoption and local trials.
 - Signed mode: Entries must be signed and verified against a trusted signer roster. Enables strong provenance.
 
-Policy controls which mode is active. You can switch at any time without rewriting history.
+Policy controls which mode is active. You can switch at any time without rewriting history. For multi‑sig trust updates, see `docs/TRUST.md` (sig_mode: chain or attestation).
 
 ## Current Mode and Defaults
 
@@ -42,7 +42,7 @@ export SHIPLOG_ASSUME_YES=1 SHIPLOG_PLAIN=1
 ./scripts/shiplog-trust-sync.sh
 ```
 
-3) Require signatures in policy
+3) Require signatures in policy (global or per‑environment)
 - Edit `.shiplog/policy.json` and set:
 
 ```
@@ -59,6 +59,22 @@ git push origin refs/_shiplog/policy/current
 4) Configure clients/CI to sign
 - Either rely on policy, or explicitly set `SHIPLOG_SIGN=1` on jobs.
 - Configure the signing key (`git config gpg.format ssh` + `user.signingkey` for SSH).
+
+### Per‑environment strictness
+
+Use `deployment_requirements.<env>.require_signed=true` to require signatures only in selected environments (e.g., prod):
+
+```
+{
+  "version": 1,
+  "require_signed": false,
+  "deployment_requirements": {
+    "prod": { "require_signed": true }
+  }
+}
+```
+
+The CLI setup wizard supports this via `--strict-envs "prod staging"`.
 
 ## Disabling Signing
 
@@ -88,7 +104,7 @@ Set these as environment variables for the Git server user running the hook. See
 ## FAQ
 
 - Do I need to rewrite existing entries when switching? No. Enforcement applies to new pushes.
-- Can I sign some environments but not others? Today `require_signed` is global. Per‑env is a potential future extension.
+- Can I sign some environments but not others? Yes. Set `deployment_requirements.<env>.require_signed=true` for selected envs (e.g., prod only). The wizard exposes this via `--strict-envs`.
 - What if CI can’t sign yet? Keep `require_signed=false` until CI’s key is provisioned. You can still enforce fast‑forward and authors via policy.
 
 ## Setup Wizard

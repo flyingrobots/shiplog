@@ -23,6 +23,7 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 
 - `SHIPLOG_AUTO_PUSH` — Auto-push Shiplog refs to `origin` when available (`write`, some `setup` flows)
   - Values: `1` (default) or `0`
+  - Precedence: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
 
 - `SHIPLOG_BORING` — Non-interactive/plain mode (disables Bosun UI)
   - Values: `1` or `0` (default)
@@ -42,6 +43,11 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_ALLOWED_SIGNERS` — Path to allowed signers file (SSH). Overrides policy.
 - `SHIPLOG_SIGN` — Require signing for `write` operations in this session (policy may still require it).
   - Values: `1` or `0` (default)
+
+- `SHIPLOG_REQUIRE_SIGNED_TRUST` — Server‑side gate in the pre‑receive hook to require the trust commit itself to be signed.
+  - Default: `0` (disabled). Recommended `1` in production.
+  - Interacts with threshold verification but is independent of it.
+  - Case‑insensitive: `1|true|yes|on` enables; `0|false|no|off` disables.
 
 ## Write Inputs (non-interactive)
 

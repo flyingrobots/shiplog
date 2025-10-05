@@ -8,6 +8,8 @@ Supporting assets that help you wire Shiplog into a larger deployment workflow.
   - fast-forward pushes to `refs/_shiplog/journal/*` and `refs/_shiplog/anchors/*`
   - commit signatures (GPG or SSH allowed signers)
   - author allowlists pulled from the active policy
+  - trust verification via the shared verifier (`scripts/shiplog-verify-trust.sh`) honoring `sig_mode` (chain|attestation) and `threshold`
+  - optional trust-commit signature gate controlled by `SHIPLOG_REQUIRE_SIGNED_TRUST` (recommended `1` in production)
 
 To install on a bare repository (run from the repository root):
 
@@ -56,6 +58,10 @@ By default, the hook requires both trust and policy refs. If you want to allow j
 - `SHIPLOG_ALLOW_MISSING_TRUST=1` – allow missing trust ref; skips `trust_oid` equality checks when policy does not require signatures.
 
 Keep `SHIPLOG_REQUIRE_SEPARATE_SIGNERS=1` unless you intentionally want to permit trust commits without an `allowed_signers` blob.
+
+Trust-commit signature gate:
+
+- `SHIPLOG_REQUIRE_SIGNED_TRUST=1` — require the trust commit itself to be Git‑signed (in addition to meeting threshold). Default `0`. Case‑insensitive values: `1|true|yes|on` enable; `0|false|no|off` disable.
 
 Note: If your policy sets `require_signed=true`, the hook still requires trust to verify signatures; the relaxations only apply when signatures are not required.
 

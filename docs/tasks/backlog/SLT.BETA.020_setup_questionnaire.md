@@ -8,7 +8,7 @@
   "impact": "Reduces onboarding friction; yields sane, host-aware defaults and fewer misconfigurations.",
   "steps": [
     "Design question set and mapping to outputs (sig_mode, threshold, ref root, autoPush, workflows)",
-    "Implement CLI: git shiplog setup --questionnaire (TTY UI via Bosun + plain fallback)",
+    "Implement CLI: git shiplog config --interactive (TTY UI via Bosun + plain fallback)",
     "Emit: .shiplog/policy.json, trust bootstrap flags, suggested CI workflow and ruleset snippets",
     "Add non-interactive mode: accept answers via JSON/flags and print a plan",
     "Docs: how it works + examples; link from README and TRUST docs",
@@ -24,4 +24,3 @@
   "estimate": "big",
   "expected_complexity": "high"
 }
-

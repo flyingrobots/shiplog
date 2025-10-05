@@ -19,8 +19,11 @@ This page summarizes what you can (and cannot) enforce on common Git hosts for S
     - Require PRs; restrict who can push
     - Optional: Required Signatures (GitHub account signatures) — not Shiplog trust
   - Required Status Checks:
-    - Trust Verify ([docs/examples/github/workflow-shiplog-trust-verify.yml](../examples/github/workflow-shiplog-trust-verify.yml))
-    - Optional: Journal Verify (policy compliance, signatures)
+    - Trust Verify ([../examples/github/workflow-shiplog-trust-verify.yml](../examples/github/workflow-shiplog-trust-verify.yml))
+    - Journal Verify (policy compliance and signatures; [../examples/github/workflow-shiplog-verify.yml](../examples/github/workflow-shiplog-verify.yml))
+  - Ruleset JSON examples (branch namespace):
+    - [../examples/github/ruleset-branch-shiplog-protect.json](../examples/github/ruleset-branch-shiplog-protect.json)
+    - [../examples/github/ruleset-branch-shiplog-restricted.json](../examples/github/ruleset-branch-shiplog-restricted.json)
 - Custom refs option: keep `refs/_shiplog/**` and run periodic audit workflows; cannot block pushes in real-time from the UI.
 
 ## GitHub Enterprise Server (self-hosted)

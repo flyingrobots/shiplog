@@ -2,6 +2,8 @@
 
 This guide explains how Shiplog’s Git refs work on GitHub, why you don’t see them in the web UI, and how to protect them using Rulesets.
 
+See also: Git Hosting Enforcement Matrix (docs/hosting/matrix.md) for a side‑by‑side of SaaS vs self‑hosted capabilities and recommended configurations.
+
 ## Where Shiplog Stores Data
 
 - Shiplog writes commits under custom refs, not branches or tags:
@@ -120,3 +122,12 @@ git config shiplog.refRoot refs/_shiplog
 - “I don’t see Shiplog refs on GitHub”: expected — they’re custom refs. Use CLI or the GitHub API (`/git/matching-refs/refs/_shiplog/`).
 - “Ruleset doesn’t block deletions”: ensure the ruleset targets `push` and includes `refs/_shiplog/**` (not `refs/heads/_shiplog/**`). Branch Target rulesets only protect `refs/heads/*`.
 - “Non‑FF still allowed”: enable both `non_fast_forward` and `required_linear_history` in the ruleset.
+
+## Resources
+
+- Ruleset JSON (branch namespace `_shiplog/**`):
+  - docs/examples/github/ruleset-branch-shiplog-protect.json
+  - docs/examples/github/ruleset-branch-shiplog-restricted.json
+- Workflows:
+  - Trust verify: docs/examples/github/workflow-shiplog-trust-verify.yml
+  - Journal/policy verify: docs/examples/github/workflow-shiplog-verify.yml

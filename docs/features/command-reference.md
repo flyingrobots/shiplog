@@ -14,6 +14,14 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 
 ## Commands
 
+- `config [--interactive|--wizard] [--answers-file file] [--apply] [--dry-run]`
+  - Purpose: host‑aware questionnaire that recommends settings and optionally applies them locally.
+  - Usage:
+    - Interactive: `git shiplog config --interactive`
+    - Apply: `git shiplog config --interactive --apply`
+    - Non‑interactive: `git shiplog config --answers-file answers.json --apply`
+  - Notes: Writes `.shiplog/policy.json` and sets `shiplog.refRoot` / `shiplog.autoPush` when `--apply` is provided. It never pushes. See `docs/features/config.md`.
+
 - `version`
   - Purpose: print Shiplog version.
   - Usage: `git shiplog version`
@@ -77,7 +85,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 - `publish [ENV] [--no-notes] [--policy] [--trust] [--all]`
   - Purpose: push Shiplog refs (journals/notes, and optionally policy/trust) to origin without writing a new entry.
   - Usage: `git shiplog publish` (current env), `git shiplog publish --env prod`, `git shiplog publish --all --policy`
-  - Notes: use this at the end of a deployment if you disable auto-push.
+  - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
 
 - `policy [show|validate|require-signed|toggle] [--json] [--boring]`
   - Purpose: inspect/change effective policy and signing requirement.
