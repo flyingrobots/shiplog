@@ -4,6 +4,8 @@ This note summarizes what’s changing, what you need to do (by scenario), SaaS 
 
 ## Highlights
 
+- Config Wizard: guided, host-aware onboarding (see section below).
+
 - Trust quorum modes (sig_mode): choose between `chain` (co‑sign commits) or `attestation` (detached signature files) to meet `threshold` maintainer signatures.
 - Unified trust verifier: a single script validates trust updates for hooks and CI.
 - SaaS‑friendly enforcement: example GitHub workflow added to make trust checks a Required Status Check on `_shiplog/**`.
