@@ -1650,12 +1650,16 @@ cmd_config() {
 
   if [ -n "$answers_file" ]; then
     if command -v jq >/dev/null 2>&1; then
-      q_host=$(jq -r '.host // empty' "$answers_file" 2>/dev/null || true)
-      q_ref_root=$(jq -r '.ref_root // empty' "$answers_file" 2>/dev/null || true)
-      q_threshold=$(jq -r '.threshold // empty' "$answers_file" 2>/dev/null || true)
-      q_sig_mode=$(jq -r '.sig_mode // empty' "$answers_file" 2>/dev/null || true)
-      q_per_env_signed=$(jq -r '.require_signed // empty' "$answers_file" 2>/dev/null || true)
-      q_autopush=$(jq -r '.autoPush // empty' "$answers_file" 2>/dev/null || true)
+      [ -r "$answers_file" ] || die "shiplog: answers file not readable: $answers_file"
+      if ! jq -e . "$answers_file" >/dev/null 2>&1; then
+        die "shiplog: answers file must contain valid JSON"
+      fi
+      q_host=$(jq -r '.host // empty' "$answers_file")
+      q_ref_root=$(jq -r '.ref_root // empty' "$answers_file")
+      q_threshold=$(jq -r '.threshold // empty' "$answers_file")
+      q_sig_mode=$(jq -r '.sig_mode // empty' "$answers_file")
+      q_per_env_signed=$(jq -r '.require_signed // empty' "$answers_file")
+      q_autopush=$(jq -r '.autoPush // empty' "$answers_file")
     else
       die "shiplog: jq required for --answers-file parsing"
     fi
