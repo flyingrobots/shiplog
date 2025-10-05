@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Shiplog pre-commit hook wrapper — install by symlinking to .git/hooks/pre-commit
+#   ln -sf ../../contrib/hooks/pre-commit.shiplog-lints .git/hooks/pre-commit
+
+set -euo pipefail
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+"$ROOT_DIR/scripts/dev/pre-commit-lints.sh"
+
