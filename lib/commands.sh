@@ -1670,6 +1670,7 @@ cmd_config() {
   ensure_in_repo
 
   local interactive=0 apply=0 answers_file="" dry_run=0 dry_run_explicit=0 env_dry_run=0
+  local emit_gh_ruleset=0 emit_gh_workflow=0
   if shiplog_is_dry_run; then dry_run=1; env_dry_run=1; fi
   # Track if caller explicitly passed a global --dry-run flag
   case "${SHIPLOG_DRY_RUN_EXPLICIT:-0}" in 1|true|yes|on) dry_run_explicit=1 ;; esac
@@ -1678,6 +1679,8 @@ cmd_config() {
       --interactive|--wizard) interactive=1; shift; continue ;;
       --answers-file) shift; answers_file="${1:-}"; shift; continue ;;
       --answers-file=*) answers_file="${1#*=}"; shift; continue ;;
+      --emit-github-ruleset) emit_gh_ruleset=1; shift; continue ;;
+      --emit-github-workflow) emit_gh_workflow=1; shift; continue ;;
       --apply)
         apply=1
         # Unless user explicitly asked for --dry-run or environment forced it, ensure apply clears dry-run
@@ -1702,7 +1705,7 @@ cmd_config() {
     die "shiplog: --apply and --dry-run are mutually exclusive"
   fi
 
-  if [ "$interactive" -ne 1 ] && [ -n "$answers_file" ]; then :; elif [ "$interactive" -ne 1 ]; then
+  if [ "$interactive" -ne 1 ] && [ -n "$answers_file" ]; then :; elif [ "$interactive" -ne 1 ] && [ $emit_gh_ruleset -eq 0 ] && [ $emit_gh_workflow -eq 0 ]; then
     die "shiplog: config requires --interactive (or --wizard) or --answers-file"
   fi
 
@@ -1813,6 +1816,46 @@ cmd_config() {
     "$bosun" style --title "Shiplog Config Plan" -- "$plan_json"
   else
     printf '%s\n' "$plan_json"
+  fi
+
+  # Optional emitters for GitHub (docs/examples only; does not change repo state)
+  if [ $emit_gh_ruleset -eq 1 ]; then
+    local ruleset1="$SHIPLOG_HOME/docs/examples/github/ruleset-branch-shiplog-protect.json"
+    local ruleset2="$SHIPLOG_HOME/docs/examples/github/ruleset-branch-shiplog-restricted.json"
+    if [ -f "$ruleset1" ]; then
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "GitHub Ruleset (protect)" -- "$(cat "$ruleset1")"
+      else
+        printf '\n# GitHub Ruleset (protect)\n'
+        cat "$ruleset1"
+        printf '\n'
+      fi
+    fi
+    if [ -f "$ruleset2" ]; then
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "GitHub Ruleset (restricted)" -- "$(cat "$ruleset2")"
+      else
+        printf '\n# GitHub Ruleset (restricted)\n'
+        cat "$ruleset2"
+        printf '\n'
+      fi
+    fi
+  fi
+
+  if [ $emit_gh_workflow -eq 1 ]; then
+    local wf="$SHIPLOG_HOME/docs/examples/github/workflow-shiplog-verify.yml"
+    if [ -f "$wf" ]; then
+      if shiplog_can_use_bosun; then
+        local bosun; bosun=$(shiplog_bosun_bin)
+        "$bosun" style --title "GitHub Workflow (verify)" -- "$(sed 's/\t/  /g' "$wf")"
+      else
+        printf '\n# GitHub Workflow (verify)\n'
+        cat "$wf"
+        printf '\n'
+      fi
+    fi
   fi
 
   # Apply actions (local-only) when requested and not in dry-run
