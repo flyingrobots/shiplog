@@ -21,7 +21,7 @@ install_hook_with_gate() {
   mkdir -p "$REMOTE_DIR/hooks"
   # Wrap to ensure bash execution under sh-only environments
   cp "$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog" "$REMOTE_DIR/hooks/pre-receive.real"
-  printf '%s\n' '#!/bin/sh' 'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' 'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
+  printf '%s\n' '#!/bin/bash' 'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' 'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
   chmod +x "$REMOTE_DIR/hooks/pre-receive" "$REMOTE_DIR/hooks/pre-receive.real"
 }
 
@@ -31,7 +31,7 @@ install_hook_with_gate() {
   # Bootstrap an unsigned trust commit (helpers create a default one)
   shiplog_bootstrap_trust 1
 
-  run bash -lc 'git push -q origin refs/_shiplog/trust/root'
+  run git push -q origin refs/_shiplog/trust/root
   [ "$status" -ne 0 ]
   [[ "$output" == *"pre-receive hook declined"* ]]
 }
@@ -58,14 +58,13 @@ JSON
   printf '* %s\n' "$pub" > .shiplog/allowed_signers
   oid_trust=$(git hash-object -w .shiplog/trust.json)
   oid_sigs=$(git hash-object -w .shiplog/allowed_signers)
-  tree=$(printf "100644 blob %s\ttrust.json\n100644 blob %s\tallowed_signers\n" "$oid_trust" "$oid_sigs" | git mktree)
+  tab=$'\t'
+  tree=$(printf "100644 blob %s${tab}trust.json\n100644 blob %s${tab}allowed_signers\n" "$oid_trust" "$oid_sigs" | git mktree)
   commit=$(GIT_AUTHOR_NAME="Shiplog Tester" GIT_AUTHOR_EMAIL="shiplog-tester@example.com" \
     GIT_COMMITTER_NAME="Shiplog Tester" GIT_COMMITTER_EMAIL="shiplog-tester@example.com" \
     git commit-tree -S "$tree" -m "shiplog: trust root (signed)" )
   git update-ref refs/_shiplog/trust/root "$commit"
 
-  run bash -lc 'git push -q origin refs/_shiplog/trust/root'
-  echo "PUSH_OUT: $output"
+  run git push -q origin refs/_shiplog/trust/root
   [ "$status" -eq 0 ]
 }
-

@@ -5,9 +5,14 @@ load helpers/common
 setup() {
   shiplog_standard_setup
   git shiplog init >/dev/null
+  REMOTE_DIR=$(mktemp -d)
+  git remote remove origin >/dev/null 2>&1 || true
+  git init -q --bare "$REMOTE_DIR"
+  git remote add origin "$REMOTE_DIR"
 }
 
 teardown() {
+  rm -rf -- "$REMOTE_DIR" 2>/dev/null || true
   shiplog_standard_teardown
 }
 
@@ -16,11 +21,7 @@ teardown() {
   export SHIPLOG_AUTO_PUSH=0
   git config shiplog.autoPush false
 
-  # Set up bare remote as origin
-  REMOTE_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init -q --bare "$REMOTE_DIR"
-  git remote add origin "$REMOTE_DIR"
+  # Remote already configured in setup
 
   # Create a journal entry locally (default user/email is allowed by policy)
   export SHIPLOG_BORING=1
@@ -38,8 +39,7 @@ teardown() {
   [ "$status" -eq 0 ]
 
   # Verify the remote now has the journal ref
-  run bash -lc "git --git-dir=\"$REMOTE_DIR\" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'"
+  run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
   [ "$status" -eq 0 ]
   [[ "$output" == *"refs/_shiplog/journal/staging"* ]]
 }
-

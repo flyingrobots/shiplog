@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 JQ_BIN="${SHIPLOG_JQ_BIN:-/usr/local/bin/jq}"
@@ -133,12 +133,13 @@ enforce_trust_threshold() {
   # Normalize gate safely under set -u
   local gate
   gate=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')
+  local gpg_format="${SHIPLOG_GPG_FORMAT:-ssh}"
   case "$gate" in
     1|true|yes|on)
       if [ -n "$SIGNERS_FILE" ]; then
-        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
+        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
       else
-        git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
+        git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
       fi
       ;;
     *) : ;;
@@ -195,10 +196,11 @@ ensure_commit_signed_if_required() {
   if ! git cat-file commit "$commit" | grep -q '^gpgsig ' ; then
     error "commit $commit missing required signature"
   fi
+  local gpg_format="${SHIPLOG_GPG_FORMAT:-ssh}"
   if [ -n "$SIGNERS_FILE" ]; then
-    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "signature for $commit not accepted"
+    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "signature for $commit not accepted"
   else
-    git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "signature verification failed for $commit"
+    git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "signature verification failed for $commit"
   fi
 }
 
