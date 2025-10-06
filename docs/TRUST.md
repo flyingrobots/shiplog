@@ -157,6 +157,14 @@ Notes:
 - The threshold verification (chain/attestation) is independent of this gate.
 - On SaaS, you cannot enforce this at push time; include signature checks in your Required Status Check.
 
+### Gate Modes
+
+Set `SHIPLOG_REQUIRE_SIGNED_TRUST_MODE` to control how the gate is satisfied when `SHIPLOG_REQUIRE_SIGNED_TRUST` is enabled:
+
+- `commit` (default): require the trust commit itself to pass `git verify-commit`.
+- `attestation`: require the attestation threshold to verify (detached signatures under `.shiplog/trust_sigs/`).
+- `either`: accept if either the commit signature verifies or the attestation threshold verifies. Useful to smooth over distro‑specific SSH principal quirks while you harden your roster and CI.
+
 ## Server Enforcement Checklist
 
 ## Trust Modes Diagram
@@ -180,6 +188,17 @@ Notes:
     match policy.
   * Compare `trust_oid` to the current server trust tip to prevent stale-trust replays.
 * Mirror `refs/_shiplog/{trust,policy,journal}` to a second remote or WORM storage for recovery.
+
+## Troubleshooting Verification
+
+Enable verbose diagnostics from the verifier and hooks by exporting `SHIPLOG_DEBUG_SSH_VERIFY=1` in the server hook environment (self‑hosted) or the CI job (SaaS). The debug output includes:
+
+- Gate status (enabled/disabled), gate mode, and `gpg.format` in effect.
+- Presence of `allowed_signers` and the principals discovered there.
+- For commit‑signature checks, the `git log --show-signature` block when verification fails.
+- For attestation checks, the number of `.shiplog/trust_sigs/*` files found, the canonical payload tree OID used for verification, and per‑signature verification results from `ssh-keygen -Y verify`.
+
+If you encounter principal mismatches across distros, prefer `SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=either` temporarily and ensure your `allowed_signers` contains both the exact maintainer email and a domain wildcard (e.g., `*@example.com`) for the relevant key. Then tighten to `commit` or `attestation` as your fleet converges.
 
 ## Solo Maintainer Trust Setup
 

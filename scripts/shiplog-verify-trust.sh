@@ -19,6 +19,15 @@ set -euo pipefail
 
 err() { echo "❌ shiplog: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || err "missing dependency: $1"; }
+debug_enabled() {
+  case "$(printf '%s' "${SHIPLOG_DEBUG_SSH_VERIFY:-0}" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+dbg() {
+  debug_enabled && echo "shiplog[debug]: $*" >&2 || true
+}
 
 OLD=""; NEW=""; REF="refs/_shiplog/trust/root"
 while [ $# -gt 0 ]; do
@@ -45,6 +54,7 @@ TRUST_JSON=$(load_blob "$NEW" "trust.json")
 threshold=$(printf '%s' "$TRUST_JSON" | "$JQ_BIN" -r '.threshold // 1')
 sig_mode=$(printf '%s' "$TRUST_JSON" | "$JQ_BIN" -r '.sig_mode // "chain"')
 [ -n "$sig_mode" ] || sig_mode="chain"
+dbg "trust.json: sig_mode=$sig_mode threshold=$threshold"
 
 signers_blob=$(load_blob "$NEW" "allowed_signers")
 SIGNERS_FILE=""
@@ -52,6 +62,11 @@ if [ -n "$signers_blob" ]; then
   SIGNERS_FILE=$(mktemp)
   printf '%s' "$signers_blob" > "$SIGNERS_FILE"
   chmod 600 "$SIGNERS_FILE"
+  # Surface a small summary for debugging
+  if debug_enabled; then
+    principals=$(awk '{print $1}' "$SIGNERS_FILE" | paste -sd, -)
+    dbg "allowed_signers present: principals=[${principals}]"
+  fi
 fi
 
 verify_commit_sig() {
@@ -62,24 +77,60 @@ verify_commit_sig() {
     gitopts=(-c "gpg.format=$fmt")
   fi
   if [ -n "$SIGNERS_FILE" ]; then
-    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1 || return 1
+    if ! GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1; then
+      dbg "git verify-commit failed (gpg.format=${fmt:-default}); showing signature block:"
+      dbg "$(git log -1 --show-signature --pretty=medium "$c" 2>/dev/null || true)"
+      return 1
+    fi
   else
-    git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1 || return 1
+    if ! git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1; then
+      dbg "git verify-commit failed without allowed_signers (gpg.format=${fmt:-default})"
+      dbg "$(git log -1 --show-signature --pretty=medium "$c" 2>/dev/null || true)"
+      return 1
+    fi
   fi
 }
 
-# 1) Optionally require the new trust commit to be signature-verified.
-case "$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')" in
-  1|true|yes|on)
-    verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
-    ;;
-  *) : ;;
-esac
+# 1) Optionally require the new trust update to be signature-verified.
+#    Support gate modes:
+#      - SHIPLOG_REQUIRE_SIGNED_TRUST=1 enables the gate
+#      - SHIPLOG_REQUIRE_SIGNED_TRUST_MODE: commit|attestation|either (default commit)
+gate_enabled=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')
+gate_mode=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST_MODE:-commit}" | tr '[:upper:]' '[:lower:]')
+dbg "require_signed: enabled=$gate_enabled mode=$gate_mode gpg.format=${SHIPLOG_GPG_FORMAT:-default}"
 
-# 2) Threshold==1 is satisfied now.
-if [ "$threshold" = "1" ] || [ "$threshold" = "1.0" ]; then
-  exit 0
+commit_gate_checked=0
+commit_gate_ok=0
+if [ "$gate_enabled" = "1" ] || [ "$gate_enabled" = "true" ] || [ "$gate_enabled" = "yes" ] || [ "$gate_enabled" = "on" ]; then
+  case "$gate_mode" in
+    commit)
+      commit_gate_checked=1
+      verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
+      commit_gate_ok=1
+      ;;
+    either)
+      commit_gate_checked=1
+      if verify_commit_sig "$NEW"; then
+        commit_gate_ok=1
+      else
+        dbg "commit signature failed under 'either' mode; will attempt attestation path if available"
+      fi
+      ;;
+    attestation)
+      : # handled in attestation block below
+      ;;
+    *)
+      dbg "unknown SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=$gate_mode (treating as 'commit')"
+      commit_gate_checked=1
+      verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
+      commit_gate_ok=1
+      ;;
+  esac
 fi
+
+# Note: Do not unconditionally exit for threshold==1; when sig_mode=attestation (or gate mode
+# requires attestations), we must still execute the attestation verification path even for
+# single-signature thresholds.
 
 if ! printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$'; then
   err "invalid threshold: $threshold"
@@ -124,6 +175,7 @@ if [ "$sig_mode" = "attestation" ]; then
   # Collect signatures
   mapfile -t sigs < <(git ls-tree -r --name-only "$NEW" | awk '/^\.shiplog\/trust_sigs\//{print}')
   nsigs=${#sigs[@]}
+  dbg "attestation: found $nsigs signature file(s)"
   if [ "$nsigs" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
     err "found $nsigs attestation files; threshold is $threshold"
   fi
@@ -143,6 +195,7 @@ if [ "$sig_mode" = "attestation" ]; then
         else
           base=$(printf '100644 blob %s\ttrust.json\n' "$oid_trust" | git mktree)
         fi
+        dbg "attestation: base tree oid=$base"
         p=$(printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$base" "$trust_id" "$threshold")
         ;;
       full)
@@ -156,14 +209,25 @@ if [ "$sig_mode" = "attestation" ]; then
     local mode="$1" tmp_in verified=0 principals_seen=""
     tmp_in=$(mktemp)
     build_payload "$mode" >"$tmp_in"
+    if debug_enabled && command -v sha256sum >/dev/null 2>&1; then
+      dbg "attestation: payload_sha256=$(sha256sum "$tmp_in" | awk '{print $1}')"
+    fi
     for path in "${sigs[@]}"; do
       principal=$(basename "$path" | sed 's/\.sig$//')
       sigblob=$(git show "$NEW:$path" 2>/dev/null || true)
       [ -n "$sigblob" ] || continue
       sigfile=$(mktemp)
       printf '%s' "$sigblob" > "$sigfile"
+      if debug_enabled && command -v sha256sum >/dev/null 2>&1; then
+        dbg "attestation: sig_sha256[$principal]=$(sha256sum "$sigfile" | awk '{print $1}')"
+      fi
       if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
         case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
+      else
+        if debug_enabled; then
+          dbg "verify failed for principal=$principal; ssh-keygen says:"
+          ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" 2>&1 | sed 's/^/ssh-keygen: /' >&2 || true
+        fi
       fi
       rm -f "$sigfile"
     done
@@ -173,16 +237,30 @@ if [ "$sig_mode" = "attestation" ]; then
 
   mode="${SHIPLOG_ATTEST_PAYLOAD_MODE:-base}"
   verified=$(verify_attest_mode "$mode")
+  dbg "attestation: verified=$verified (mode=$mode) threshold=$threshold"
   if [ "$verified" -lt "$threshold" ] && [ "${SHIPLOG_ATTEST_BACKCOMP:-0}" = "1" ]; then
     # Try alternative mode for back-compat
     alt="full"; [ "$mode" = "full" ] && alt="base"
     verified=$(verify_attest_mode "$alt")
+    dbg "attestation: verified=$verified (alt-mode=$alt)"
   fi
 
   if [ "$verified" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
+    if [ "$gate_mode" = "either" ] && [ "$commit_gate_checked" = "1" ] && [ "$commit_gate_ok" = "1" ]; then
+      dbg "attestation shortfall tolerated under 'either' since commit gate passed"
+      exit 0
+    fi
     err "verified $verified attestations; threshold is $threshold"
   fi
+  # If we reach here, attestation path is satisfied. Under 'either' mode where
+  # commit verification failed, treat as success.
   exit 0
+fi
+
+if [ "$gate_mode" = "either" ] && [ "$commit_gate_checked" = "1" ] && [ "$commit_gate_ok" = "1" ]; then
+  # Chain mode with commit gate satisfied is acceptable for threshold>1 only if chain rules hold.
+  # But we are outside chain block; fall through to chain logic above already handled.
+  :
 fi
 
 err "unknown sig_mode: $sig_mode"

@@ -31,6 +31,14 @@ error() {
   exit 1
 }
 
+debug_enabled() {
+  case "$(printf '%s' "${SHIPLOG_DEBUG_SSH_VERIFY:-0}" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+dbg() { debug_enabled && echo "shiplog[debug]: $*" >&2 || true; }
+
 load_trust_state() {
   local commit="$1"
   [ -n "$commit" ] || return 0
@@ -52,6 +60,10 @@ load_trust_state() {
     SIGNERS_FILE="$TMP_ROOT/allowed_signers"
     printf '%s' "$signers_blob" > "$SIGNERS_FILE"
     chmod 600 "$SIGNERS_FILE"
+    if debug_enabled; then
+      principals=$(awk '{print $1}' "$SIGNERS_FILE" | paste -sd, -)
+      dbg "allowed_signers principals=[${principals}]"
+    fi
   else
     SIGNERS_FILE=""
   fi
@@ -131,16 +143,64 @@ enforce_trust_threshold() {
   # - For production, set to 1/true/yes/on to enforce signed trust commits
   #   (leaving it off reduces integrity of trust updates)
   # Normalize gate safely under set -u
-  local gate
+  local gate gate_mode
   gate=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST:-0}" | tr '[:upper:]' '[:lower:]')
+  gate_mode=$(printf '%s' "${SHIPLOG_REQUIRE_SIGNED_TRUST_MODE:-commit}" | tr '[:upper:]' '[:lower:]')
   local gpg_format="${SHIPLOG_GPG_FORMAT:-ssh}"
+  dbg "require_signed: enabled=$gate mode=$gate_mode gpg.format=$gpg_format"
+  local commit_ok=0 commit_checked=0
   case "$gate" in
     1|true|yes|on)
-      if [ -n "$SIGNERS_FILE" ]; then
-        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
-      else
-        git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
-      fi
+      case "$gate_mode" in
+        commit)
+          commit_checked=1
+          if [ -n "$SIGNERS_FILE" ]; then
+            if GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1; then
+              commit_ok=1
+            else
+              dbg "git verify-commit failed; signature block follows"
+              dbg "$(git log -1 --show-signature --pretty=medium "$commit" 2>/dev/null || true)"
+              error "trust commit $commit has missing or invalid signature"
+            fi
+          else
+            if git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1; then
+              commit_ok=1
+            else
+              dbg "git verify-commit failed (no allowed_signers); signature block follows"
+              dbg "$(git log -1 --show-signature --pretty=medium "$commit" 2>/dev/null || true)"
+              error "trust commit $commit failed signature verification"
+            fi
+          fi
+          ;;
+        either)
+          commit_checked=1
+          if [ -n "$SIGNERS_FILE" ]; then
+            if GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1; then
+              commit_ok=1
+            else
+              dbg "git verify-commit failed under 'either'; will attempt attestation fallback if applicable"
+              dbg "$(git log -1 --show-signature --pretty=medium "$commit" 2>/dev/null || true)"
+            fi
+          else
+            if git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1; then
+              commit_ok=1
+            else
+              dbg "git verify-commit failed under 'either' (no allowed_signers)"
+              dbg "$(git log -1 --show-signature --pretty=medium "$commit" 2>/dev/null || true)"
+            fi
+          fi
+          ;;
+        attestation)
+          : ;; # handled below
+        *)
+          dbg "unknown SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=$gate_mode; defaulting to commit"
+          commit_checked=1
+          if ! git -c gpg.format="$gpg_format" verify-commit "$commit" >/dev/null 2>&1; then
+            error "trust commit $commit failed signature verification"
+          fi
+          commit_ok=1
+          ;;
+      esac
       ;;
     *) : ;;
   esac
@@ -161,9 +221,61 @@ enforce_trust_threshold() {
 
   if [ "$threshold" -gt 1 ]; then
     if [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
+      # Attempt minimal attestation enforcement if requested or as 'either' fallback
+      if [ "$gate_mode" = "attestation" ] || { [ "$gate_mode" = "either" ] && [ "$commit_checked" = "1" ] && [ "$commit_ok" != "1" ]; }; then
+        attestation_verify "$commit" "$threshold" || error "verified fewer than $threshold attestations"
+        return 0
+      fi
       error "trust threshold $threshold not yet enforced by hook; set SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED=1 to allow temporarily"
     fi
   fi
+  # If threshold==1 and commit verification did not succeed (or attestation mode is explicitly
+  # requested), attempt attestation verification as the decision-maker for this update.
+  # This ensures SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=attestation enforces attestations even when
+  # the commit signature is absent or unaccepted.
+  if [ "$threshold" -eq 1 ]; then
+    if { [ "$commit_checked" = "1" ] && [ "$commit_ok" != "1" ]; } || [ "$gate_mode" = "attestation" ]; then
+      attestation_verify "$commit" 1 || error "no valid attestation found for threshold=1"
+    fi
+  fi
+}
+
+# Minimal attestation verification for the fallback path in this hook
+attestation_verify() {
+  local commit="$1" threshold="$2"
+  command -v ssh-keygen >/dev/null 2>&1 || return 1
+  [ -n "$SIGNERS_FILE" ] || return 1
+  # Collect attestation sigs under .shiplog/trust_sigs/
+  mapfile -t sigs < <(git ls-tree -r --name-only "$commit" | awk '/^\.shiplog\/trust_sigs\//{print}')
+  local nsigs=${#sigs[@]}
+  dbg "attestation(fallback): found $nsigs signature file(s)"
+  [ "$nsigs" -ge 1 ] || return 1
+  # Build canonical base payload
+  local oid_trust oid_sigs base trust_id tmp_in verified=0 principals_seen=""
+  trust_id=$(printf '%s' "$CURRENT_TRUST_JSON" | "$JQ_BIN" -r '.id // "shiplog-trust-root"')
+  oid_trust=$(git ls-tree "$commit" trust.json | awk '{print $3}')
+  oid_sigs=$(git ls-tree "$commit" allowed_signers | awk '{print $3}')
+  if [ -n "$oid_sigs" ]; then
+    base=$(printf '100644 blob %s\ttrust.json\n100644 blob %s\tallowed_signers\n' "$oid_trust" "$oid_sigs" | git mktree)
+  else
+    base=$(printf '100644 blob %s\ttrust.json\n' "$oid_trust" | git mktree)
+  fi
+  tmp_in=$(mktemp)
+  printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$base" "$trust_id" "$threshold" >"$tmp_in"
+  for path in "${sigs[@]}"; do
+    principal=$(basename "$path" | sed 's/\.sig$//')
+    sigblob=$(git show "$commit:$path" 2>/dev/null || true)
+    [ -n "$sigblob" ] || continue
+    sigfile=$(mktemp)
+    printf '%s' "$sigblob" > "$sigfile"
+    if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
+      case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
+    fi
+    rm -f "$sigfile"
+  done
+  rm -f "$tmp_in"
+  dbg "attestation(fallback): verified=$verified threshold=$threshold"
+  [ "$verified" -ge "$threshold" ]
 }
 
 read_commit_json() {
