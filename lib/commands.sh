@@ -1270,8 +1270,8 @@ cmd_policy() {
     require-signed)
       local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) val=true ;; 0|false|no|off) val=false ;; *) die "Usage: git shiplog policy require-signed <true|false>" ;; esac
       mkdir -p .shiplog; local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
-      if [ -f "$policy_file" ]; then jq --argjson rs "$val" '(.version // 1) as $v | .version=$v | .require_signed=$rs' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
-      else printf '{"version":1,"require_signed":%s}
+      if [ -f "$policy_file" ]; then jq --arg rs "$val" --arg ver "1.0.0" '(.version // $ver) as $v | .version=$v | .require_signed=($rs|test("^(1|true|yes|on)$";"i"))' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
+      else printf '{"version":"1.0.0","require_signed":%s}
 ' "$val" >"$tmp"; fi
       policy_install_file "$tmp" "$policy_file"
       if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"; else printf 'Set require_signed to %s in %s
@@ -1564,7 +1564,7 @@ cmd_setup() {
   esac
 
   # Start base policy
-  printf '{"version":1,"require_signed":%s}\n' "$require_signed_global" >"$tmp"
+  printf '{"version":"1.0.0","require_signed":%s}\n' "$require_signed_global" >"$tmp"
 
   # Add authors for balanced
   if [ "$strictness" = "balanced" ] && [ -n "$authors_in" ]; then
@@ -1869,11 +1869,11 @@ cmd_config() {
     mkdir -p .shiplog
     local tmp; tmp=$(mktemp)
     if [ $require_signed_global -eq 1 ]; then
-      printf '{"version":1,"require_signed":true}\n' >"$tmp"
+      printf '{"version":"1.0.0","require_signed":true}\n' >"$tmp"
     elif [ $require_signed_prod -eq 1 ]; then
-      printf '{"version":1,"require_signed":false,"deployment_requirements":{"prod":{"require_signed":true}}}\n' >"$tmp"
+      printf '{"version":"1.0.0","require_signed":false,"deployment_requirements":{"prod":{"require_signed":true}}}\n' >"$tmp"
     else
-      printf '{"version":1,"require_signed":false}\n' >"$tmp"
+      printf '{"version":"1.0.0","require_signed":false}\n' >"$tmp"
     fi
     policy_install_file "$tmp" ".shiplog/policy.json"
     if shiplog_can_use_bosun; then

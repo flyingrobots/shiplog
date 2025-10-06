@@ -41,6 +41,20 @@ Run `git shiplog policy --boring` for plain-text output or `--json` to integrate
 
 ## Policy File Examples
 
+Required fields:
+- `version` (semver string, e.g., "1.0.0").
+- `authors.default_allowlist` (one or more allowed author emails).
+
+Optional (recommended as you harden policy):
+- `require_signed` (boolean, top-level) — default behavior when not set per-env.
+- `deployment_requirements` (object) — per-environment knobs. Each env may specify:
+  - `require_signed` (boolean)
+  - `require_ticket` (boolean)
+  - `require_service` (boolean)
+  - `require_where` (array: region, cluster, namespace, service, environment)
+- `ff_only` (boolean) — complement fast‑forward protections for Shiplog refs.
+- `notes_ref`, `journals_ref_prefix`, `anchors_ref_prefix` — customize ref layout.
+
 ### Minimal policy.json
 ```json
 {
@@ -85,7 +99,7 @@ Run `git shiplog policy --boring` for plain-text output or `--json` to integrate
 }
 ```
 
-The JSON Schema that validates these files lives at `examples/policy.schema.json`.
+The JSON Schema that validates these files lives at `examples/policy.schema.json`. Both minimal and fuller forms above validate.
 
 ### Validating policies
 ```bash

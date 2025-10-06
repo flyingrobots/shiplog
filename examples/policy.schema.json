@@ -5,19 +5,13 @@
   "additionalProperties": false,
   "required": [
     "version",
-    "require_signed",
-    "authors",
-    "deployment_requirements",
-    "ff_only",
-    "notes_ref",
-    "journals_ref_prefix",
-    "anchors_ref_prefix"
+    "authors"
   ],
   "properties": {
     "schema": { "type": "string" },
     "version": {
       "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+(\\-[0-9A-Za-z\\-]+(\\.[0-9A-Za-z\\-]+)*)?(\\+[0-9A-Za-z\\-]+(\\.[0-9A-Za-z\\-]+)*)?$"
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
     },
     "format_compat": { "type": "string" },
     "require_signed": { "type": "boolean" },
@@ -49,6 +43,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "require_signed": { "type": "boolean" },
           "require_ticket": { "type": "boolean" },
           "require_service": { "type": "boolean" },
           "require_where": {
@@ -65,15 +60,15 @@
     "ff_only": { "type": "boolean" },
     "notes_ref": {
       "type": "string",
-      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*$"
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\[\\]\\\\])\\S+(?:/\\S+)*$"
     },
     "journals_ref_prefix": {
       "type": "string",
-      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*/$"
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\[\\]\\\\])\\S+/(?:\\S+/)*$"
     },
     "anchors_ref_prefix": {
       "type": "string",
-      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\\\\[])[^\\000-\\037\\177\\s]+(?:/[^\\000-\\037\\177\\s]+)*/$"
+      "pattern": "^refs/(?!.*(?:^|/)\\.)(?!.*\\.\\.)(?!.*\\.lock$)(?!.*//@)(?!.*@\\{)(?!.*[~^:?*\\[\\]\\\\])\\S+/(?:\\S+/)*$"
     }
   }
 }
