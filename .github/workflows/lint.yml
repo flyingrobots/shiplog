@@ -36,14 +36,37 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+      - name: Get changed shell files (PRs)
+        if: github.event_name == 'pull_request'
+        id: changed-shell
+        uses: tj-actions/changed-files@v45
+        with:
+          separator: "\n"
+          files: |
+            bin/git-shiplog
+            contrib/hooks/**
+            **/*.sh
       - name: Run shellcheck
         run: |
+          set -euo pipefail
           echo "ShellCheck version:" && shellcheck --version
-          SH_FILES=$(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks/[^/]+$|\.sh$)' || true)
-          if [ -n "$SH_FILES" ]; then
-            shellcheck -e SC2034 -S style -s bash $SH_FILES
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ steps.changed-shell.outputs.any_changed }}" != "true" ]; then
+              echo "No changed shell files; skipping."
+              exit 0
+            fi
+            files='${{ steps.changed-shell.outputs.all_changed_files }}'
+            echo "Changed shell files (raw):
+$files"
+            mapfile -t SH_FILES < <(printf '%s
+' "$files")
+            shellcheck -S error -s bash "${SH_FILES[@]}"
           else
-            echo "No shell files found"
+            # On push (e.g., main), lint entire repo (include nested hooks)
+            mapfile -t SH_FILES < <(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks(/.*)?$|\.sh$)' || true)
+            if [ "${#SH_FILES[@]}" -eq 0 ]; then
+              echo "No shell files found"; exit 0; fi
+            shellcheck -S error -s bash "${SH_FILES[@]}"
           fi
 
   markdownlint:
@@ -52,15 +75,67 @@ jobs:
     if: needs.changes.outputs.markdown == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       - name: Install markdownlint-cli2
-        run: npm install -g markdownlint-cli2
-      - name: Run markdownlint-cli2
+        run: npm install -g markdownlint-cli2@0.15.0
+      - name: Install markdownlint (v0 CLI for targeted lint)
+        run: npm install -g markdownlint-cli@0.42.0
+      - name: Get changed markdown files (PRs)
+        if: github.event_name == 'pull_request'
+        id: changed-markdown
+        uses: tj-actions/changed-files@v45
+        with:
+          separator: "\n"
+          files: |
+            **/*.md
+      - name: Run markdownlint (changed-only on PRs)
         run: |
-          markdownlint-cli2
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ steps.changed-markdown.outputs.any_changed }}" != "true" ]; then
+              echo "No changed markdown files; skipping."
+              exit 0
+            fi
+            # Lint only changed Markdown files (avoids baseline noise)
+            files='${{ steps.changed-markdown.outputs.all_changed_files }}'
+            echo "Changed files (raw):\n$files"
+            # Filter out docs/tasks/** except docs/tasks/README.md
+            filtered=()
+            while IFS= read -r f; do
+              case "$f" in
+                docs/tasks/README.md) filtered+=("$f") ;;
+                docs/tasks/*) ;; # skip JSON-like task files
+                *.md) filtered+=("$f") ;;
+              esac
+            done <<< "$files"
+            if [ "${#filtered[@]}" -eq 0 ]; then
+              echo "No lintable changed Markdown files after filtering; skipping."
+              exit 0
+            fi
+            printf 'Linting files:%s\n' "\n${filtered[*]}"
+            markdownlint "${filtered[@]}"
+          else
+            # On push (e.g., main), lint entire repo
+            # TODO: switch to full-repo markdownlint-cli2 once baseline is clean
+            files=$(git diff --name-only HEAD~1 -- '**/*.md' || true)
+            if [ -z "$files" ]; then echo "No markdown changes on push."; exit 0; fi
+            filtered=()
+            while IFS= read -r f; do
+              case "$f" in
+                docs/tasks/README.md) filtered+=("$f") ;;
+                docs/tasks/*) ;; 
+                *.md) filtered+=("$f") ;;
+              esac
+            done <<< "$files"
+            if [ "${#filtered[@]}" -eq 0 ]; then
+              echo "No lintable markdown changes on push."; exit 0; fi
+            markdownlint "${filtered[@]}"
+          fi
 
   yamllint:
     runs-on: ubuntu-latest

@@ -12,9 +12,11 @@
     "Create and push signed trust commit: expect success"
   ],
   "blocked_by": [],
-  "notes": ["Implemented in test/18_trust_signed_gate.bats"],
+  "notes": [
+    "Implemented in test/18_trust_signed_gate.bats; portable hook wrapper uses env bash; attestation fallback in either-mode."
+  ],
   "created": "2025-10-05",
-  "updated": "2025-10-05",
+  "updated": "2025-10-06",
   "estimate": "small",
   "expected_complexity": "low"
 }

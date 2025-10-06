@@ -7,13 +7,15 @@ This is the single source of truth for tasks. Each task lives as a JSON file in 
 - complete/: finished
 
 Progress bars here are the canonical ones. Keep the root `README` progress bar in sync after updates.
-### Milestones
+
+## Milestones
 
 - **MVP**: Core features usable end‑to‑end on this repo (init/write/ls/show/export/verify basics; policy/trust; installer; tests; portability).
 - **Alpha**: GitHub tooling and docs mature; validation commands; CI polish; ready for limited trials.
 - **Beta**: Feature‑complete; deeper docs/runbooks; operational guardrails; ready for heavy testing IRL.
 - **v1.0.0**: Solid, tested, trusted; plugin architecture docs; production guidance.
-### Progress Formula
+
+## Progress Formula
 
 Weights by estimate: big = 3, med = 2, small = 1.
 
@@ -23,19 +25,21 @@ Weights by estimate: big = 3, med = 2, small = 1.
   - Use weights $w = {MVP: 0.4, Alpha: 0.3, Beta: 0.2, v1.0: 0.1}$.
   - Overall = $0.4*pMVP + 0.3*pAlpha + 0.2*pBeta + 0.1*pV1$.
 
-#### Update steps
+### Update steps
 
 1) Add/update task JSON files in the stage folders with fields: `id`, `labels`, `milestone`, `name`, `description`, `priority`, `impact`, `steps[]`, `blocked_by[]`, `notes[]`, `created`, `updated`, `estimate`, `expected_complexity`.
 2) Recompute per-milestone progress by counting tasks (or with a small script).
 3) Update the progress bars below and copy the overall bar to the root `README`.
-### Progress
 
-#### Example Progress Bar
+## Progress
+
+### Example Progress Bar
 
 The following is the canonical progress bar. *Note that it is 50 characters wide, with a scale displayed beneath it.*  Use this as a template when adding progress bars or updating existing ones. *NOTE: progress bars should be placed between HTML comments, like the example:*
 
 <!-- progress bar: example -->
-#### {Title}
+### {Title}
+
 ```text
 ██████████████████████████████████████████████░░░░ {current%} ({completed}/{total})
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
@@ -44,6 +48,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 <!-- /progress bar: example -->
 
 ---
+
 ## Roadmap
 
 **Currently Active:** Alpha
@@ -57,15 +62,15 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Overall
 
 ```text
-██████████████████████████████░░░░░░░░░░░░░░░░░░░░ 61% (weighted)
+███████████████████████████████░░░░░░░░░░░░░░░░░░░ 63% (weighted)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
 <!-- /progress bar: Overall -->
 
-### MVP
+## MVP
 <!-- progress bar: MVP -->
-#### MVP
+#### MVP Progress
 
 ```text
 ██████████████████████████████████████████████████ 100% (1/1)
@@ -77,13 +82,13 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 - Complete:
   - [SLT.MVP.001 — Core CLI and basic flows](docs/tasks/complete/SLT.MVP.001_core_cli_basic_flows.md)
 
-### Alpha
+## Alpha
 
 <!-- progress bar: Alpha -->
-#### Alpha
+#### Alpha Progress
 
 ```text
-██████████████████████████████████░░░░░░░░░░░░░░░░ 68% (54/76)
+█████████████████████████████████████░░░░░░░░░░░░░ 74% (59/76)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -94,7 +99,6 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.002 — Document tooling versions in README](docs/tasks/backlog/SLT.ALPHA.002_tooling_versions_in_readme.md)
   - [SLT.ALPHA.003 — Verify command JSON output](docs/tasks/backlog/SLT.ALPHA.003_verify_json_output.md)
   - [SLT.ALPHA.004 — Validate-trailer tests](docs/tasks/backlog/SLT.ALPHA.004_validate_trailer_tests.md)
-  - [SLT.ALPHA.005 — Policy validate command](docs/tasks/backlog/SLT.ALPHA.005_policy_validate_command.md)
   - [SLT.ALPHA.006 — Shellcheck workflow](docs/tasks/backlog/SLT.ALPHA.006_shellcheck_workflow.md)
   - [SLT.ALPHA.007 — Harden docs/plugins.md usage guidance](docs/tasks/backlog/SLT.ALPHA.007_docs_plugins_usage_guidance.md)
   - [SLT.ALPHA.008 — Expand plugin safety guidance](docs/tasks/backlog/SLT.ALPHA.008_plugin_safety_guidance.md)
@@ -105,7 +109,11 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.016 — Setup wizard refinements (Phase 3)](docs/tasks/backlog/SLT.ALPHA.016_setup_wizard_phase_3.md)
   - [SLT.ALPHA.017 — Tests for setup wizard and per-env policy](docs/tasks/backlog/SLT.ALPHA.017_setup_wizard_tests.md)
 - Complete:
+  - [SLT.ALPHA.005 — Policy validate command](docs/tasks/complete/SLT.ALPHA.005_policy_validate_command.md)
   - [SLT.ALPHA.020 — macOS time helpers portability](docs/tasks/complete/SLT.ALPHA.020_macos_time_helpers_portability.md)
+  - [SLT.ALPHA.022 — Add CONTRIBUTING, Code of Conduct, and Security docs](docs/tasks/complete/SLT.ALPHA.022_repo_hygiene_policies.md)
+  - [SLT.ALPHA.024 — Add E2E tests for trust-signed gate](docs/tasks/complete/SLT.ALPHA.024_trust_signed_gate_tests.md)
+  - [SLT.ALPHA.025 — Publish/auto-push precedence tests](docs/tasks/complete/SLT.ALPHA.025_publish_precedence_tests.md)
   - [SLT.ALPHA.C001 — Add GitHub Actions bash matrix workflow](docs/tasks/complete/SLT.ALPHA.C001_github_actions_bash_matrix_workflow.md)
   - [SLT.ALPHA.C002 — Add cross-distro Docker matrix for CI](docs/tasks/complete/SLT.ALPHA.C002_cross_distro_docker_matrix_for_ci.md)
   - [SLT.ALPHA.C003 — Migrate CLI interactions to Bosun](docs/tasks/complete/SLT.ALPHA.C003_migrate_cli_interactions_to_bosun.md)
@@ -154,10 +162,10 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.C046 — .devcontainer/scripts/verified-download.sh: capture resolver output](docs/tasks/complete/SLT.ALPHA.C046_devcontainer_verified_download_logging.md)
   - [SLT.ALPHA.C047 — contrib/README.md: format install script block](docs/tasks/complete/SLT.ALPHA.C047_contrib_readme_format_installer_block.md)
 
-### Beta
+## Beta
 
 <!-- progress bar: Beta -->
-#### Beta
+#### Beta Progress
 
 ```text
 ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21)
@@ -186,7 +194,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.BETA.020 — Setup Questionnaire (guided configuration)](docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md)
 
 <!-- progress bar: v1.0.0 -->
-#### v1.0.0
+#### v1.0.0 Progress
 
 ```text
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
@@ -194,7 +202,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 0   10   20   30   40   50   60   70   80   90  100%
 ```
 <!-- /progress bar: v1.0.0 -->
-### v1.0.0
+## v1.0.0
+
 - Backlog:
   - [SLT.V1.001 — Design extension/plugin system](docs/tasks/backlog/SLT.V1.001_plugin_system.md)
   - [SLT.V1.002 — Integrate secrets scrubber](docs/tasks/backlog/SLT.V1.002_secrets_scrubber.md)
@@ -205,6 +214,5 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.019 — Align unsigned mode with trust requirement](docs/tasks/backlog/SLT.ALPHA.019_unsigned_mode_trust_requirement_alignment.md)
   - [SLT.ALPHA.020 — Align policy schema, writers, and CI validation](docs/tasks/backlog/SLT.ALPHA.020_policy_schema_alignment_and_validation.md)
   - [SLT.ALPHA.021 — Fix docs test reference and ls status semantics](docs/tasks/backlog/SLT.ALPHA.021_docs_fix_test_ref_and_ls_status.md)
-  - [SLT.ALPHA.022 — Add CONTRIBUTING, Code of Conduct, and Security docs](docs/tasks/backlog/SLT.ALPHA.022_repo_hygiene_policies.md)
 
 <!-- tasks-moc:end -->

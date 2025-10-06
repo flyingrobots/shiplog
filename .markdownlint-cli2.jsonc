@@ -3,7 +3,10 @@
   "globs": [
     "**/*.md",
     "!**/node_modules/**",
-    "!docs/index.html"
+    "!docs/index.html",
+    // Exclude generated JSON-like task files, but keep the README
+    "!docs/tasks/**/*.md",
+    "docs/tasks/README.md"
   ],
   // Rule config (keep lines readable; allow inline HTML in docs when needed)
   "config": {
