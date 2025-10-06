@@ -5,7 +5,10 @@
 - [Feature Guides](features)
   - [Config Wizard](features/config.md)
 - [Structured Entry Schema](reference/json-schema.md)
-- [Release Notes](releases/v0.2.0.md)
+- Release Notes:
+  - [v0.4.0-alpha](releases/v0.4.0-alpha.md)
+  - [v0.2.1](releases/v0.2.1.md)
+  - [v0.2.0](releases/v0.2.0.md)
 - [Bosun Helpers](bosun)
 - [Plugin Hooks](plugins.md)
  - Git Hosts & Enforcement:

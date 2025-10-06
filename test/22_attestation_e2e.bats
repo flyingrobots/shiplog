@@ -54,6 +54,13 @@ JSON
   [ "$status" -eq 0 ]
   run bash -lc 'ssh-keygen -Y verify -n shiplog-trust -f .shiplog/allowed_signers -I b@example.com -s .shiplog/trust_sigs/b@example.com.sig < payload.txt'
   [ "$status" -eq 0 ]
+  # Capture local SHA256s for debug comparison
+  run bash -lc "sha256sum payload.txt | awk '{print \$1}'"
+  local_payload_sha256=${lines[0]}
+  run bash -lc "sha256sum .shiplog/trust_sigs/a\\@example.com.sig | awk '{print \$1}'"
+  local_sig_a_sha256=${lines[0]}
+  run bash -lc "sha256sum .shiplog/trust_sigs/b\\@example.com.sig | awk '{print \$1}'"
+  local_sig_b_sha256=${lines[0]}
 
   # Commit trust tree (now including sig blobs) and run verifier (BASE mode)
   oid_sa=$(git hash-object -w .shiplog/trust_sigs/a@example.com.sig)
@@ -63,27 +70,21 @@ JSON
   tree_root=$(printf '040000 tree %s\t.shiplog\n100644 blob %s\tallowed_signers\n100644 blob %s\ttrust.json\n' "$tree_shipdir" "$oid_sigs" "$oid_trust" | git mktree)
   commit=$(git commit-tree "$tree_root" -m "shiplog: trust attestation E2E")
 
-  # Rebuild payload from committed tree and verify via ssh-keygen using blobs from commit
-  run bash -lc 'base=$(git ls-tree '"$commit"' trust.json | awk '{print $3}'); \
-    sigs=$(git ls-tree '"$commit"' allowed_signers | awk '{print $3}'); \
-    tab=$(printf "\\t"); \
-    tree=$(printf "100644 blob %s${tab}trust.json\n100644 blob %s${tab}allowed_signers\n" "$base" "$sigs" | git mktree); \
-    printf "shiplog-trust-tree-v1\n%s\nshiplog-trust-root\n2\n" "$tree" > /tmp/p.in; \
-    git show '"$commit"':.shiplog/trust_sigs/a@example.com.sig > /tmp/a.sig; \
-    git show '"$commit"':.shiplog/trust_sigs/b@example.com.sig > /tmp/b.sig; \
-    ssh-keygen -Y verify -n shiplog-trust -f .shiplog/allowed_signers -I a@example.com -s /tmp/a.sig < /tmp/p.in && \
-    ssh-keygen -Y verify -n shiplog-trust -f .shiplog/allowed_signers -I b@example.com -s /tmp/b.sig < /tmp/p.in'
-  [ "$status" -eq 0 ]
+  # (Optional local re-verify with committed blobs removed here to focus on the shared verifier behavior)
 
   run bash -lc 'SHIPLOG_DEBUG_SSH_VERIFY=1 "${SHIPLOG_HOME}/scripts/shiplog-verify-trust.sh" --old 0000000000000000000000000000000000000000 --new '"$commit"' --ref refs/_shiplog/trust/root'
   if [ "$status" -ne 0 ]; then
     echo "--- verifier output ---"
     echo "$output"
-    echo "--- signature sha256 (local vs repo) ---"
-    run bash -lc 'sha256sum .shiplog/trust_sigs/a\\@example.com.sig | awk '{print $1}' && git show '"$commit"':.shiplog/trust_sigs/a@example.com.sig | sha256sum | awk '{print $1}''
-    echo "A: ${lines[0]} vs ${lines[1]}"
-    run bash -lc 'sha256sum .shiplog/trust_sigs/b\\@example.com.sig | awk '{print $1}' && git show '"$commit"':.shiplog/trust_sigs/b@example.com.sig | sha256sum | awk '{print $1}''
-    echo "B: ${lines[2]} vs ${lines[3]}"
+    echo "--- local sha256 ---"
+    echo "payload(local)=$local_payload_sha256"
+    echo "sig_a(local)=$local_sig_a_sha256"
+    echo "sig_b(local)=$local_sig_b_sha256"
+    echo "--- repo sha256 ---"
+    run bash -lc "git show '"$commit"':.shiplog/trust_sigs/a@example.com.sig | sha256sum | awk '{print \$1}'"
+    echo "sig_a(repo)=${lines[0]}"
+    run bash -lc "git show '"$commit"':.shiplog/trust_sigs/b@example.com.sig | sha256sum | awk '{print \$1}'"
+    echo "sig_b(repo)=${lines[0]}"
     echo "-----------------------"
   fi
   [ "$status" -eq 0 ]

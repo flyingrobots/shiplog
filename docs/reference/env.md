@@ -49,6 +49,21 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
   - Interacts with threshold verification but is independent of it.
   - Case‑insensitive: `1|true|yes|on` enables; `0|false|no|off` disables.
 
+- `SHIPLOG_REQUIRE_SIGNED_TRUST_MODE` — How the trust gate is satisfied when enabled.
+  - Values: `commit` (default), `attestation`, `either`.
+  - `commit`: require `git verify-commit` on the trust commit.
+  - `attestation`: require the detached attestation threshold to verify under `.shiplog/trust_sigs/`.
+  - `either`: accept if either commit verification or attestation threshold verification passes.
+
+- `SHIPLOG_GPG_FORMAT` — Force Git’s `gpg.format` during verification (`ssh` or `openpgp`). Default inherits repo config.
+
+- `SHIPLOG_DEBUG_SSH_VERIFY` — Verbose debug for trust verification (shared script and hook).
+  - Values: `1` or `0` (default)
+  - Prints gate status/mode, principals discovered in `allowed_signers`, signature failure details, attestation payload tree OID, and per‑signature verification results.
+
+- `SHIPLOG_ATTEST_BACKCOMP` — When `1`, the verifier will attempt an alternate payload mode on failure (base vs full tree) for back‑compat signatures.
+  - Default: `0` (off)
+
 ## Write Inputs (non-interactive)
 
 - `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`

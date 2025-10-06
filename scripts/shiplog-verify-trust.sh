@@ -215,12 +215,18 @@ if [ "$sig_mode" = "attestation" ]; then
     local mode="$1" tmp_in verified=0 principals_seen=""
     tmp_in=$(mktemp)
     build_payload "$mode" >"$tmp_in"
+    if debug_enabled && command -v sha256sum >/dev/null 2>&1; then
+      dbg "attestation: payload_sha256=$(sha256sum "$tmp_in" | awk '{print $1}')"
+    fi
     for path in "${sigs[@]}"; do
       principal=$(basename "$path" | sed 's/\.sig$//')
       sigblob=$(git show "$NEW:$path" 2>/dev/null || true)
       [ -n "$sigblob" ] || continue
       sigfile=$(mktemp)
       printf '%s' "$sigblob" > "$sigfile"
+      if debug_enabled && command -v sha256sum >/dev/null 2>&1; then
+        dbg "attestation: sig_sha256[$principal]=$(sha256sum "$sigfile" | awk '{print $1}')"
+      fi
       if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
         case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
       else
