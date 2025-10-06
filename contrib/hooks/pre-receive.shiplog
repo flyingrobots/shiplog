@@ -229,10 +229,14 @@ enforce_trust_threshold() {
       error "trust threshold $threshold not yet enforced by hook; set SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED=1 to allow temporarily"
     fi
   fi
-  # If threshold==1, allow success when commit gate satisfied or not requested. Under 'either',
-  # if commit failed, try attestation fallback.
-  if [ "$threshold" -eq 1 ] && [ "$gate" != "0" ] && [ "$gate_mode" = "either" ] && [ "$commit_checked" = "1" ] && [ "$commit_ok" != "1" ]; then
-    attestation_verify "$commit" 1 || error "no valid attestation found for threshold=1"
+  # If threshold==1 and commit verification did not succeed (or attestation mode is explicitly
+  # requested), attempt attestation verification as the decision-maker for this update.
+  # This ensures SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=attestation enforces attestations even when
+  # the commit signature is absent or unaccepted.
+  if [ "$threshold" -eq 1 ]; then
+    if { [ "$commit_checked" = "1" ] && [ "$commit_ok" != "1" ]; } || [ "$gate_mode" = "attestation" ]; then
+      attestation_verify "$commit" 1 || error "no valid attestation found for threshold=1"
+    fi
   fi
 }
 
