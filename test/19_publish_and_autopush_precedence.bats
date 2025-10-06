@@ -5,8 +5,7 @@ load helpers/common
 setup() {
   shiplog_standard_setup
   git shiplog init >/dev/null
-  git config user.name "Shiplog Test"
-  git config user.email "shiplog-publish@example.com"
+  # Use default test identity from helpers (allowed by policy)
 }
 
 teardown() {
@@ -14,7 +13,6 @@ teardown() {
 }
 
 @test "publish pushes journal regardless of auto-push settings" {
-  skip "publish precedence test flaky in CI; will re-enable after push harness is stabilized"
   # Set env to auto-push, git config to 0, and pass --push to publish
   export SHIPLOG_AUTO_PUSH=0
   git config shiplog.autoPush false
@@ -36,4 +34,8 @@ teardown() {
   # Publish should push even if auto-push settings are disabled (explicit action)
   run git shiplog publish --env staging
   [ "$status" -eq 0 ]
+  # Verify the remote journal ref exists
+  run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"refs/_shiplog/journal/staging"* ]]
 }
