@@ -7,13 +7,13 @@ This is the single source of truth for tasks. Each task lives as a JSON file in 
 - complete/: finished
 
 Progress bars here are the canonical ones. Keep the root `README` progress bar in sync after updates.
-### Milestones
+## Milestones
 
 - **MVP**: Core features usable end‑to‑end on this repo (init/write/ls/show/export/verify basics; policy/trust; installer; tests; portability).
 - **Alpha**: GitHub tooling and docs mature; validation commands; CI polish; ready for limited trials.
 - **Beta**: Feature‑complete; deeper docs/runbooks; operational guardrails; ready for heavy testing IRL.
 - **v1.0.0**: Solid, tested, trusted; plugin architecture docs; production guidance.
-### Progress Formula
+## Progress Formula
 
 Weights by estimate: big = 3, med = 2, small = 1.
 
@@ -28,7 +28,7 @@ Weights by estimate: big = 3, med = 2, small = 1.
 1) Add/update task JSON files in the stage folders with fields: `id`, `labels`, `milestone`, `name`, `description`, `priority`, `impact`, `steps[]`, `blocked_by[]`, `notes[]`, `created`, `updated`, `estimate`, `expected_complexity`.
 2) Recompute per-milestone progress by counting tasks (or with a small script).
 3) Update the progress bars below and copy the overall bar to the root `README`.
-### Progress
+## Progress
 
 #### Example Progress Bar
 
@@ -63,9 +63,9 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ```
 <!-- /progress bar: Overall -->
 
-### MVP
+## MVP
 <!-- progress bar: MVP -->
-#### MVP
+#### MVP Progress
 
 ```text
 ██████████████████████████████████████████████████ 100% (1/1)
@@ -77,10 +77,10 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 - Complete:
   - [SLT.MVP.001 — Core CLI and basic flows](docs/tasks/complete/SLT.MVP.001_core_cli_basic_flows.md)
 
-### Alpha
+## Alpha
 
 <!-- progress bar: Alpha -->
-#### Alpha
+#### Alpha Progress
 
 ```text
 █████████████████████████████████████░░░░░░░░░░░░░ 74% (59/76)
@@ -157,10 +157,10 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.C046 — .devcontainer/scripts/verified-download.sh: capture resolver output](docs/tasks/complete/SLT.ALPHA.C046_devcontainer_verified_download_logging.md)
   - [SLT.ALPHA.C047 — contrib/README.md: format install script block](docs/tasks/complete/SLT.ALPHA.C047_contrib_readme_format_installer_block.md)
 
-### Beta
+## Beta
 
 <!-- progress bar: Beta -->
-#### Beta
+#### Beta Progress
 
 ```text
 ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21)
@@ -189,7 +189,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.BETA.020 — Setup Questionnaire (guided configuration)](docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md)
 
 <!-- progress bar: v1.0.0 -->
-#### v1.0.0
+#### v1.0.0 Progress
 
 ```text
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
@@ -197,7 +197,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 0   10   20   30   40   50   60   70   80   90  100%
 ```
 <!-- /progress bar: v1.0.0 -->
-### v1.0.0
+## v1.0.0
 - Backlog:
   - [SLT.V1.001 — Design extension/plugin system](docs/tasks/backlog/SLT.V1.001_plugin_system.md)
   - [SLT.V1.002 — Integrate secrets scrubber](docs/tasks/backlog/SLT.V1.002_secrets_scrubber.md)

@@ -138,10 +138,10 @@ omvp=$pmvp ; oalpha=$palpha ; obeta=$pbeta ; ov1=$pv1
 overall=$(( (40*omvp + 30*oalpha + 20*obeta + 10*ov1) / 100 ))
 
 # Update docs/tasks/README.md
-content_mvp=$(render_pb "MVP" "$pmvp" "$done_count_MVP" "$total_count_MVP" )
-content_alpha=$(render_pb "Alpha" "$palpha" "$done_count_Alpha" "$total_count_Alpha" )
-content_beta=$(render_pb "Beta" "$pbeta" "$done_count_Beta" "$total_count_Beta" )
-content_v1=$(render_pb "v1.0.0" "$pv1" "$done_count_v1" "$total_count_v1" )
+content_mvp=$(render_pb "MVP Progress" "$pmvp" "$done_count_MVP" "$total_count_MVP" )
+content_alpha=$(render_pb "Alpha Progress" "$palpha" "$done_count_Alpha" "$total_count_Alpha" )
+content_beta=$(render_pb "Beta Progress" "$pbeta" "$done_count_Beta" "$total_count_Beta" )
+content_v1=$(render_pb "v1.0.0 Progress" "$pv1" "$done_count_v1" "$total_count_v1" )
 bos=$(bar "$overall")
 content_overall=$(printf '#### %s\n\n```text\n%s %s%% (weighted)\n|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n0   10   20   30   40   50   60   70   80   90  100%%\n```\n' "Overall" "$bos" "$overall")
 

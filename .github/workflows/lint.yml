@@ -54,15 +54,37 @@ jobs:
     if: needs.changes.outputs.markdown == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       - name: Install markdownlint-cli2
         run: npm install -g markdownlint-cli2@0.15.0
+      - name: Get changed markdown files (PRs)
+        if: github.event_name == 'pull_request'
+        id: changed-markdown
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.md
       - name: Run markdownlint-cli2
         run: |
-          markdownlint-cli2
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ steps.changed-markdown.outputs.any_changed }}" != "true" ]; then
+              echo "No changed markdown files; skipping."
+              exit 0
+            fi
+            # Lint only changed Markdown files (avoids baseline noise)
+            files='${{ steps.changed-markdown.outputs.all_changed_files }}'
+            echo "Linting changed files: $files"
+            markdownlint-cli2 $files
+          else
+            # On push (e.g., main), lint entire repo
+            markdownlint-cli2
+          fi
 
   yamllint:
     runs-on: ubuntu-latest
