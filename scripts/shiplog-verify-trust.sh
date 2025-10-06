@@ -113,19 +113,6 @@ fi
 
 if [ "$sig_mode" = "attestation" ]; then
   # Verify detached signatures over canonical payload using ssh-keygen -Y verify.
-  # Build payload
-  trust_id=$(printf '%s' "$TRUST_JSON" | "$JQ_BIN" -r '.id // "shiplog-trust-root"')
-  payload=$(printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$(trust_tree_oid "$NEW")" "$trust_id" "$threshold")
-  tmp_in=$(mktemp)
-  printf '%s' "$payload" > "$tmp_in"
-
-  # Collect signatures
-  mapfile -t sigs < <(git ls-tree -r --name-only "$NEW" | awk '/^\.shiplog\/trust_sigs\//{print}')
-  nsigs=${#sigs[@]}
-  if [ "$nsigs" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
-    err "found $nsigs attestation files; threshold is $threshold"
-  fi
-
   need ssh-keygen || true
   if ! command -v ssh-keygen >/dev/null 2>&1; then
     [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" = "1" ] && exit 0
@@ -134,20 +121,63 @@ if [ "$sig_mode" = "attestation" ]; then
 
   [ -n "$SIGNERS_FILE" ] || err "allowed_signers missing; cannot verify attestations"
 
-  verified=0
-  principals_seen=""
-  for path in "${sigs[@]}"; do
-    principal=$(basename "$path" | sed 's/\.sig$//')
-    sigblob=$(git show "$NEW:$path" 2>/dev/null || true)
-    [ -n "$sigblob" ] || continue
-    sigfile=$(mktemp)
-    printf '%s' "$sigblob" > "$sigfile"
-    if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
-      case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
-    fi
-    rm -f "$sigfile"
-  done
-  rm -f "$tmp_in"
+  # Collect signatures
+  mapfile -t sigs < <(git ls-tree -r --name-only "$NEW" | awk '/^\.shiplog\/trust_sigs\//{print}')
+  nsigs=${#sigs[@]}
+  if [ "$nsigs" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
+    err "found $nsigs attestation files; threshold is $threshold"
+  fi
+
+  # Build canonical payload; default to base tree (no sigs). Back-compat optional.
+  trust_id=$(printf '%s' "$TRUST_JSON" | "$JQ_BIN" -r '.id // "shiplog-trust-root"')
+  build_payload() {
+    local mode="$1"
+    local p
+    case "$mode" in
+      base)
+        local oid_trust oid_sigs base
+        oid_trust=$(git ls-tree "$NEW" trust.json | awk '{print $3}')
+        oid_sigs=$(git ls-tree "$NEW" allowed_signers | awk '{print $3}')
+        if [ -n "$oid_sigs" ]; then
+          base=$(printf '100644 blob %s\ttrust.json\n100644 blob %s\tallowed_signers\n' "$oid_trust" "$oid_sigs" | git mktree)
+        else
+          base=$(printf '100644 blob %s\ttrust.json\n' "$oid_trust" | git mktree)
+        fi
+        p=$(printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$base" "$trust_id" "$threshold")
+        ;;
+      full)
+        p=$(printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$(trust_tree_oid "$NEW")" "$trust_id" "$threshold")
+        ;;
+    esac
+    printf '%s' "$p"
+  }
+
+  verify_attest_mode() {
+    local mode="$1" tmp_in verified=0 principals_seen=""
+    tmp_in=$(mktemp)
+    build_payload "$mode" >"$tmp_in"
+    for path in "${sigs[@]}"; do
+      principal=$(basename "$path" | sed 's/\.sig$//')
+      sigblob=$(git show "$NEW:$path" 2>/dev/null || true)
+      [ -n "$sigblob" ] || continue
+      sigfile=$(mktemp)
+      printf '%s' "$sigblob" > "$sigfile"
+      if ssh-keygen -Y verify -n shiplog-trust -f "$SIGNERS_FILE" -I "$principal" -s "$sigfile" < "$tmp_in" >/dev/null 2>&1; then
+        case " $principals_seen " in *" $principal "*) : ;; *) principals_seen="$principals_seen $principal"; verified=$((verified+1));; esac
+      fi
+      rm -f "$sigfile"
+    done
+    rm -f "$tmp_in"
+    printf '%s' "$verified"
+  }
+
+  mode="${SHIPLOG_ATTEST_PAYLOAD_MODE:-base}"
+  verified=$(verify_attest_mode "$mode")
+  if [ "$verified" -lt "$threshold" ] && [ "${SHIPLOG_ATTEST_BACKCOMP:-0}" = "1" ]; then
+    # Try alternative mode for back-compat
+    alt="full"; [ "$mode" = "full" ] && alt="base"
+    verified=$(verify_attest_mode "$alt")
+  fi
 
   if [ "$verified" -lt "$threshold" ] && [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" != "1" ]; then
     err "verified $verified attestations; threshold is $threshold"
