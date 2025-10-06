@@ -114,7 +114,7 @@ fi
 if [ "$sig_mode" = "attestation" ]; then
   # Verify detached signatures over canonical payload using ssh-keygen -Y verify.
   need ssh-keygen || true
-  if ! command -v ssh-keygen >/div/null 2>&1; then
+  if ! command -v ssh-keygen >/dev/null 2>&1; then
     [ "${SHIPLOG_ALLOW_TRUST_THRESHOLD_UNENFORCED:-0}" = "1" ] && exit 0
     err "ssh-keygen not available; cannot verify attestations"
   fi
