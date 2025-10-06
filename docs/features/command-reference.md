@@ -14,12 +14,15 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 
 ## Commands
 
-- `config [--interactive|--wizard] [--answers-file file] [--apply] [--dry-run]`
+- `config [--interactive|--wizard] [--answers-file file] [--apply] [--dry-run] [--emit-github-ruleset] [--emit-github-workflow]`
   - Purpose: host‑aware questionnaire that recommends settings and optionally applies them locally.
   - Usage:
     - Interactive: `git shiplog config --interactive`
     - Apply: `git shiplog config --interactive --apply`
     - Non‑interactive: `git shiplog config --answers-file answers.json --apply`
+    - Emit GitHub examples (stdout only):
+      - Rulesets: `git shiplog config --interactive --emit-github-ruleset`
+      - Verify workflow: `git shiplog config --interactive --emit-github-workflow`
   - Notes: Writes `.shiplog/policy.json` and sets `shiplog.refRoot` / `shiplog.autoPush` when `--apply` is provided. It never pushes. See `docs/features/config.md`.
 
 - `version`
@@ -92,6 +95,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage:
     - Show (plain): `git shiplog policy show`
     - Show (JSON): `git shiplog policy show --json`
+    - Validate: `git shiplog policy validate`
     - Require signed: `git shiplog policy require-signed true`
     - Toggle: `git shiplog policy toggle`
   - JSON: includes `env_require_signed` map from `deployment_requirements`.

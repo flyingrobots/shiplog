@@ -16,6 +16,10 @@ cat > answers.json <<'JSON'
 {"host":"github.com","ref_root":"refs/heads/_shiplog","threshold":2,"sig_mode":"attestation","require_signed":"prod-only","autoPush":0}
 JSON
 git shiplog config --answers-file answers.json --apply
+ 
+# Emit GitHub examples (prints to stdout; does not write files)
+git shiplog config --interactive --emit-github-ruleset      # Branch Rulesets JSON
+git shiplog config --interactive --emit-github-workflow     # Verify workflow YAML
 ```
 
 ## What It Does
