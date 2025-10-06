@@ -11,9 +11,12 @@
     "Document examples in docs/features/policy.md"
   ],
   "blocked_by": [],
-  "notes": [],
+  "notes": [
+    "Implemented with jq-based checks and helpful error messages; CI adds ajv-cli validation. See CHANGELOG and docs/features/policy.md."
+  ],
   "created": "2025-09-25",
-  "updated": "2025-09-25",
+  "updated": "2025-10-06",
   "estimate": "med",
   "expected_complexity": "medium"
 }
+

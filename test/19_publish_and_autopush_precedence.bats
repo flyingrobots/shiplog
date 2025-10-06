@@ -37,5 +37,5 @@ teardown() {
   # Verify the remote journal ref exists
   run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
   [ "$status" -eq 0 ]
-  [[ "$output" == *"refs/_shiplog/journal/staging"* ]]
+  echo "$output" | grep -q "refs/_shiplog/journal/staging"
 }

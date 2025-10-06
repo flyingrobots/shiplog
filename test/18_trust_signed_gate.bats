@@ -22,7 +22,7 @@ install_hook_with_gate() {
   # Wrap to ensure bash execution under sh-only environments
   cp "$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog" "$REMOTE_DIR/hooks/pre-receive.real"
   printf '%s\n' \
-    '#!/bin/bash' \
+    '#!/usr/bin/env bash' \
     'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' \
     'export SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=either' \
     'export SHIPLOG_DEBUG_SSH_VERIFY=1' \

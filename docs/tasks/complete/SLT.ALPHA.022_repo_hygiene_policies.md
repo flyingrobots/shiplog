@@ -13,9 +13,11 @@
     "Link from README and .github/ settings where appropriate"
   ],
   "blocked_by": [],
-  "notes": [],
+  "notes": [
+    "Docs added in repo root; cross-referenced in README/AGENTS."
+  ],
   "created": "2025-10-03",
-  "updated": "2025-10-03",
+  "updated": "2025-10-06",
   "estimate": "small",
   "expected_complexity": "low"
 }
