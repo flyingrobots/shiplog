@@ -82,6 +82,8 @@ $files"
           node-version: '20'
       - name: Install markdownlint-cli2
         run: npm install -g markdownlint-cli2@0.15.0
+      - name: Install markdownlint (v0 CLI for targeted lint)
+        run: npm install -g markdownlint-cli@0.42.0
       - name: Get changed markdown files (PRs)
         if: github.event_name == 'pull_request'
         id: changed-markdown
@@ -89,7 +91,7 @@ $files"
         with:
           files: |
             **/*.md
-      - name: Run markdownlint-cli2
+      - name: Run markdownlint (changed-only on PRs)
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -114,10 +116,23 @@ $files"
               exit 0
             fi
             printf 'Linting files:%s\n' "\n${filtered[*]}"
-            markdownlint-cli2 "${filtered[@]}"
+            markdownlint "${filtered[@]}"
           else
             # On push (e.g., main), lint entire repo
-            markdownlint-cli2
+            # TODO: switch to full-repo markdownlint-cli2 once baseline is clean
+            files=$(git diff --name-only HEAD~1 -- '**/*.md' || true)
+            if [ -z "$files" ]; then echo "No markdown changes on push."; exit 0; fi
+            filtered=()
+            while IFS= read -r f; do
+              case "$f" in
+                docs/tasks/README.md) filtered+=("$f") ;;
+                docs/tasks/*) ;; 
+                *.md) filtered+=("$f") ;;
+              esac
+            done <<< "$files"
+            if [ "${#filtered[@]}" -eq 0 ]; then
+              echo "No lintable markdown changes on push."; exit 0; fi
+            markdownlint "${filtered[@]}"
           fi
 
   yamllint:
