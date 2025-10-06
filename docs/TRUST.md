@@ -111,8 +111,16 @@ For a guided choice, see docs/features/setup.md. An interactive questionnaire is
 
 - Canonical payload signed by each maintainer (SSH):
   ```
-  shiplog-trust-tree-v1\n<trust_tree_oid>\n<trust_id>\n<threshold>\n
+  shiplog-trust-tree-v1
+  <base_tree_oid>
+  <trust_id>
+  <threshold>
   ```
+  where `<base_tree_oid>` is the tree built from `trust.json` and `allowed_signers` only (not including the `trust_sigs` directory). This avoids a circular dependency and produces deterministic payloads.
+
+  Back‑compatibility:
+  - Set `SHIPLOG_ATTEST_BACKCOMP=1` to accept legacy payloads that signed the full commit tree OID.
+  - To force a specific mode, set `SHIPLOG_ATTEST_PAYLOAD_MODE=base|full` (`base` recommended).
 - Helper to create signatures:
   ```bash
   scripts/shiplog-trust-sign.sh --principal you@example.com   # writes .shiplog/trust_sigs/you@example.com.sig

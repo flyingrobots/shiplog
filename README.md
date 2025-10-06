@@ -150,6 +150,22 @@ Roadmap (short‑term)
 
 See RELEASE_NOTES.md for version‑specific guidance (e.g., namespace changes, publish defaults, or trust signature gates like `SHIPLOG_REQUIRE_SIGNED_TRUST`).
 
+### Upgrading attestation signatures (legacy → canonical)
+
+Older experimental builds used a “full tree” attestation payload that included the commit’s tree OID, which created a circular dependency when signatures were stored under `.shiplog/trust_sigs/`. Shiplog now uses a canonical “base tree” payload (default) that excludes the `trust_sigs` directory:
+
+```
+shiplog-trust-tree-v1
+<base_tree_oid_of(trust.json + allowed_signers)>
+<trust_id>
+<threshold>
+```
+
+Compatibility:
+- The hook/verifier accept both modes. Set `SHIPLOG_ATTEST_BACKCOMP=1` to allow legacy signatures during a transition.
+- To prefer a specific mode: `SHIPLOG_ATTEST_PAYLOAD_MODE=base|full` (default `base`).
+- We recommend re‑signing with the base payload going forward. See TRUST.md for the exact `ssh-keygen -Y sign`/`-Y verify` commands.
+
 —
 
 ## Contributing & Tests
