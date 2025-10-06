@@ -36,16 +36,36 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+      - name: Get changed shell files (PRs)
+        if: github.event_name == 'pull_request'
+        id: changed-shell
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            bin/git-shiplog
+            contrib/hooks/**
+            **/*.sh
       - name: Run shellcheck
         run: |
           set -euo pipefail
           echo "ShellCheck version:" && shellcheck --version
-          # Build a safe array of shell files (handles spaces/newlines)
-          mapfile -t SH_FILES < <(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks(/.*)?$|\.sh$)' || true)
-          if [ "${#SH_FILES[@]}" -gt 0 ]; then
-            shellcheck -e SC2034 -S style -s bash "${SH_FILES[@]}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ steps.changed-shell.outputs.any_changed }}" != "true" ]; then
+              echo "No changed shell files; skipping."
+              exit 0
+            fi
+            files='${{ steps.changed-shell.outputs.all_changed_files }}'
+            echo "Changed shell files (raw):
+$files"
+            mapfile -t SH_FILES < <(printf '%s
+' "$files")
+            shellcheck -S error -s bash "${SH_FILES[@]}"
           else
-            echo "No shell files found"
+            # On push (e.g., main), lint entire repo (include nested hooks)
+            mapfile -t SH_FILES < <(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks(/.*)?$|\.sh$)' || true)
+            if [ "${#SH_FILES[@]}" -eq 0 ]; then
+              echo "No shell files found"; exit 0; fi
+            shellcheck -S error -s bash "${SH_FILES[@]}"
           fi
 
   markdownlint:

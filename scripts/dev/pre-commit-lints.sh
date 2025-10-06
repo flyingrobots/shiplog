@@ -38,7 +38,7 @@ fail_missing() {
 
 had_failures=0
 
-# shellcheck
+# ShellCheck
 if [ ${#sh_files[@]} -gt 0 ]; then
   if command -v shellcheck >/dev/null 2>&1; then
     if ! shellcheck -S style -s bash "${sh_files[@]}"; then
