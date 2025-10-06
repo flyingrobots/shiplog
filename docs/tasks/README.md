@@ -7,12 +7,14 @@ This is the single source of truth for tasks. Each task lives as a JSON file in 
 - complete/: finished
 
 Progress bars here are the canonical ones. Keep the root `README` progress bar in sync after updates.
+
 ## Milestones
 
 - **MVP**: Core features usable end‑to‑end on this repo (init/write/ls/show/export/verify basics; policy/trust; installer; tests; portability).
 - **Alpha**: GitHub tooling and docs mature; validation commands; CI polish; ready for limited trials.
 - **Beta**: Feature‑complete; deeper docs/runbooks; operational guardrails; ready for heavy testing IRL.
 - **v1.0.0**: Solid, tested, trusted; plugin architecture docs; production guidance.
+
 ## Progress Formula
 
 Weights by estimate: big = 3, med = 2, small = 1.
@@ -23,19 +25,21 @@ Weights by estimate: big = 3, med = 2, small = 1.
   - Use weights $w = {MVP: 0.4, Alpha: 0.3, Beta: 0.2, v1.0: 0.1}$.
   - Overall = $0.4*pMVP + 0.3*pAlpha + 0.2*pBeta + 0.1*pV1$.
 
-#### Update steps
+### Update steps
 
 1) Add/update task JSON files in the stage folders with fields: `id`, `labels`, `milestone`, `name`, `description`, `priority`, `impact`, `steps[]`, `blocked_by[]`, `notes[]`, `created`, `updated`, `estimate`, `expected_complexity`.
 2) Recompute per-milestone progress by counting tasks (or with a small script).
 3) Update the progress bars below and copy the overall bar to the root `README`.
+
 ## Progress
 
-#### Example Progress Bar
+### Example Progress Bar
 
 The following is the canonical progress bar. *Note that it is 50 characters wide, with a scale displayed beneath it.*  Use this as a template when adding progress bars or updating existing ones. *NOTE: progress bars should be placed between HTML comments, like the example:*
 
 <!-- progress bar: example -->
-#### {Title}
+### {Title}
+
 ```text
 ██████████████████████████████████████████████░░░░ {current%} ({completed}/{total})
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
@@ -44,6 +48,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 <!-- /progress bar: example -->
 
 ---
+
 ## Roadmap
 
 **Currently Active:** Alpha
@@ -54,7 +59,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.HOTFIX.001 — Enforce trust threshold in pre-receive hook](docs/tasks/backlog/SLT.HOTFIX.001_enforce_trust_threshold_in_pre_receive.md)
 
 <!-- progress bar: Overall -->
-#### Overall
+### Overall
 
 ```text
 ███████████████████████████████░░░░░░░░░░░░░░░░░░░ 63% (weighted)
@@ -65,7 +70,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 ## MVP
 <!-- progress bar: MVP -->
-#### MVP Progress
+### MVP Progress
 
 ```text
 ██████████████████████████████████████████████████ 100% (1/1)
@@ -80,7 +85,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ## Alpha
 
 <!-- progress bar: Alpha -->
-#### Alpha Progress
+### Alpha Progress
 
 ```text
 █████████████████████████████████████░░░░░░░░░░░░░ 74% (59/76)
@@ -160,7 +165,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ## Beta
 
 <!-- progress bar: Beta -->
-#### Beta Progress
+### Beta Progress
 
 ```text
 ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21)
@@ -189,7 +194,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.BETA.020 — Setup Questionnaire (guided configuration)](docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md)
 
 <!-- progress bar: v1.0.0 -->
-#### v1.0.0 Progress
+### v1.0.0 Progress
 
 ```text
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
@@ -198,6 +203,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ```
 <!-- /progress bar: v1.0.0 -->
 ## v1.0.0
+
 - Backlog:
   - [SLT.V1.001 — Design extension/plugin system](docs/tasks/backlog/SLT.V1.001_plugin_system.md)
   - [SLT.V1.002 — Integrate secrets scrubber](docs/tasks/backlog/SLT.V1.002_secrets_scrubber.md)
