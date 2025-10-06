@@ -41,6 +41,7 @@ jobs:
         id: changed-shell
         uses: tj-actions/changed-files@v45
         with:
+          separator: "\n"
           files: |
             bin/git-shiplog
             contrib/hooks/**
@@ -89,6 +90,7 @@ $files"
         id: changed-markdown
         uses: tj-actions/changed-files@v45
         with:
+          separator: "\n"
           files: |
             **/*.md
       - name: Run markdownlint (changed-only on PRs)
