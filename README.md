@@ -177,3 +177,16 @@ See RELEASE_NOTES.md for version‑specific guidance (e.g., namespace changes, p
 MIT © J. Kirby Ross (@flyingrobots)
 
 Jenkins was not harmed in the making of this project.
+
+—
+
+## FAQ
+
+- What is AJV and why does CI mention it?
+  - AJV is a fast JSON Schema validator for Node.js. We use it in CI to validate `.shiplog/policy.json` (and examples) against `examples/policy.schema.json` so malformed policies are caught early. Locally, `git shiplog policy validate` performs jq‑based structural checks without requiring Node.
+
+- Can Shiplog enforce policy on GitHub.com (SaaS)?
+  - GitHub SaaS does not run custom server hooks. Use Branch/Push Rulesets and Required Status Checks to protect a branch namespace (e.g., `refs/heads/_shiplog/**`) and run verification in CI. For self‑hosted Git, install the pre‑receive hook for server‑side enforcement. See `docs/hosting/matrix.md` and `docs/hosting/github.md`.
+
+- Should I use chain or attestation for multi‑sig?
+  - Chain uses signed Git commits; attestation uses `ssh-keygen -Y verify` over a canonical payload. Chain is simplest when maintainers can sign commits; attestation is great when signatures are produced by automation using SSH keys. Both are supported; pick during setup and document in TRUST.md.
