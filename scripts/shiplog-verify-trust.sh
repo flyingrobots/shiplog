@@ -56,10 +56,15 @@ fi
 
 verify_commit_sig() {
   local c="$1"
+  local fmt="${SHIPLOG_GPG_FORMAT:-}"
+  local -a gitopts=()
+  if [ -n "$fmt" ]; then
+    gitopts=(-c "gpg.format=$fmt")
+  fi
   if [ -n "$SIGNERS_FILE" ]; then
-    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$c" >/dev/null 2>&1 || return 1
+    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1 || return 1
   else
-    git verify-commit "$c" >/dev/null 2>&1 || return 1
+    git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1 || return 1
   fi
 }
 
