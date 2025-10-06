@@ -59,7 +59,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.HOTFIX.001 — Enforce trust threshold in pre-receive hook](docs/tasks/backlog/SLT.HOTFIX.001_enforce_trust_threshold_in_pre_receive.md)
 
 <!-- progress bar: Overall -->
-### Overall
+#### Overall
 
 ```text
 ███████████████████████████████░░░░░░░░░░░░░░░░░░░ 63% (weighted)
@@ -70,7 +70,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 ## MVP
 <!-- progress bar: MVP -->
-### MVP Progress
+#### MVP Progress
 
 ```text
 ██████████████████████████████████████████████████ 100% (1/1)
@@ -85,7 +85,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ## Alpha
 
 <!-- progress bar: Alpha -->
-### Alpha Progress
+#### Alpha Progress
 
 ```text
 █████████████████████████████████████░░░░░░░░░░░░░ 74% (59/76)
@@ -165,7 +165,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 ## Beta
 
 <!-- progress bar: Beta -->
-### Beta Progress
+#### Beta Progress
 
 ```text
 ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21)
@@ -194,7 +194,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.BETA.020 — Setup Questionnaire (guided configuration)](docs/tasks/backlog/SLT.BETA.020_setup_questionnaire.md)
 
 <!-- progress bar: v1.0.0 -->
-### v1.0.0 Progress
+#### v1.0.0 Progress
 
 ```text
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
