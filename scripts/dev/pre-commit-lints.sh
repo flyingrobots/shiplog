@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Shiplog pre-commit linters (staged files only)
 # Tools: shellcheck, markdownlint-cli2, yamllint
-# Fails if issues are found. To bypass missing tool failures, set SHIPLOG_LINT_SKIP_MISSING=1.
+# Runs all linters and reports cumulative failures at the end.
+# To bypass missing tool failures (not lint errors), set SHIPLOG_LINT_SKIP_MISSING=1.
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
@@ -35,10 +36,14 @@ fail_missing() {
   fi
 }
 
+had_failures=0
+
 # shellcheck
 if [ ${#sh_files[@]} -gt 0 ]; then
   if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -e SC2034 -S style -s bash "${sh_files[@]}"
+    if ! shellcheck -S style -s bash "${sh_files[@]}"; then
+      had_failures=1
+    fi
   else
     fail_missing shellcheck
   fi
@@ -47,11 +52,15 @@ fi
 # markdownlint-cli2
 if [ ${#md_files[@]} -gt 0 ]; then
   if command -v markdownlint-cli2 >/dev/null 2>&1; then
-    markdownlint-cli2 "${md_files[@]}"
+    if ! markdownlint-cli2 "${md_files[@]}"; then
+      had_failures=1
+    fi
   else
     # Try npx fallback if Node present
     if command -v npx >/dev/null 2>&1; then
-      npx --yes markdownlint-cli2 "${md_files[@]}"
+      if ! npx --yes markdownlint-cli2 "${md_files[@]}"; then
+        had_failures=1
+      fi
     else
       fail_missing markdownlint-cli2
     fi
@@ -61,11 +70,15 @@ fi
 # yamllint
 if [ ${#yml_files[@]} -gt 0 ]; then
   if command -v yamllint >/dev/null 2>&1; then
-    yamllint -f standard "${yml_files[@]}"
+    if ! yamllint -f standard "${yml_files[@]}"; then
+      had_failures=1
+    fi
   else
     fail_missing yamllint
   fi
 fi
 
-exit 0
-
+# Cumulative status
+if [ "$had_failures" -eq 1 ]; then
+  exit 1
+fi
