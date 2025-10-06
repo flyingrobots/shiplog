@@ -45,7 +45,7 @@ Add GitHub Actions workflows that verify Shiplog trust and journals on pushes to
 - Trust: `docs/examples/github/workflow-shiplog-trust-verify.yml`
 - Journals/Policy: `docs/examples/github/workflow-shiplog-verify.yml`
 
-Make these checks required in branch protections or Branch Rulesets.
+Mark these checks as required in Branch Rulesets (preferred). Classic branch protections also work, but Rulesets are the modern, more flexible path.
 
 ## 5) Custom Refs (refs/_shiplog/**)
 

@@ -4,43 +4,43 @@ load helpers/common
 
 setup() {
   shiplog_standard_setup
+  # Prepare a bare remote for exercising the pre-receive hook
+  REMOTE_DIR=$(mktemp -d)
+  pushd "$REMOTE_DIR" >/dev/null
+  git init -q --bare
+  popd >/dev/null
+  git remote add origin "$REMOTE_DIR"
 }
 
 teardown() {
+  rm -rf "$REMOTE_DIR" 2>/dev/null || true
   shiplog_standard_teardown
 }
 
-@test "unsigned trust push rejected when SHIPLOG_REQUIRE_SIGNED_TRUST=1" {
-  # Create a bare remote and install the pre-receive hook with the gate set
-  REMOTE_DIR=$(mktemp -d)
-  git init -q --bare "$REMOTE_DIR"
+install_hook_with_gate() {
   mkdir -p "$REMOTE_DIR/hooks"
-  # Install a POSIX sh wrapper that execs bash for the real hook
+  # Wrap to ensure bash execution under sh-only environments
   cp "$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog" "$REMOTE_DIR/hooks/pre-receive.real"
   printf '%s\n' '#!/bin/sh' 'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' 'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
   chmod +x "$REMOTE_DIR/hooks/pre-receive" "$REMOTE_DIR/hooks/pre-receive.real"
-  git remote add origin "$REMOTE_DIR"
+}
+
+@test "unsigned trust push rejected when SHIPLOG_REQUIRE_SIGNED_TRUST=1" {
+  install_hook_with_gate
 
   # Bootstrap an unsigned trust commit (helpers create a default one)
   shiplog_bootstrap_trust 1
 
   run bash -lc 'git push -q origin refs/_shiplog/trust/root'
   [ "$status" -ne 0 ]
+  [[ "$output" == *"pre-receive hook declined"* ]]
 }
 
 @test "signed trust push passes when SHIPLOG_REQUIRE_SIGNED_TRUST=1" {
   skip "SSH principal mapping varies across distros; enable once stabilized"
-  # Fresh bare remote with pre-receive gate
-  REMOTE_DIR=$(mktemp -d)
-  git init -q --bare "$REMOTE_DIR"
-  mkdir -p "$REMOTE_DIR/hooks"
-  cp "$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog" "$REMOTE_DIR/hooks/pre-receive.real"
-  printf '%s\n' '#!/bin/sh' 'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' 'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
-  chmod +x "$REMOTE_DIR/hooks/pre-receive" "$REMOTE_DIR/hooks/pre-receive.real"
-  git remote remove origin >/dev/null 2>&1 || true
-  git remote add origin "$REMOTE_DIR"
+  install_hook_with_gate
 
-  # Set up SSH signing and sign a new trust commit
+  # Set up SSH signing and sign a new trust commit (commit signature, not tag)
   shiplog_setup_test_signing
   git config user.email "shiplog-tester@example.com"
   mkdir -p .shiplog
@@ -68,3 +68,4 @@ JSON
   echo "PUSH_OUT: $output"
   [ "$status" -eq 0 ]
 }
+

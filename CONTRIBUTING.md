@@ -15,3 +15,12 @@ Merging policy
 - Do not merge PRs without explicit owner approval.
 - All PRs must have the label `approved-by-owner` and a passing check from the `require-owner-approval` workflow.
 - CODEOWNERS requires a review from @flyingrobots on all paths.
+
+Local pre-commit linters (optional but recommended)
+- Enable repo-local hooks path (recommended): `git config core.hooksPath contrib/hooks`
+- The pre-commit hook runs staged-file linters:
+  - shellcheck (`bin/git-shiplog`, `contrib/hooks/*`, `*.sh`)
+  - markdownlint-cli2 (`*.md`)
+  - yamllint (`*.yml`, `*.yaml`)
+- If a tool is missing, the hook fails by default. To skip missing tools (not lint failures), set `SHIPLOG_LINT_SKIP_MISSING=1` for a single commit.
+- Alternative (global hooks): `git config --global core.hooksPath ~/.config/git/hooks` then place Shiplog's pre-commit script there.

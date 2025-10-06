@@ -95,6 +95,10 @@ jq '.' .shiplog/policy.json >/dev/null
 # Schema validation with ajv
 npm install -g ajv-cli
 ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shiplog/policy.json
+
+# CLI validation (jq-based structural checks)
+git shiplog policy validate
+# ✅ outputs "Policy OK" on success; prints specific errors otherwise
 ```
 
 ## Override Mapping
