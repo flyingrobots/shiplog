@@ -639,12 +639,12 @@ Status: SUCCESS (0s) @ 2025-09-30T14:30:00Z</span></pre>
             
             <div class="faq-item">
                 <h4>How do I share deployment history across my team?</h4>
-                <p>It's just git. <code>git push origin refs/_shiplog/journal/*</code> and your team can <code>git fetch</code>. No special infrastructure needed. Works with any git hosting (GitHub, GitLab, Bitbucket, self-hosted).</p>
+                <p>It's just git. <code>git push origin refs/_shiplog/journal/*</code> and your team can <code>git fetch</code>. On GitHub.com (SaaS), prefer a branch namespace (e.g., <code>refs/heads/_shiplog/**</code>) if you want Rulesets and Required Checks to protect these refs. Works with any git hosting.</p>
             </div>
             
             <div class="faq-item">
                 <h4>What if someone force-pushes and rewrites history?</h4>
-                <p>Git's signature verification catches that. Every entry is signed, and tampering breaks the signature chain. Plus, you can enforce branch protection rules on your journal refs just like you do for main.</p>
+                <p>Git's signature verification catches that. Every entry is signed, and tampering breaks signatures. On SaaS hosts, protect a branch namespace (e.g., <code>_shiplog/**</code>) with Rulesets and Required Checks. On self‑hosted Git, use Shiplog's pre‑receive hook for server‑side enforcement.</p>
             </div>
         </div>
     </div>

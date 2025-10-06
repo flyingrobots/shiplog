@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Repo-local pre-commit hook. Recommended installation:
+#   git config core.hooksPath contrib/hooks
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+"$ROOT_DIR/scripts/dev/pre-commit-lints.sh"
+

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Shiplog pre-commit hook wrapper (legacy symlink path)
+# Preferred install now uses Git's hooksPath:
+#   git config core.hooksPath contrib/hooks
+# This script remains for repositories that previously symlinked
+# .git/hooks/pre-commit -> contrib/hooks/pre-commit.shiplog-lints
+
+set -euo pipefail
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+"$ROOT_DIR/scripts/dev/pre-commit-lints.sh"

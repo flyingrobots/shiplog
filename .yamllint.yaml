@@ -4,9 +4,17 @@ rules:
   line-length:
     max: 140
     level: warning
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+    level: error
   truthy:
     allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']
     level: warning
   comments-indentation: {level: warning}
   document-start: {present: false}
+  empty-lines:
+    max: 1
+    level: error
+  trailing-spaces: {level: error}
 
