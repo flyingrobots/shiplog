@@ -21,7 +21,12 @@ install_hook_with_gate() {
   mkdir -p "$REMOTE_DIR/hooks"
   # Wrap to ensure bash execution under sh-only environments
   cp "$SHIPLOG_HOME/contrib/hooks/pre-receive.shiplog" "$REMOTE_DIR/hooks/pre-receive.real"
-  printf '%s\n' '#!/bin/bash' 'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' 'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'export SHIPLOG_REQUIRE_SIGNED_TRUST=1' \
+    'export SHIPLOG_REQUIRE_SIGNED_TRUST_MODE=either' \
+    'export SHIPLOG_DEBUG_SSH_VERIFY=1' \
+    'exec /bin/bash "$0.real" "$@"' > "$REMOTE_DIR/hooks/pre-receive"
   chmod +x "$REMOTE_DIR/hooks/pre-receive" "$REMOTE_DIR/hooks/pre-receive.real"
 }
 
@@ -37,7 +42,6 @@ install_hook_with_gate() {
 }
 
 @test "signed trust push passes when SHIPLOG_REQUIRE_SIGNED_TRUST=1" {
-  skip "SSH principal mapping varies across distros; enable once stabilized"
   install_hook_with_gate
 
   # Set up SSH signing and sign a new trust commit (commit signature, not tag)
@@ -52,19 +56,32 @@ install_hook_with_gate() {
   "maintainers": [ {"name":"Shiplog Tester","email":"shiplog-tester@example.com","role":"root","revoked":false} ]
 }
 JSON
-  # Build allowed_signers from the configured SSH signing key
-  priv="$(git config user.signingkey)"
-  pub="$(ssh-keygen -y -f "$priv")"
-  printf '* %s\n' "$pub" > .shiplog/allowed_signers
+  # Build robust allowed_signers from the configured SSH signing key
+  shiplog_write_allowed_signers_for_signing_key .shiplog/allowed_signers
   oid_trust=$(git hash-object -w .shiplog/trust.json)
   oid_sigs=$(git hash-object -w .shiplog/allowed_signers)
   tab=$'\t'
-  tree=$(printf "100644 blob %s${tab}trust.json\n100644 blob %s${tab}allowed_signers\n" "$oid_trust" "$oid_sigs" | git mktree)
+  # Produce an attestation signature as a fallback under 'either' mode
+  priv="$(git config user.signingkey)"
+  base=$(printf "100644 blob %s${tab}trust.json\n100644 blob %s${tab}allowed_signers\n" "$oid_trust" "$oid_sigs" | git mktree)
+  printf 'shiplog-trust-tree-v1\n%s\n%s\n%s\n' "$base" "shiplog-trust-root" "1" > payload.txt
+  ssh-keygen -Y sign -q -f "$priv" -n shiplog-trust payload.txt >/dev/null
+  mkdir -p .shiplog/trust_sigs
+  mv payload.txt.sig .shiplog/trust_sigs/shiplog-tester@example.com.sig
+  oid_asig=$(git hash-object -w .shiplog/trust_sigs/shiplog-tester@example.com.sig)
+  ts_tree=$(printf "100644 blob %s${tab}shiplog-tester@example.com.sig\n" "$oid_asig" | git mktree)
+  dotshiplog_tree=$(printf "040000 tree %s${tab}trust_sigs\n" "$ts_tree" | git mktree)
+  root_tree=$(printf "100644 blob %s${tab}trust.json\n100644 blob %s${tab}allowed_signers\n040000 tree %s${tab}.shiplog\n" "$oid_trust" "$oid_sigs" "$dotshiplog_tree" | git mktree)
   commit=$(GIT_AUTHOR_NAME="Shiplog Tester" GIT_AUTHOR_EMAIL="shiplog-tester@example.com" \
     GIT_COMMITTER_NAME="Shiplog Tester" GIT_COMMITTER_EMAIL="shiplog-tester@example.com" \
-    git commit-tree -S "$tree" -m "shiplog: trust root (signed)" )
+    git commit-tree -S "$root_tree" -m "shiplog: trust root (signed)" )
   git update-ref refs/_shiplog/trust/root "$commit"
 
   run git push -q origin refs/_shiplog/trust/root
+  if [ "$status" -ne 0 ]; then
+    echo "--- git push output ---"
+    echo "$output"
+    echo "------------------------"
+  fi
   [ "$status" -eq 0 ]
 }

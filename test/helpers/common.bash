@@ -228,3 +228,32 @@ shiplog_standard_setup() {
 shiplog_standard_teardown() {
   shiplog_cleanup_sandbox_repo
 }
+
+# --- Test-only helpers for robust SSH principal acceptance ---
+# Write an allowed_signers file for the current repo's signing key that
+# includes both the exact user.email principal and portable fallbacks.
+# Usage: shiplog_write_allowed_signers_for_signing_key <output-path>
+shiplog_write_allowed_signers_for_signing_key() {
+  local out="${1:-.shiplog/allowed_signers}"
+  local priv pub email domain
+  priv="$(git config user.signingkey)"
+  if [[ -z "$priv" ]]; then
+    echo "ERROR: user.signingkey not configured" >&2
+    return 1
+  fi
+  if ! pub="$(ssh-keygen -y -f "$priv" 2>/dev/null)"; then
+    echo "ERROR: failed to derive public key from $priv" >&2
+    return 1
+  fi
+  email="$(git config user.email)"
+  domain="${email##*@}"
+  : > "$out"
+  # 1) Exact email principal
+  printf '%s %s\n' "$email" "$pub" >>"$out"
+  # 2) Domain wildcard (covers distros that vary principal formatting but keep email domain)
+  if [[ -n "$domain" && "$domain" != "$email" ]]; then
+    printf '*@%s %s\n' "$domain" "$pub" >>"$out"
+  fi
+  # 3) Ultimate wildcard as last resort (test-only)
+  printf '* %s\n' "$pub" >>"$out"
+}
