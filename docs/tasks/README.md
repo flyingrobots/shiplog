@@ -62,7 +62,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Overall
 
 ```text
-███████████████████████████████░░░░░░░░░░░░░░░░░░░ 63% (weighted)
+████████████████████████████████░░░░░░░░░░░░░░░░░░ 64% (weighted)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -88,18 +88,16 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Alpha Progress
 
 ```text
-█████████████████████████████████████░░░░░░░░░░░░░ 74% (59/76)
+███████████████████████████████████████░░░░░░░░░░░ 78% (62/76)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
 <!-- /progress bar: Alpha -->
 
 - Backlog:
-  - [SLT.ALPHA.001 — Show command docs page](docs/tasks/backlog/SLT.ALPHA.001_show_docs_page.md)
   - [SLT.ALPHA.002 — Document tooling versions in README](docs/tasks/backlog/SLT.ALPHA.002_tooling_versions_in_readme.md)
   - [SLT.ALPHA.003 — Verify command JSON output](docs/tasks/backlog/SLT.ALPHA.003_verify_json_output.md)
   - [SLT.ALPHA.004 — Validate-trailer tests](docs/tasks/backlog/SLT.ALPHA.004_validate_trailer_tests.md)
-  - [SLT.ALPHA.006 — Shellcheck workflow](docs/tasks/backlog/SLT.ALPHA.006_shellcheck_workflow.md)
   - [SLT.ALPHA.007 — Harden docs/plugins.md usage guidance](docs/tasks/backlog/SLT.ALPHA.007_docs_plugins_usage_guidance.md)
   - [SLT.ALPHA.008 — Expand plugin safety guidance](docs/tasks/backlog/SLT.ALPHA.008_plugin_safety_guidance.md)
   - [SLT.ALPHA.009 — Clarify plugin script contract](docs/tasks/backlog/SLT.ALPHA.009_plugin_script_contract.md)
@@ -107,11 +105,13 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.011 — Clarify Ubuntu build args in matrix compose](docs/tasks/backlog/SLT.ALPHA.011_ubuntu_build_args_comment.md)
   - [SLT.ALPHA.012 — Align shellcheck coverage and suppressions](docs/tasks/backlog/SLT.ALPHA.012_align_shellcheck_coverage_and_suppressions.md)
   - [SLT.ALPHA.016 — Setup wizard refinements (Phase 3)](docs/tasks/backlog/SLT.ALPHA.016_setup_wizard_phase_3.md)
-  - [SLT.ALPHA.017 — Tests for setup wizard and per-env policy](docs/tasks/backlog/SLT.ALPHA.017_setup_wizard_tests.md)
 - Complete:
+  - [SLT.ALPHA.001 — Show command docs page](docs/tasks/complete/SLT.ALPHA.001_show_docs_page.md)
   - [SLT.ALPHA.005 — Policy validate command](docs/tasks/complete/SLT.ALPHA.005_policy_validate_command.md)
   - [SLT.ALPHA.020 — macOS time helpers portability](docs/tasks/complete/SLT.ALPHA.020_macos_time_helpers_portability.md)
   - [SLT.ALPHA.022 — Add CONTRIBUTING, Code of Conduct, and Security docs](docs/tasks/complete/SLT.ALPHA.022_repo_hygiene_policies.md)
+  - [SLT.ALPHA.006 — Shellcheck workflow](docs/tasks/complete/SLT.ALPHA.006_shellcheck_workflow.md)
+  - [SLT.ALPHA.017 — Tests for setup wizard and per-env policy](docs/tasks/complete/SLT.ALPHA.017_setup_wizard_tests.md)
   - [SLT.ALPHA.024 — Add E2E tests for trust-signed gate](docs/tasks/complete/SLT.ALPHA.024_trust_signed_gate_tests.md)
   - [SLT.ALPHA.025 — Publish/auto-push precedence tests](docs/tasks/complete/SLT.ALPHA.025_publish_precedence_tests.md)
   - [SLT.ALPHA.C001 — Add GitHub Actions bash matrix workflow](docs/tasks/complete/SLT.ALPHA.C001_github_actions_bash_matrix_workflow.md)
