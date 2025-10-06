@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           echo "ShellCheck version:" && shellcheck --version
           # Build a safe array of shell files (handles spaces/newlines)
-          mapfile -t SH_FILES < <(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks/[^/]+$|\.sh$)' || true)
+          mapfile -t SH_FILES < <(git ls-files | grep -E '(^bin/git-shiplog$|^contrib/hooks(/.*)?$|\.sh$)' || true)
           if [ "${#SH_FILES[@]}" -gt 0 ]; then
             shellcheck -e SC2034 -S style -s bash "${SH_FILES[@]}"
           else
@@ -79,8 +79,22 @@ jobs:
             fi
             # Lint only changed Markdown files (avoids baseline noise)
             files='${{ steps.changed-markdown.outputs.all_changed_files }}'
-            echo "Linting changed files: $files"
-            markdownlint-cli2 $files
+            echo "Changed files (raw):\n$files"
+            # Filter out docs/tasks/** except docs/tasks/README.md
+            filtered=()
+            while IFS= read -r f; do
+              case "$f" in
+                docs/tasks/README.md) filtered+=("$f") ;;
+                docs/tasks/*) ;; # skip JSON-like task files
+                *.md) filtered+=("$f") ;;
+              esac
+            done <<< "$files"
+            if [ "${#filtered[@]}" -eq 0 ]; then
+              echo "No lintable changed Markdown files after filtering; skipping."
+              exit 0
+            fi
+            printf 'Linting files:%s\n' "\n${filtered[*]}"
+            markdownlint-cli2 "${filtered[@]}"
           else
             # On push (e.g., main), lint entire repo
             markdownlint-cli2
