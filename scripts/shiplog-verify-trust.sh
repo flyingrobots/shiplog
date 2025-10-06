@@ -128,15 +128,9 @@ if [ "$gate_enabled" = "1" ] || [ "$gate_enabled" = "true" ] || [ "$gate_enabled
   esac
 fi
 
-# 2) Threshold==1 is satisfied now.
-if [ "$threshold" = "1" ] || [ "$threshold" = "1.0" ]; then
-  # For threshold==1, if commit gate was enabled and checked in commit-only mode,
-  # we've already enforced it. Under 'either' mode, we may still succeed later via
-  # attestation when commit verification failed.
-  if [ "$gate_mode" != "either" ] || [ "$commit_gate_ok" = "1" ]; then
-    exit 0
-  fi
-fi
+# Note: Do not unconditionally exit for threshold==1; when sig_mode=attestation (or gate mode
+# requires attestations), we must still execute the attestation verification path even for
+# single-signature thresholds.
 
 if ! printf '%s' "$threshold" | grep -Eq '^[1-9][0-9]*$'; then
   err "invalid threshold: $threshold"
