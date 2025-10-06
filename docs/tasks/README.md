@@ -103,8 +103,11 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
   - [SLT.ALPHA.009 — Clarify plugin script contract](docs/tasks/backlog/SLT.ALPHA.009_plugin_script_contract.md)
   - [SLT.ALPHA.010 — Deduplicate CI matrix package installs](docs/tasks/backlog/SLT.ALPHA.010_deduplicate_ci_matrix_packages.md)
   - [SLT.ALPHA.011 — Clarify Ubuntu build args in matrix compose](docs/tasks/backlog/SLT.ALPHA.011_ubuntu_build_args_comment.md)
-  - [SLT.ALPHA.012 — Align shellcheck coverage and suppressions](docs/tasks/backlog/SLT.ALPHA.012_align_shellcheck_coverage_and_suppressions.md)
   - [SLT.ALPHA.016 — Setup wizard refinements (Phase 3)](docs/tasks/backlog/SLT.ALPHA.016_setup_wizard_phase_3.md)
+
+- Active:
+  - [SLT.ALPHA.012 — Align shellcheck coverage and suppressions](docs/tasks/active/SLT.ALPHA.012_align_shellcheck_coverage_and_suppressions.md)
+  - [SLT.ALPHA.020 — Align policy schema, writers, and CI validation](docs/tasks/active/SLT.ALPHA.020_policy_schema_alignment_and_validation.md)
 - Complete:
   - [SLT.ALPHA.001 — Show command docs page](docs/tasks/complete/SLT.ALPHA.001_show_docs_page.md)
   - [SLT.ALPHA.005 — Policy validate command](docs/tasks/complete/SLT.ALPHA.005_policy_validate_command.md)
