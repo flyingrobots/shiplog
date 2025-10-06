@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 JQ_BIN="${SHIPLOG_JQ_BIN:-/usr/local/bin/jq}"
@@ -136,9 +136,9 @@ enforce_trust_threshold() {
   case "$gate" in
     1|true|yes|on)
       if [ -n "$SIGNERS_FILE" ]; then
-        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
+        GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit has missing or invalid signature"
       else
-        git verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
+        git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "trust commit $commit failed signature verification"
       fi
       ;;
     *) : ;;
@@ -196,9 +196,9 @@ ensure_commit_signed_if_required() {
     error "commit $commit missing required signature"
   fi
   if [ -n "$SIGNERS_FILE" ]; then
-    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$commit" >/dev/null 2>&1 || error "signature for $commit not accepted"
+    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "signature for $commit not accepted"
   else
-    git verify-commit "$commit" >/dev/null 2>&1 || error "signature verification failed for $commit"
+    git -c gpg.format=ssh verify-commit "$commit" >/dev/null 2>&1 || error "signature verification failed for $commit"
   fi
 }
 

@@ -57,9 +57,9 @@ fi
 verify_commit_sig() {
   local c="$1"
   if [ -n "$SIGNERS_FILE" ]; then
-    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git verify-commit "$c" >/dev/null 2>&1 || return 1
+    GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git -c gpg.format=ssh verify-commit "$c" >/dev/null 2>&1 || return 1
   else
-    git verify-commit "$c" >/dev/null 2>&1 || return 1
+    git -c gpg.format=ssh verify-commit "$c" >/dev/null 2>&1 || return 1
   fi
 }
 
