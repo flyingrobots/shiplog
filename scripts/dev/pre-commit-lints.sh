@@ -42,15 +42,20 @@ had_failures=0
 if [ ${#sh_files[@]} -gt 0 ]; then
   if command -v shellcheck >/dev/null 2>&1; then
     for f in "${sh_files[@]}"; do
-      if head -n 1 "$f" 2>/dev/null | grep -q '\\bbash\\b'; then
-        if ! shellcheck -S error -s bash "$f"; then
-          had_failures=1
-        fi
-      else
-        if ! shellcheck -S error "$f"; then
-          had_failures=1
-        fi
-      fi
+      shebang=$(head -n 1 "$f" 2>/dev/null || true)
+      shebang_lc=$(printf '%s' "$shebang" | tr '[:upper:]' '[:lower:]')
+      case "$shebang_lc" in
+        (*bash*)
+          if ! shellcheck -S error -s bash "$f"; then
+            had_failures=1
+          fi
+          ;;
+        (*)
+          if ! shellcheck -S error "$f"; then
+            had_failures=1
+          fi
+          ;;
+      esac
     done
   else
     fail_missing shellcheck

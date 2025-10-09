@@ -1,5 +1,5 @@
 {
-  "id": "SLT.ALPHA.020",
+  "id": "SLT.ALPHA.030",
   "labels": ["policy", "schema", "ci", "docs"],
   "milestone": "Alpha",
   "name": "Align policy schema, writers, and CI validation",

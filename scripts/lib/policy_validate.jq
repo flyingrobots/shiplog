@@ -32,13 +32,28 @@ def authors_errors:
 
 def deployment_errors:
   if has("deployment_requirements") then
-    if (.deployment_requirements|type=="object") then [] else ["deployment_requirements: object required"] end
+    if (.deployment_requirements|type=="object") then
+      [ err((.deployment_requirements|length) > 0; "deployment_requirements: must contain at least one environment"),
+        (.deployment_requirements
+          | to_entries
+          | map(
+              [ err((.value|type=="object"); "deployment_requirements." + .key + ": object required"),
+                (if (.value|has("require_where")) then
+                   err((.value.require_where|type=="array")
+                       and ((.value.require_where|unique|length) == (.value.require_where|length));
+                       "deployment_requirements." + .key + ".require_where: unique array required")
+                 else empty end)
+              ] | flatten | map(select(. != null and . != ""))
+            ))
+      ] | flatten | map(select(. != null and . != ""))
+    else ["deployment_requirements: object required"] end
   else []
   end;
 
 [
   err((.version|type=="string") and (.version|test(semver_pattern)); "version: semver string (e.g. 1.0.0) required"),
   err((has("require_signed")|not) or (.require_signed|type=="boolean"); "require_signed: boolean required when present"),
+  err((has("ff_only")|not) or (.ff_only|type=="boolean"); "ff_only: boolean required when present"),
   authors_errors[],
   deployment_errors[],
   optional_ref("notes_ref"; "notes_ref: must start with refs/"),

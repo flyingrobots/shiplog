@@ -1229,15 +1229,16 @@ cmd_policy() {
       fi
 
 
-      # Structural checks (jq-only; AJV lives in CI). Canonical filter lives at scripts/lib/policy_validate.jq.
+      # Structural checks (jq-only; AJV lives in CI). scripts/lib/policy_validate.jq is canonical.
       local errs=""
       local validator_status=0
       local validator_bin=""
       local validator_filter=""
+      local search_root="${SHIPLOG_HOME:-$PWD}"
       local candidate
       for candidate in \
         "${SHIPLOG_POLICY_VALIDATE_BIN:-}" \
-        "${SHIPLOG_HOME:-$PWD}/scripts/policy/validate.sh" \
+        "$search_root/scripts/policy/validate.sh" \
         "$PWD/scripts/policy/validate.sh"; do
         if [ -n "$candidate" ] && [ -x "$candidate" ]; then
           validator_bin="$candidate"
@@ -1247,7 +1248,7 @@ cmd_policy() {
       if [ -z "$validator_bin" ]; then
         for candidate in \
           "${SHIPLOG_POLICY_VALIDATOR:-}" \
-          "${SHIPLOG_HOME:-$PWD}/scripts/lib/policy_validate.jq" \
+          "$search_root/scripts/lib/policy_validate.jq" \
           "$PWD/scripts/lib/policy_validate.jq"; do
           if [ -n "$candidate" ] && [ -f "$candidate" ]; then
             validator_filter="$candidate"
@@ -1256,19 +1257,26 @@ cmd_policy() {
         done
       fi
       if [ -n "$validator_bin" ]; then
-        if ! errs=$(printf '%s\n' "$raw_policy" | "$validator_bin" --stdin 2>&1); then
-          validator_status=$?
-        fi
+        errs=$(printf '%s\n' "$raw_policy" | "$validator_bin" --stdin 2>&1)
+        validator_status=$?
       else
         if [ -z "$validator_filter" ]; then
           die "shiplog: policy validator filter not found (expected scripts/lib/policy_validate.jq)"
         fi
-        errs=$(printf '%s\n' "$raw_policy" | jq -r -f "$validator_filter" 2>/dev/null || true)
-        [ -z "$errs" ] || validator_status=1
+        errs=$(printf '%s\n' "$raw_policy" | jq -r -f "$validator_filter" 2>&1)
+        validator_status=$?
+        if [ "$validator_status" -ne 0 ]; then
+          die "shiplog: policy validator jq exited with status $validator_status"
+        fi
       fi
 
-      if [ -z "$errs" ] && [ "$validator_status" -ne 0 ]; then
-        errs="policy.json validation failed"
+      if [ -n "$validator_bin" ]; then
+        if [ "$validator_status" -gt 1 ]; then
+          die "shiplog: policy validator exited with status $validator_status"
+        fi
+        if [ "$validator_status" -eq 1 ] && [ -z "$errs" ]; then
+          errs="policy.json failed validation"
+        fi
       fi
 
       if [ -n "$errs" ]; then

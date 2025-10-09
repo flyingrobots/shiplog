@@ -49,12 +49,69 @@ if [ "$INPUT_MODE" = "file" ] && [ -z "$INPUT_PATH" ]; then
   exit 64
 fi
 
-ROOT_DIR="${SHIPLOG_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-FILTER_PATH="${SHIPLOG_POLICY_VALIDATOR:-$ROOT_DIR/scripts/lib/policy_validate.jq}"
-if [ ! -f "$FILTER_PATH" ]; then
-  echo "policy/validate.sh: validator filter not found at $FILTER_PATH" >&2
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR_DEFAULT=$(cd "$SCRIPT_DIR/.." && pwd)
+ROOT_DIR="${SHIPLOG_HOME:-$ROOT_DIR_DEFAULT}"
+SAFE_PREFIXES=("$ROOT_DIR" "$SCRIPT_DIR" "$SCRIPT_DIR/../lib")
+
+canonicalize_path() {
+  local target="$1"
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$target" 2>/dev/null
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$target" 2>/dev/null
+  elif command -v perl >/dev/null 2>&1; then
+    perl -MCwd=abs_path -e 'print abs_path(shift)' "$target" 2>/dev/null
+  elif command -v readlink >/dev/null 2>&1; then
+    readlink -f "$target" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+path_is_safe() {
+  local candidate="$1"
+  local canonical
+  canonical=$(canonicalize_path "$candidate") || return 1
+  local prefix
+  for prefix in "${SAFE_PREFIXES[@]}"; do
+    [ -n "$prefix" ] || continue
+    local canon_prefix
+    canon_prefix=$(canonicalize_path "$prefix") || continue
+    case "$canonical" in
+      "$canon_prefix"|"$canon_prefix"/*)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+resolve_filter() {
+  local filter="${SHIPLOG_POLICY_VALIDATOR:-}"
+  local candidate
+  if [ -n "$filter" ] && [ -f "$filter" ]; then
+    if path_is_safe "$filter"; then
+      SHIPLOG_POLICY_VALIDATOR=$(canonicalize_path "$filter")
+      return 0
+    fi
+  fi
+  for candidate in \
+    "$SCRIPT_DIR/../lib/policy_validate.jq" \
+    "$ROOT_DIR/scripts/lib/policy_validate.jq"; do
+    if [ -f "$candidate" ] && path_is_safe "$candidate"; then
+      SHIPLOG_POLICY_VALIDATOR=$(canonicalize_path "$candidate")
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! resolve_filter; then
+  echo "policy/validate.sh: validator filter not found (expected scripts/lib/policy_validate.jq)" >&2
   exit 66
 fi
+FILTER_PATH="$SHIPLOG_POLICY_VALIDATOR"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "policy/validate.sh: jq is required" >&2
@@ -69,7 +126,11 @@ read_json() {
   fi
 }
 
-errors=$(read_json | jq -r -f "$FILTER_PATH" 2>/dev/null || true)
+errors=""
+if ! errors=$(read_json | jq -r -f "$FILTER_PATH" 2>&1); then
+  printf '%s\n' "$errors" >&2
+  exit 2
+fi
 if [ -n "$errors" ]; then
   printf '%s\n' "$errors"
   exit 1

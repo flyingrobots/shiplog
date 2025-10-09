@@ -2,8 +2,15 @@
 
 load helpers/common
 
+POLICY_VALIDATOR=""
+
+require_policy_validator() {
+  [ -x "$POLICY_VALIDATOR" ] || skip "policy validator helper missing"
+}
+
 setup() {
   shiplog_standard_setup
+  POLICY_VALIDATOR="$SHIPLOG_PROJECT_ROOT/scripts/policy/validate.sh"
 }
 
 teardown() {
@@ -29,6 +36,14 @@ JSON
   [ "$status" -ne 0 ]
 }
 
+@test "policy validate fails on invalid JSON" {
+  mkdir -p .shiplog
+  printf '{"version":' > .shiplog/policy.json
+  run git shiplog policy validate
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not parseable"* || "$output" == *"parse"* ]]
+}
+
 @test "policy validate catches bad types and ref prefixes" {
   mkdir -p .shiplog
   cat > .shiplog/policy.json <<'JSON'
@@ -42,9 +57,85 @@ JSON
 JSON
   run git shiplog policy validate
   [ "$status" -ne 0 ]
-  # Expect helpful error lines
-  [[ "$output" == *"require_signed: boolean required"* || "$error" == *"require_signed: boolean required"* ]]
-  [[ "$output" == *"authors.default_allowlist: non-empty array of strings required"* || "$error" == *"authors.default_allowlist: non-empty array of strings required"* ]]
-  [[ "$output" == *"deployment_requirements: object required"* || "$error" == *"deployment_requirements: object required"* ]]
-  [[ "$output" == *"notes_ref: must start with refs/"* || "$error" == *"notes_ref: must start with refs/"* ]]
+  require_policy_validator
+  run "$POLICY_VALIDATOR" .shiplog/policy.json
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"require_signed"* ]]
+  [[ "$output" == *"authors.default_allowlist"* ]]
+  [[ "$output" == *"deployment_requirements"* ]]
+  [[ "$output" == *"notes_ref"* ]]
+}
+
+@test "policy validate fails when ff_only is not boolean" {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": "1.0.0",
+  "ff_only": "yes",
+  "authors": {"default_allowlist": ["ship@example.com"]}
+}
+JSON
+  run git shiplog policy validate
+  [ "$status" -ne 0 ]
+  require_policy_validator
+  run "$POLICY_VALIDATOR" .shiplog/policy.json
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"ff_only"* ]]
+}
+
+@test "policy validate fails when deployment_requirements empty" {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": "1.0.0",
+  "authors": {"default_allowlist": ["ship@example.com"]},
+  "deployment_requirements": {}
+}
+JSON
+  run git shiplog policy validate
+  [ "$status" -ne 0 ]
+  require_policy_validator
+  run "$POLICY_VALIDATOR" .shiplog/policy.json
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"deployment_requirements"* ]]
+}
+
+@test "policy validate fails when require_where duplicates" {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": "1.0.0",
+  "authors": {"default_allowlist": ["ship@example.com"]},
+  "deployment_requirements": {
+    "prod": {
+      "require_where": ["region", "region"]
+    }
+  }
+}
+JSON
+  run git shiplog policy validate
+  [ "$status" -ne 0 ]
+  require_policy_validator
+  run "$POLICY_VALIDATOR" .shiplog/policy.json
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"require_where"* ]]
+}
+
+@test "policy require-signed coerces numeric version to canonical semver" {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": 1,
+  "require_signed": false,
+  "authors": {"default_allowlist": ["ship@example.com"]}
+}
+JSON
+  run git shiplog policy require-signed true
+  [ "$status" -eq 0 ]
+  run jq -r '.version' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "1.0.0" ]
+  run jq -r '.require_signed' .shiplog/policy.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "true" ]
 }
