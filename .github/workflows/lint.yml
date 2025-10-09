@@ -165,9 +165,26 @@ $files"
           node-version: '20'
       - name: Install ajv-cli
         run: npm install -g ajv-cli
-      - name: Validate policy files against schema (non-blocking for now)
+      - name: Detect policy/schema changes (PRs)
+        if: github.event_name == 'pull_request'
+        id: changed-policy
+        uses: tj-actions/changed-files@v45
+        with:
+          separator: "\n"
+          files: |
+            examples/policy.schema.json
+            .shiplog/policy.json
+            docs/features/policy.md
+            docs/**/*.policy.json
+      - name: Validate policy files against schema
         run: |
           set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ steps.changed-policy.outputs.any_changed }}" != "true" ]; then
+              echo "No policy/schema changes; skipping AJV."
+              exit 0
+            fi
+          fi
           echo "Validating policy files with ajv"
           shopt -s globstar nullglob
           files=( .shiplog/policy.json docs/**/*.policy.json examples/**/*.policy.json )
@@ -175,4 +192,4 @@ $files"
             echo "No policy files found; skipping."
             exit 0
           fi
-          ajv validate --spec=draft2020 -s examples/policy.schema.json -d "${files[@]}" || true
+          ajv validate --spec=draft2020 -s examples/policy.schema.json -d "${files[@]}"
