@@ -175,7 +175,7 @@ shiplog_write_local_policy() {
   mkdir -p .shiplog
   cat > .shiplog/policy.json <<'JSON'
 {
-  "version": 1,
+  "version": "1.0.0",
   "require_signed": false,
   "authors": {
     "default_allowlist": [

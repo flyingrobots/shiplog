@@ -72,6 +72,13 @@ export SHIPLOG_HOME="$TEST_ROOT/shiplog"
 export SHIPLOG_LIB_DIR="$SHIPLOG_HOME/lib"
 export PATH="$SHIPLOG_HOME/bin:$PATH"
 export SHIPLOG_BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
+
+# Ensure the copied workspace cannot accidentally push to the real remote
+if git -C "$SHIPLOG_HOME" rev-parse >/dev/null 2>&1; then
+  git -C "$SHIPLOG_HOME" remote | while IFS= read -r remote; do
+    [ -n "$remote" ] && git -C "$SHIPLOG_HOME" remote remove "$remote" >/dev/null 2>&1 || true
+  done
+fi
 export SHIPLOG_REF_ROOT=${SHIPLOG_REF_ROOT:-refs/_shiplog}
 export SHIPLOG_NOTES_REF=${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}
 

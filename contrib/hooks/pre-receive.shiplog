@@ -9,6 +9,10 @@ REQUIRE_SEPARATE_SIGNERS="${SHIPLOG_REQUIRE_SEPARATE_SIGNERS:-1}"
 # Defaults keep strict behavior for CI/tests.
 ALLOW_MISSING_TRUST="${SHIPLOG_ALLOW_MISSING_TRUST:-0}"
 ALLOW_MISSING_POLICY="${SHIPLOG_ALLOW_MISSING_POLICY:-0}"
+HOOK_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+POLICY_VALIDATOR_BIN="${SHIPLOG_POLICY_VALIDATE_BIN:-}"
+POLICY_VALIDATOR_FILTER="${SHIPLOG_POLICY_VALIDATOR:-}"
+SEMVER_REGEX='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 
 if ! command -v "$JQ_BIN" >/dev/null 2>&1; then
   if command -v jq >/dev/null 2>&1; then
@@ -25,6 +29,115 @@ SIGNERS_FILE=""
 CURRENT_TRUST_TIP=""
 CURRENT_TRUST_JSON=""
 CURRENT_POLICY_JSON=""
+
+policy_validator_filter_content() {
+  cat <<'JQ'
+# jq filter to validate Shiplog policy JSON
+def semver_pattern:
+  "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$";
+def err($ok; $msg): if $ok then empty else $msg end;
+def is_string_array: type=="array" and (all(.[]?; type=="string"));
+def optional_ref($field; $msg): if has($field) then err((.[$field]|type=="string") and (.[$field]|startswith("refs/")); $msg) else empty end;
+def authors_errors:
+  if has("authors") then
+    if (.authors|type=="object") then
+      [ err((.authors|has("default_allowlist"))
+             and (.authors.default_allowlist|is_string_array)
+             and ((.authors.default_allowlist|length) > 0);
+             "authors.default_allowlist: non-empty array of strings required when authors is present"),
+        (if (.authors|has("env_overrides")) then
+           if (.authors.env_overrides|type=="object") then
+             (.authors.env_overrides | to_entries | map(err((.value|is_string_array);
+                      "authors.env_overrides." + .key + ": array of strings required")))
+           else
+             ["authors.env_overrides: object required when present"]
+           end
+         else [] end)
+      ] | flatten | map(select(. != null and . != ""))
+    else
+      ["authors.default_allowlist: non-empty array of strings required when authors is present"]
+    end
+  else []
+  end;
+def deployment_errors:
+  if has("deployment_requirements") then
+    if (.deployment_requirements|type=="object") then [] else ["deployment_requirements: object required"] end
+  else []
+  end;
+[
+  err((.version|type=="string") and (.version|test(semver_pattern)); "version: semver string (e.g. 1.0.0) required"),
+  err((has("require_signed")|not) or (.require_signed|type=="boolean"); "require_signed: boolean required when present"),
+  authors_errors[],
+  deployment_errors[],
+  optional_ref("notes_ref"; "notes_ref: must start with refs/"),
+  optional_ref("journals_ref_prefix"; "journals_ref_prefix: must start with refs/"),
+  optional_ref("anchors_ref_prefix"; "anchors_ref_prefix: must start with refs/")
+]
+| map(select(. != null and . != ""))
+| .[]
+JQ
+}
+
+find_policy_validator_bin() {
+  local candidates=(
+    "$POLICY_VALIDATOR_BIN"
+    "${SHIPLOG_HOME:-}/scripts/policy/validate.sh"
+    "$HOOK_DIR/../policy/validate.sh"
+    "$HOOK_DIR/policy/validate.sh"
+  )
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_policy_validator_filter() {
+  local filter="${POLICY_VALIDATOR_FILTER}"
+  if [ -n "$filter" ] && [ -f "$filter" ]; then
+    printf '%s' "$filter"
+    return 0
+  fi
+  local candidates=(
+    "${SHIPLOG_HOME:-}/scripts/lib/policy_validate.jq"
+    "$HOOK_DIR/../lib/policy_validate.jq"
+    "$HOOK_DIR/policy_validate.jq"
+  )
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  filter="$TMP_ROOT/policy_validate.jq"
+  policy_validator_filter_content > "$filter"
+  printf '%s' "$filter"
+}
+
+run_policy_validator() {
+  local json="$1"
+  local validator
+  if validator=$(find_policy_validator_bin); then
+    local output=""
+    if ! output=$(printf '%s\n' "$json" | "$validator" --stdin 2>&1); then
+      [ -n "$output" ] && dbg "$output"
+      error "policy.json failed validation"
+    fi
+    return 0
+  fi
+  local filter
+  filter=$(ensure_policy_validator_filter)
+  local errors
+  errors=$(printf '%s\n' "$json" | "$JQ_BIN" -r -f "$filter" 2>/dev/null || true)
+  if [ -n "$errors" ]; then
+    dbg "$errors"
+    error "policy.json failed validation"
+  fi
+}
 
 error() {
   echo "❌ shiplog: $*" >&2
@@ -74,10 +187,9 @@ load_policy_state() {
   [ -n "$commit" ] || return 0
   CURRENT_POLICY_JSON=$(git show "$commit:.shiplog/policy.json" 2>/dev/null || true)
   [ -n "$CURRENT_POLICY_JSON" ] || return 0
-  "$JQ_BIN" -e '
-    .version == 1 and (.require_signed | type == "boolean")
-  ' <<<"$CURRENT_POLICY_JSON" >/dev/null 2>&1 || error "policy.json failed validation"
+  run_policy_validator "$CURRENT_POLICY_JSON"
 }
+
 
 get_policy_require_signed() {
   local env="$1"

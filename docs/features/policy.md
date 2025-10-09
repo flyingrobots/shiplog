@@ -113,6 +113,10 @@ ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shipl
 # CLI validation (jq-based structural checks)
 git shiplog policy validate
 # ✅ outputs "Policy OK" on success; prints specific errors otherwise
+
+# Scriptable validation helper (used by CLI and hooks)
+scripts/policy/validate.sh .shiplog/policy.json
+scripts/policy/validate.sh --stdin < .shiplog/policy.json
 ```
 
 CI automation:

@@ -1228,63 +1228,67 @@ cmd_policy() {
         die "shiplog: policy JSON is not parseable"
       fi
 
+
       # Structural checks (jq-only; AJV lives in CI)
       # - version must be a semver string
       # - require_signed must be boolean when present
-      # - authors fields are optional but, when provided, must include a non-empty default_allowlist
-      # - deployment_requirements entries must be objects with boolean toggles and scoped enums
+      # - authors (when present) must include a non-empty default allowlist of strings
+      # - deployment_requirements (when present) must be an object
       # - Optional ref fields, if present, must start with refs/
-      local errs
-      errs=$(printf '%s\n' "$raw_policy" | jq -r --arg semver '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' '
-        def is_string_array: type=="array" and (all(.[]?; type=="string"));
-        def allowed_where: ["region","cluster","namespace","service","environment"];
-        def require_where_ok:
-          is_string_array and (all(.[]?; (allowed_where | index(.) ) != null));
-        def flatten_errors($items):
-          [$items[]] | flatten | map(select(. != null and . != ""));
-        def check_authors:
-          if has("authors") then
-            if (.authors|type!="object") then [["authors: object required when present"]]
-            else [
-              (if (.authors|has("default_allowlist") and (.authors.default_allowlist|is_string_array) and ((.authors.default_allowlist|length) > 0))
-                 then null else "authors.default_allowlist: non-empty array of strings required when authors is present" end),
-              (if (.authors|has("env_overrides")) then
-                   if (.authors.env_overrides|type=="object") then
-                     (.authors.env_overrides | to_entries | map(
-                       if (.value|is_string_array) then null else "authors.env_overrides." + .key + ": array of strings required" end
-                     ))
-                   else ["authors.env_overrides: object required when present"]
-                 else null end)
-            ]
-          else [null]
-          end;
-        def check_requirements:
-          if has("deployment_requirements") then
-            if (.deployment_requirements|type=="object") then
-              (.deployment_requirements | to_entries | map(
-                if (.value|type=="object") then [
-                  (if (.value|has("require_signed")) then (if (.value.require_signed|type=="boolean") then null else "deployment_requirements." + .key + ".require_signed: boolean required" end) else null end),
-                  (if (.value|has("require_ticket")) then (if (.value.require_ticket|type=="boolean") then null else "deployment_requirements." + .key + ".require_ticket: boolean required" end) else null end),
-                  (if (.value|has("require_service")) then (if (.value.require_service|type=="boolean") then null else "deployment_requirements." + .key + ".require_service: boolean required" end) else null end),
-                  (if (.value|has("require_where")) then (if (.value.require_where|require_where_ok) then null else "deployment_requirements." + .key + ".require_where: array of region|cluster|namespace|service|environment" end) else null end)
-                ] else "deployment_requirements." + .key + ": object required" end
-              ))
-            else [["deployment_requirements: object required when present"]]
-            end
-          else [null]
-          end;
-        flatten_errors([
-          (if (.version|type=="string") and (.version|test($semver)) then null else "version: semver string (e.g. 1.0.0) required" end),
-          (if has("require_signed") then (if (.require_signed|type=="boolean") then null else "require_signed: boolean required when present" end) else null end),
-          (if has("schema") then (if (.schema|type=="string" and (.schema|length>0)) then null else "schema: non-empty string required when present" end) else null end),
-          (if has("format_compat") then (if (.format_compat|type=="string" and (.format_compat|length>0)) then null else "format_compat: non-empty string required when present" end) else null end),
-          (if has("allow_ssh_signers_file") then (if (.allow_ssh_signers_file|type=="string" and (.allow_ssh_signers_file|length>0)) then null else "allow_ssh_signers_file: non-empty string required when present" end) else null end),
-          (if has("notes_ref") then (if (.notes_ref|type=="string" and (.notes_ref|startswith("refs/"))) then null else "notes_ref: must start with refs/" end) else null end),
-          (if has("journals_ref_prefix") then (if (.journals_ref_prefix|type=="string" and (.journals_ref_prefix|startswith("refs/"))) then null else "journals_ref_prefix: must start with refs/" end) else null end),
-          (if has("anchors_ref_prefix") then (if (.anchors_ref_prefix|type=="string" and (.anchors_ref_prefix|startswith("refs/"))) then null else "anchors_ref_prefix: must start with refs/" end) else null end),
-          check_authors,
-          check_requirements
-        ]) | .[]' 2>/dev/null || true)
+      local errs=""
+      local validator_status=0
+      local validator_filter
+      validator_filter="${SHIPLOG_POLICY_VALIDATOR:-${SHIPLOG_HOME:-$PWD}/scripts/lib/policy_validate.jq}"
+      local validator_bin
+      validator_bin="${SHIPLOG_POLICY_VALIDATE_BIN:-${SHIPLOG_HOME:-$PWD}/scripts/policy/validate.sh}"
+      if [ -x "$validator_bin" ]; then
+        if ! errs=$(printf '%s\n' "$raw_policy" | "$validator_bin" --stdin 2>&1); then
+          validator_status=$?
+        fi
+      elif [ -f "$validator_filter" ]; then
+        errs=$(printf '%s\n' "$raw_policy" | jq -r -f "$validator_filter" 2>/dev/null || true)
+        [ -z "$errs" ] || validator_status=1
+      else
+        errs=$(printf '%s\n' "$raw_policy" | jq -r --arg semver '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' '
+          def err($ok; $msg): if $ok then [] else [$msg] end;
+          def is_string_array: type=="array" and (all(.[]?; type=="string"));
+          def optional_ref($field; $msg):
+            if has($field) then err((.[$field]|type=="string") and (.[$field]|startswith("refs/")); $msg) else [] end;
+          def authors_errors:
+            if has("authors") then
+              if (.authors|type=="object") then
+                err((.authors|has("default_allowlist"))
+                    and (.authors.default_allowlist|is_string_array)
+                    and ((.authors.default_allowlist|length) > 0);
+                    "authors.default_allowlist: non-empty array of strings required when authors is present")
+              else ["authors.default_allowlist: non-empty array of strings required when authors is present"]
+              end
+            else []
+            end;
+          def deployment_errors:
+            if has("deployment_requirements") then
+              if (.deployment_requirements|type=="object") then [] else ["deployment_requirements: object required"] end
+            else []
+            end;
+          (
+            err((.version|type=="string") and (.version|test($semver));
+                "version: semver string (e.g. 1.0.0) required")
+            + err((has("require_signed")|not) or (.require_signed|type=="boolean");
+                  "require_signed: boolean required when present")
+            + authors_errors
+            + deployment_errors
+            + optional_ref("notes_ref"; "notes_ref: must start with refs/")
+            + optional_ref("journals_ref_prefix"; "journals_ref_prefix: must start with refs/")
+            + optional_ref("anchors_ref_prefix"; "anchors_ref_prefix: must start with refs/")
+          ) | .[]' 2>/dev/null || true)
+        [ -z "$errs" ] || validator_status=1
+      fi
+
+
+
+      if [ -z "$errs" ] && [ "$validator_status" -ne 0 ]; then
+        errs="policy.json validation failed"
+      fi
 
       if [ -n "$errs" ]; then
         if shiplog_can_use_bosun; then
@@ -1298,6 +1302,7 @@ cmd_policy() {
         fi
         return 1
       fi
+      [ "$validator_status" -eq 0 ] || return 1
 
       if shiplog_can_use_bosun; then
         local bosun; bosun=$(shiplog_bosun_bin)

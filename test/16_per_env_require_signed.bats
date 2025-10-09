@@ -18,7 +18,7 @@ setup() {
   mkdir -p .shiplog
   cat > .shiplog/policy.json <<'JSON'
 {
-  "version": 1,
+  "version": "1.0.0",
   "require_signed": false,
   "authors": {"default_allowlist": ["shiplog-tester@example.com"]},
   "deployment_requirements": {
@@ -85,4 +85,3 @@ make_entry_unsigned() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"missing required signature"* ]]
 }
-

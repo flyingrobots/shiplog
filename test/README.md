@@ -14,8 +14,8 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 
 ## Test Runner
 
-- `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The container mounts the workspace at `/workspace` and executes `/usr/local/bin/run-tests`.
-- The `run-tests` entrypoint copies the repo to a temporary snapshot inside the container and sets `SHIPLOG_HOME` to that snapshot to prevent accidental mutations of the bind mount.
+- `make test` builds the local Docker image (if needed) and runs all Bats files with signing disabled. The image now bakes in your working tree snapshot, so the container executes `/usr/local/bin/run-tests` without bind-mounting your repo.
+- The `run-tests` entrypoint copies the baked snapshot to a temporary directory, strips any configured Git remotes, and sets `SHIPLOG_HOME` to that copy before executing Bats.
 - Default test mode avoids network clones: `SHIPLOG_USE_LOCAL_SANDBOX=1` (set to `0` only if you explicitly need to hit the remote sandbox).
 - Tests run with an in-container timeout controlled by `TEST_TIMEOUT_SECS` (default `180`). Increase up to `360` when signing is enabled (`make test-signing`). Always capture container logs when a timeout occurs. Add `BATS_FLAGS` (e.g., `--print-output-on-failure -T`) for verbose runs.
 - `make test-signing` performs the same flow with `ENABLE_SIGNING=true`, generating a throw‑away GPG key inside the container to exercise signed‑commit verification.
@@ -32,8 +32,8 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 ## Running Specific Tests
 
 - Build the test image once with `make build` (produces the `shiplog-tests` image used below).
-- Run a single test file: `docker run --rm -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`.
-- Add verbosity or timeouts: `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" -e TEST_TIMEOUT_SECS=180 -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`.
+- Run a single test file (after `make build`): `docker run --rm shiplog-tests bats test/05_verify_authors.bats`.
+- Add verbosity or timeouts: `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" -e TEST_TIMEOUT_SECS=180 shiplog-tests bats test/05_verify_authors.bats`.
 - Launch an interactive shell for ad‑hoc runs: `./shiplog-sandbox.sh` starts a shell in the same environment; from there run `bats` directly.
 - Always run tests inside Docker; host execution is unsupported and may skip required setup.
 
