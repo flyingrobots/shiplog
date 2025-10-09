@@ -41,12 +41,12 @@ Run `git shiplog policy --boring` for plain-text output or `--json` to integrate
 
 ## Policy File Examples
 
-Required fields:
+Required field:
 - `version` (semver string, e.g., "1.0.0").
-- `authors.default_allowlist` (one or more allowed author emails).
 
 Optional (recommended as you harden policy):
 - `require_signed` (boolean, top-level) — default behavior when not set per-env.
+- `authors.default_allowlist` (array of strings) — add to restrict commit authors; omit while bootstrapping to allow everyone.
 - `deployment_requirements` (object) — per-environment knobs. Each env may specify:
   - `require_signed` (boolean)
   - `require_ticket` (boolean)
@@ -55,15 +55,15 @@ Optional (recommended as you harden policy):
 - `ff_only` (boolean) — complement fast‑forward protections for Shiplog refs.
 - `notes_ref`, `journals_ref_prefix`, `anchors_ref_prefix` — customize ref layout.
 
-### Minimal policy.json
+### Minimal policy.json (permissive)
 ```json
 {
   "version": "1.0.0",
-  "authors": {
-    "default_allowlist": ["deploy@example.com"]
-  }
+  "require_signed": false
 }
 ```
+
+This permissive baseline allows any Git author and disables signing. Layer in `authors` and per-environment requirements as soon as you know who should write Shiplog entries.
 
 ### Fuller policy with environment overrides
 ```json
@@ -114,6 +114,9 @@ ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shipl
 git shiplog policy validate
 # ✅ outputs "Policy OK" on success; prints specific errors otherwise
 ```
+
+CI automation:
+- `.github/workflows/lint.yml` runs `ajv validate` automatically whenever the policy schema or tracked policy JSON changes in a PR (and on `main` pushes).
 
 ## Override Mapping
 | Setting | CLI / Env | Git Config | Policy Field |

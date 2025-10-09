@@ -1229,23 +1229,62 @@ cmd_policy() {
       fi
 
       # Structural checks (jq-only; AJV lives in CI)
-      # - require_signed must be boolean
-      # - authors.default_allowlist must be array of strings (>=1)
-      # - Optional: deployment_requirements, if present, must be an object
+      # - version must be a semver string
+      # - require_signed must be boolean when present
+      # - authors fields are optional but, when provided, must include a non-empty default_allowlist
+      # - deployment_requirements entries must be objects with boolean toggles and scoped enums
       # - Optional ref fields, if present, must start with refs/
       local errs
-      errs=$(printf '%s\n' "$raw_policy" | jq -r '
-        . as $root |
+      errs=$(printf '%s\n' "$raw_policy" | jq -r --arg semver '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' '
         def is_string_array: type=="array" and (all(.[]?; type=="string"));
-        def err($m): $m;
-        [
-          ( if ($root|has("require_signed")) and (($root.require_signed)|type=="boolean") then empty else err("require_signed: boolean required") end ),
-          ( if ($root|has("authors")) and (($root.authors|has("default_allowlist")) and ($root.authors.default_allowlist|is_string_array) and (($root.authors.default_allowlist|length) > 0)) then empty else err("authors.default_allowlist: non-empty array of strings required") end ),
-          ( if ($root|has("deployment_requirements")) then ( if ($root.deployment_requirements|type=="object") then empty else err("deployment_requirements: object required") end ) else empty end ),
-          ( if ($root|has("notes_ref")) then ( if (($root.notes_ref|type=="string") and ($root.notes_ref|startswith("refs/"))) then empty else err("notes_ref: must start with refs/") end ) else empty end ),
-          ( if ($root|has("journals_ref_prefix")) then ( if (($root.journals_ref_prefix|type=="string") and ($root.journals_ref_prefix|startswith("refs/"))) then empty else err("journals_ref_prefix: must start with refs/") end ) else empty end ),
-          ( if ($root|has("anchors_ref_prefix")) then ( if (($root.anchors_ref_prefix|type=="string") and ($root.anchors_ref_prefix|startswith("refs/"))) then empty else err("anchors_ref_prefix: must start with refs/") end ) else empty end )
-        ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
+        def allowed_where: ["region","cluster","namespace","service","environment"];
+        def require_where_ok:
+          is_string_array and (all(.[]?; (allowed_where | index(.) ) != null));
+        def flatten_errors($items):
+          [$items[]] | flatten | map(select(. != null and . != ""));
+        def check_authors:
+          if has("authors") then
+            if (.authors|type!="object") then [["authors: object required when present"]]
+            else [
+              (if (.authors|has("default_allowlist") and (.authors.default_allowlist|is_string_array) and ((.authors.default_allowlist|length) > 0))
+                 then null else "authors.default_allowlist: non-empty array of strings required when authors is present" end),
+              (if (.authors|has("env_overrides")) then
+                   if (.authors.env_overrides|type=="object") then
+                     (.authors.env_overrides | to_entries | map(
+                       if (.value|is_string_array) then null else "authors.env_overrides." + .key + ": array of strings required" end
+                     ))
+                   else ["authors.env_overrides: object required when present"]
+                 else null end)
+            ]
+          else [null]
+          end;
+        def check_requirements:
+          if has("deployment_requirements") then
+            if (.deployment_requirements|type=="object") then
+              (.deployment_requirements | to_entries | map(
+                if (.value|type=="object") then [
+                  (if (.value|has("require_signed")) then (if (.value.require_signed|type=="boolean") then null else "deployment_requirements." + .key + ".require_signed: boolean required" end) else null end),
+                  (if (.value|has("require_ticket")) then (if (.value.require_ticket|type=="boolean") then null else "deployment_requirements." + .key + ".require_ticket: boolean required" end) else null end),
+                  (if (.value|has("require_service")) then (if (.value.require_service|type=="boolean") then null else "deployment_requirements." + .key + ".require_service: boolean required" end) else null end),
+                  (if (.value|has("require_where")) then (if (.value.require_where|require_where_ok) then null else "deployment_requirements." + .key + ".require_where: array of region|cluster|namespace|service|environment" end) else null end)
+                ] else "deployment_requirements." + .key + ": object required" end
+              ))
+            else [["deployment_requirements: object required when present"]]
+            end
+          else [null]
+          end;
+        flatten_errors([
+          (if (.version|type=="string") and (.version|test($semver)) then null else "version: semver string (e.g. 1.0.0) required" end),
+          (if has("require_signed") then (if (.require_signed|type=="boolean") then null else "require_signed: boolean required when present" end) else null end),
+          (if has("schema") then (if (.schema|type=="string" and (.schema|length>0)) then null else "schema: non-empty string required when present" end) else null end),
+          (if has("format_compat") then (if (.format_compat|type=="string" and (.format_compat|length>0)) then null else "format_compat: non-empty string required when present" end) else null end),
+          (if has("allow_ssh_signers_file") then (if (.allow_ssh_signers_file|type=="string" and (.allow_ssh_signers_file|length>0)) then null else "allow_ssh_signers_file: non-empty string required when present" end) else null end),
+          (if has("notes_ref") then (if (.notes_ref|type=="string" and (.notes_ref|startswith("refs/"))) then null else "notes_ref: must start with refs/" end) else null end),
+          (if has("journals_ref_prefix") then (if (.journals_ref_prefix|type=="string" and (.journals_ref_prefix|startswith("refs/"))) then null else "journals_ref_prefix: must start with refs/" end) else null end),
+          (if has("anchors_ref_prefix") then (if (.anchors_ref_prefix|type=="string" and (.anchors_ref_prefix|startswith("refs/"))) then null else "anchors_ref_prefix: must start with refs/" end) else null end),
+          check_authors,
+          check_requirements
+        ]) | .[]' 2>/dev/null || true)
 
       if [ -n "$errs" ]; then
         if shiplog_can_use_bosun; then

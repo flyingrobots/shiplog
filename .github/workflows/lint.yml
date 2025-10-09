@@ -14,6 +14,7 @@ jobs:
     outputs:
       shell: ${{ steps.filter.outputs.shell }}
       markdown: ${{ steps.filter.outputs.markdown }}
+      policy: ${{ steps.filter.outputs.policy }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -26,6 +27,11 @@ jobs:
               - '**/*.sh'
             markdown:
               - '**/*.md'
+            policy:
+              - '.shiplog/policy.json'
+              - 'examples/policy.schema.json'
+              - 'examples/**/*.policy.json'
+              - 'docs/**/*.policy.json'
   shellcheck:
     runs-on: ubuntu-latest
     needs: changes
@@ -157,6 +163,8 @@ $files"
 
   policy_schema:
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.policy == 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
