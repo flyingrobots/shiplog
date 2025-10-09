@@ -7,10 +7,9 @@ def is_string_array: type=="array" and (all(.[]?; type=="string"));
 def optional_ref($field; $msg): if has($field) then err((.[$field]|type=="string") and (.[$field]|startswith("refs/")); $msg) else empty end;
 def allowed_require_where: ["region","cluster","namespace","service","environment"]; 
 def require_where_ok($arr):
-  ($arr|type=="array")
-  and (($arr|map(type=="string")|all(. == true)))
+  ($arr | is_string_array)
   and (($arr|unique|length) == ($arr|length))
-  and ($arr | all(. as $v | (allowed_require_where | index($v)) != null));
+  and (all($arr[]; . as $v | (allowed_require_where | index($v)) != null));
 
 def authors_errors:
   if has("authors") then

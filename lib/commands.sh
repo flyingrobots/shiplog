@@ -1266,7 +1266,11 @@ cmd_policy() {
         errs=$(printf '%s\n' "$raw_policy" | jq -r -f "$validator_filter" 2>&1)
         validator_status=$?
         if [ "$validator_status" -ne 0 ]; then
-          die "shiplog: policy validator jq exited with status $validator_status"
+          if [ -n "$errs" ]; then
+            printf '%s\n' "$errs" >&2
+          fi
+          printf 'shiplog: policy validator jq exited with status %s\n' "$validator_status" >&2
+          return "$validator_status"
         fi
       fi
 
@@ -1275,6 +1279,7 @@ cmd_policy() {
           if [ -n "$errs" ]; then
             printf '%s\n' "$errs" >&2
           fi
+          printf 'shiplog: policy validator exited with status %s\n' "$validator_status" >&2
           return "$validator_status"
         fi
         if [ "$validator_status" -eq 1 ] && [ -z "$errs" ]; then

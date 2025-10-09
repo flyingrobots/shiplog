@@ -21,8 +21,15 @@ POLICY_VALIDATOR_FILTER="${SHIPLOG_POLICY_VALIDATOR:-}"
 SAFE_PREFIXES=()
 if [ -n "${SHIPLOG_HOME:-}" ]; then
   SAFE_PREFIXES+=("${SHIPLOG_HOME}")
+  SAFE_PREFIXES+=("${SHIPLOG_HOME}/scripts")
+  SAFE_PREFIXES+=("${SHIPLOG_HOME}/scripts/lib")
 fi
-SAFE_PREFIXES+=("$HOOK_DIR" "$HOOK_DIR/../lib")
+SAFE_PREFIXES+=("$HOOK_DIR")
+SAFE_PREFIXES+=("$HOOK_DIR/..")
+SAFE_PREFIXES+=("$HOOK_DIR/../..")
+SAFE_PREFIXES+=("$HOOK_DIR/../lib")
+SAFE_PREFIXES+=("$HOOK_DIR/../../scripts")
+SAFE_PREFIXES+=("$HOOK_DIR/../../scripts/lib")
 
 canonicalize_path() {
   local target="$1"
@@ -230,10 +237,16 @@ run_policy_validator() {
     if [ "$status" -eq 0 ]; then
       return 0
     elif [ "$status" -eq 1 ]; then
-      [ -n "$output" ] && dbg "$output"
+      if [ -n "$output" ]; then
+        printf '%s\n' "$output" >&2
+        dbg "$output"
+      fi
       error "policy.json failed validation"
     else
-      [ -n "$output" ] && dbg "$output"
+      if [ -n "$output" ]; then
+        printf '%s\n' "$output" >&2
+        dbg "$output"
+      fi
       error "policy validator exited with status $status"
     fi
   fi
@@ -243,10 +256,14 @@ run_policy_validator() {
   output=$(printf '%s\n' "$json" | "$JQ_BIN" -r -f "$filter" 2>&1)
   status=$?
   if [ "$status" -ne 0 ]; then
-    [ -n "$output" ] && dbg "$output"
+    if [ -n "$output" ]; then
+      printf '%s\n' "$output" >&2
+      dbg "$output"
+    fi
     error "policy.json validation: jq execution failed"
   fi
   if [ -n "$output" ]; then
+    printf '%s\n' "$output" >&2
     dbg "$output"
     error "policy.json failed validation"
   fi
