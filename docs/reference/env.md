@@ -21,9 +21,13 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_ENV` — Default journal environment when omitted on commands
   - Default: `prod`
 
-- `SHIPLOG_AUTO_PUSH` — Auto-push Shiplog refs to `origin` when available (`write`, some `setup` flows)
+- `SHIPLOG_AUTO_PUSH` — Auto-push Shiplog refs to the configured remote when available (`write`, some `setup` flows)
   - Values: `1` (default) or `0`
   - Precedence: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
+
+- `SHIPLOG_REMOTE` — Remote name shiplog commands use for fetch/publish/push operations
+  - Default: `origin` (or `git config shiplog.remote` when set)
+  - Applies to `write` auto-push, `publish`, setup helpers, and bootstrap scripts.
 
 - `SHIPLOG_BORING` — Non-interactive/plain mode (disables Bosun UI)
   - Values: `1` or `0` (default)

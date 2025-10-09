@@ -157,11 +157,11 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remot
 fi
 
 if [ ${#unpublished_refs[@]} -gt 0 ] && [ "$FORCE" -eq 0 ]; then
-  log "Aborting uninstall: local Shiplog refs not pushed to origin:"
+  log "Aborting uninstall: local Shiplog refs not pushed to the configured remote:"
   for ref in "${unpublished_refs[@]}"; do
     echo "  $ref"
   done
-  log "Push them with: git push origin <ref> (or rerun with --force)."
+  log "Push them with: git push --no-verify <remote> <ref> (or rerun with --force)."
   exit 1
 fi
 

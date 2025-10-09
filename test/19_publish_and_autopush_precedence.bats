@@ -39,3 +39,90 @@ teardown() {
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "refs/_shiplog/journal/staging"
 }
+
+@test "auto-push honors SHIPLOG_REMOTE and bypasses pre-push hook" {
+  export SHIPLOG_REMOTE=mirror
+  export SHIPLOG_BORING=1
+  export SHIPLOG_SERVICE=remote
+  export SHIPLOG_STATUS=success
+  export SHIPLOG_REASON=autopush
+  export SHIPLOG_REGION=us-test
+  export SHIPLOG_CLUSTER=cluster-1
+  export SHIPLOG_NAMESPACE=ns-remote
+  git shiplog init >/dev/null
+  REMOTE_DIR=$(mktemp -d)
+  git remote remove "$SHIPLOG_REMOTE" >/dev/null 2>&1 || true
+  git init -q --bare "$REMOTE_DIR"
+  git remote add "$SHIPLOG_REMOTE" "$REMOTE_DIR"
+  cat > .git/hooks/pre-push <<'EOF'
+#!/usr/bin/env bash
+echo "hook" >> .git/prepush.log
+exit 1
+EOF
+  chmod +x .git/hooks/pre-push
+  run git shiplog write --env staging
+  local write_output="$output"
+  if [ "$status" -ne 0 ]; then
+    echo "$write_output" >&2
+    if [ -f .git/prepush.log ]; then
+      echo "pre-push hook output:" >&2
+      cat .git/prepush.log >&2
+    fi
+  fi
+  [ "$status" -eq 0 ]
+  [ ! -f .git/prepush.log ]
+  run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "refs/_shiplog/journal/staging"
+  rm -f .git/hooks/pre-push .git/prepush.log
+  rm -rf "$REMOTE_DIR"
+}
+
+@test "publish uses SHIPLOG_REMOTE and skips pre-push hook" {
+  export SHIPLOG_REMOTE=mirror
+  export SHIPLOG_AUTO_PUSH=0
+  export SHIPLOG_BORING=1
+  export SHIPLOG_SERVICE=remote
+  export SHIPLOG_STATUS=success
+  export SHIPLOG_REASON=publish
+  export SHIPLOG_REGION=us-test
+  export SHIPLOG_CLUSTER=cluster-2
+  export SHIPLOG_NAMESPACE=ns-remote
+  git shiplog init >/dev/null
+  REMOTE_DIR=$(mktemp -d)
+  git remote remove "$SHIPLOG_REMOTE" >/dev/null 2>&1 || true
+  git init -q --bare "$REMOTE_DIR"
+  git remote add "$SHIPLOG_REMOTE" "$REMOTE_DIR"
+  cat > .git/hooks/pre-push <<'EOF'
+#!/usr/bin/env bash
+echo "hook" >> .git/prepush-publish.log
+exit 1
+EOF
+  chmod +x .git/hooks/pre-push
+  run git shiplog write --env staging
+  local write_output="$output"
+  if [ "$status" -ne 0 ]; then
+    echo "$write_output" >&2
+    if [ -f .git/prepush.log ]; then
+      echo "pre-push hook output:" >&2
+      cat .git/prepush.log >&2
+    fi
+  fi
+  [ "$status" -eq 0 ]
+  run git shiplog publish --env staging
+  local publish_output="$output"
+  if [ "$status" -ne 0 ]; then
+    echo "$publish_output" >&2
+    if [ -f .git/prepush-publish.log ]; then
+      echo "pre-push hook output:" >&2
+      cat .git/prepush-publish.log >&2
+    fi
+  fi
+  [ "$status" -eq 0 ]
+  [ ! -f .git/prepush-publish.log ]
+  run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "refs/_shiplog/journal/staging"
+  rm -f .git/hooks/pre-push .git/prepush-publish.log
+  rm -rf "$REMOTE_DIR"
+}

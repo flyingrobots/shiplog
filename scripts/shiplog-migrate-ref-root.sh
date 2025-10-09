@@ -21,14 +21,14 @@ Options:
   --to ROOT         Destination root (required), e.g. refs/heads/_shiplog
   --from ROOT       Source root (default: SHIPLOG_REF_ROOT or git config shiplog.refRoot or refs/_shiplog)
   --remove-old      Delete old refs after mirroring
-  --push            Push mirrored refs to origin (requires origin configured)
+  --push            Push mirrored refs to the configured remote (defaults to origin)
   --dry-run         Print actions without making changes
   -h, --help        Show this help
 
 Notes:
   - Only refs under the source root are touched.
   - Uses git update-ref to write new refs atomically.
-  - With --push, runs: git push origin '<TO>/*:<TO>/*'
+  - With --push, runs: git push --no-verify <remote> '<TO>/*:<TO>/*' (remote defaults to origin or SHIPLOG_REMOTE)
 USAGE
 }
 
@@ -116,14 +116,18 @@ if [ "$REMOVE_OLD" -eq 1 ]; then
   done
 fi
 
+REMOTE_NAME="${SHIPLOG_REMOTE:-}"
+if [ -z "$REMOTE_NAME" ]; then
+  REMOTE_NAME=$(git config --get shiplog.remote 2>/dev/null || echo origin)
+fi
+
 if [ "$DO_PUSH" -eq 1 ]; then
-  if git config --get remote.origin.url >/dev/null 2>&1; then
-    echo "Pushing mirrored refs to origin..."
-    git push origin "$TO_ROOT/*:$TO_ROOT/*"
+  if git config --get remote."$REMOTE_NAME".url >/dev/null 2>&1; then
+    echo "Pushing mirrored refs to $REMOTE_NAME..."
+    git push --no-verify "$REMOTE_NAME" "$TO_ROOT/*:$TO_ROOT/*"
   else
-    echo "No origin configured; skipping push." >&2
+    echo "Remote $REMOTE_NAME not configured; skipping push." >&2
   fi
 fi
 
 echo "Done."
-
