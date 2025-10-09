@@ -1270,7 +1270,11 @@ cmd_policy() {
     require-signed)
       local val="${1:-}"; case "$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')" in 1|true|yes|on) val=true ;; 0|false|no|off) val=false ;; *) die "Usage: git shiplog policy require-signed <true|false>" ;; esac
       mkdir -p .shiplog; local policy_file=".shiplog/policy.json" tmp; tmp=$(mktemp)
-      if [ -f "$policy_file" ]; then jq --arg rs "$val" --arg ver "1.0.0" '(.version // $ver) as $v | .version = (if ($v|type) == "string" then $v else $ver end) | .require_signed=($rs|test("^(1|true|yes|on)$";"i"))' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
+      if [ -f "$policy_file" ]; then jq --arg rs "$val" --arg ver "1.0.0" '
+          (.version // $ver) as $v
+          | .version = (if (($v|type) == "string") and ($v|test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) then $v else $ver end)
+          | .require_signed = ($rs|test("^(1|true|yes|on)$";"i"))
+        ' "$policy_file" >"$tmp" 2>/dev/null || { rm -f "$tmp"; die "shiplog: failed to update $policy_file"; }
       else printf '{"version":"1.0.0","require_signed":%s}
 ' "$val" >"$tmp"; fi
       policy_install_file "$tmp" "$policy_file"
