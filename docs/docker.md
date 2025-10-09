@@ -26,7 +26,7 @@ Because both stages share the `base` layer, we only install Git, jq, bats, shell
 
 ## Running Tests
 
-- `make test` builds the `test` stage and executes the Bats suite. The image now bakes in the repository snapshot (no bind mount) before copying it into an ephemeral directory, spinning up a throw-away Git repo, and running `bats -r test` in isolation.
+- `make test` builds the `test` stage and executes the Bats suite. The image bakes the repository snapshot at build time (via `COPY` in the Dockerfile, no bind mount). At runtime, the test harness copies this snapshot into an ephemeral directory, spins up a throw-away Git repo, and runs `bats -r test` in isolation.
 - The CI matrix reuses a single `ci-matrix/Dockerfile`. `docker-compose.yml` builds that file five times with different `BASE_IMAGE`/`DISTRO_FAMILY` values (Debian bookworm, Ubuntu 24.04, Fedora 40, Alpine 3.20, Arch). All of them share the same package install logic and the same `/usr/local/bin/run-tests` script; only the base layer differs.
 - To exercise the matrix locally:
   ```bash
