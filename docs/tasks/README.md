@@ -73,7 +73,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### MVP Progress
 
 ```text
-██████████████████████████████████████████████████ 100% (1/1 tasks, weighted)
+██████████████████████████████████████████████████ 100% (3/3 weighted points)
+# Tasks: 1/1
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -88,7 +89,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Alpha Progress
 
 ```text
-█████████████████████████████████████████░░░░░░░░░ 82% (64/76 tasks, weighted)
+█████████████████████████████████████████░░░░░░░░░ 82% (96/117 weighted points)
+# Tasks: 64/76
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -171,7 +173,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Beta Progress
 
 ```text
-███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21 tasks, weighted)
+███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (3/39 weighted points)
+# Tasks: 2/21
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -200,7 +203,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### v1.0.0 Progress
 
 ```text
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2 tasks, weighted)
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/5 weighted points)
+# Tasks: 0/2
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```

@@ -8,6 +8,9 @@ require_policy_validator() {
   [ -x "$POLICY_VALIDATOR" ] || skip "policy validator helper missing"
 }
 
+# Most negative-path tests invoke both `git shiplog policy validate` and the
+# standalone validator script to ensure the CLI and reusable filter stay in lockstep.
+
 setup() {
   shiplog_standard_setup
   POLICY_VALIDATOR="$SHIPLOG_PROJECT_ROOT/scripts/policy/validate.sh"
@@ -58,6 +61,7 @@ JSON
   run git shiplog policy validate
   [ "$status" -ne 0 ]
   require_policy_validator
+  # Double-check both entry points stay in sync on validation failures.
   run "$POLICY_VALIDATOR" .shiplog/policy.json
   [ "$status" -ne 0 ]
   [[ "$output" == *"require_signed"* ]]
@@ -109,6 +113,27 @@ JSON
   "deployment_requirements": {
     "prod": {
       "require_where": ["region", "region"]
+    }
+  }
+}
+JSON
+  run git shiplog policy validate
+  [ "$status" -ne 0 ]
+  require_policy_validator
+  run "$POLICY_VALIDATOR" .shiplog/policy.json
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"require_where"* ]]
+}
+
+@test "policy validate fails when require_where contains unsupported value" {
+  mkdir -p .shiplog
+  cat > .shiplog/policy.json <<'JSON'
+{
+  "version": "1.0.0",
+  "authors": {"default_allowlist": ["ship@example.com"]},
+  "deployment_requirements": {
+    "prod": {
+      "require_where": ["region", "shard"]
     }
   }
 }

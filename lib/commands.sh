@@ -1272,7 +1272,10 @@ cmd_policy() {
 
       if [ -n "$validator_bin" ]; then
         if [ "$validator_status" -gt 1 ]; then
-          die "shiplog: policy validator exited with status $validator_status"
+          if [ -n "$errs" ]; then
+            printf '%s\n' "$errs" >&2
+          fi
+          return "$validator_status"
         fi
         if [ "$validator_status" -eq 1 ] && [ -z "$errs" ]; then
           errs="policy.json failed validation"

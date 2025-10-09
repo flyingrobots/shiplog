@@ -20,7 +20,7 @@ POLICY_VALIDATOR_FILTER="${SHIPLOG_POLICY_VALIDATOR:-}"
 # Canonical jq filter lives at scripts/lib/policy_validate.jq.
 SAFE_PREFIXES=()
 if [ -n "${SHIPLOG_HOME:-}" ]; then
-  SAFE_PREFIXES+=("${SHIPLOG_HOME}/scripts")
+  SAFE_PREFIXES+=("${SHIPLOG_HOME}")
 fi
 SAFE_PREFIXES+=("$HOOK_DIR" "$HOOK_DIR/../lib")
 
@@ -40,7 +40,10 @@ canonicalize_path() {
 }
 
 is_group_or_world_writable() {
+  # Fallback order covers: python (preferred), perl, GNU stat, BSD stat, ls parsing.
+  # Each branch exists so the hook works across diverse distros and busybox images.
   local path="$1"
+  # Prefer python for portable bitmask checks when available.
   if command -v python3 >/dev/null 2>&1; then
     python3 - "$path" <<'PY'
 import os, stat, sys
@@ -55,12 +58,14 @@ PY
       0) return 0 ;; # group/world writable
       1) return 1 ;; # safe
     esac
+  # Fallback to perl when python is unavailable (common in minimal images).
   elif command -v perl >/dev/null 2>&1; then
     perl -e 'use Fcntl qw(:mode); my $m = (stat $ARGV[0])[2]; exit(($m & (S_IWGRP|S_IWOTH)) ? 0 : 1);' "$path"
     case $? in
       0) return 0 ;;
       1) return 1 ;;
     esac
+  # GNU/BSD stat variants cover most remaining distros.
   elif command -v stat >/dev/null 2>&1; then
     if stat --format '%a' "$path" >/dev/null 2>&1; then
       local perm
@@ -87,6 +92,7 @@ PY
         return 1
       fi
     fi
+  # As a last resort, parse ls output (limited but better than nothing).
   elif command -v ls >/dev/null 2>&1; then
     local perm
     perm=$(ls -ld "$path" 2>/dev/null | awk '{print $1}')
@@ -100,7 +106,7 @@ PY
       return 1
     fi
   fi
-  # Conservative default: treat unknown mode as unsafe
+  # Conservative default: treat unknown modes as unsafe to fail closed.
   return 0
 }
 
