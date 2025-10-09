@@ -69,4 +69,4 @@ The `test/` directory contains the Bats-based integration suite that exercises t
     - Force‑refresh local refs to match origin: `git fetch origin '+refs/_shiplog/*:refs/_shiplog/*'`
 
 - Run a single test with verbosity
-  - `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" -v "$PWD":/workspace shiplog-tests bats test/05_verify_authors.bats`
+  - `docker run --rm -e BATS_FLAGS="--print-output-on-failure -T" shiplog-tests bats test/05_verify_authors.bats`

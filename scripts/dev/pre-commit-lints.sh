@@ -38,13 +38,20 @@ fail_missing() {
 
 had_failures=0
 
-# ShellCheck
+# ShellCheck (auto-detect shell unless bash shebang is present)
 if [ ${#sh_files[@]} -gt 0 ]; then
   if command -v shellcheck >/dev/null 2>&1; then
-    # Match CI severity to avoid surprises when pushing
-    if ! shellcheck -S error -s bash "${sh_files[@]}"; then
-      had_failures=1
-    fi
+    for f in "${sh_files[@]}"; do
+      if head -n 1 "$f" 2>/dev/null | grep -q '\\bbash\\b'; then
+        if ! shellcheck -S error -s bash "$f"; then
+          had_failures=1
+        fi
+      else
+        if ! shellcheck -S error "$f"; then
+          had_failures=1
+        fi
+      fi
+    done
   else
     fail_missing shellcheck
   fi

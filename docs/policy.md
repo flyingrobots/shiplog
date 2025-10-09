@@ -62,5 +62,4 @@ Missing fields inherit from the `default` entry when present.
 - Run `ajv validate -s examples/policy.schema.json -d .shiplog/policy.json` in CI to block invalid policies.
 - If `require_signed` is `true`, ensure `allow_ssh_signers_file` exists and is readable by automation.
 - Keep semantic versioning consistent to signal breaking policy format changes.
-- Use `scripts/policy/validate.sh` (or `git shiplog policy validate`) before committing changes to `.shiplog/policy.json`.
-- `git shiplog policy validate` now enforces the same semver and optional-field checks as the schema; run it before publishing changes.
+- Before committing or publishing `.shiplog/policy.json`, run `scripts/policy/validate.sh` (or `git shiplog policy validate`) to enforce the canonical semver and optional-field checks from `scripts/lib/policy_validate.jq`.
