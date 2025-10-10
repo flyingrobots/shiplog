@@ -124,6 +124,19 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+@test "setup warns about missing remote refs when not auto-pushing" {
+  ORIGIN_WARN_DIR=$(mktemp -d)
+  git remote remove origin >/dev/null 2>&1 || true
+  git init --bare "$ORIGIN_WARN_DIR"
+  git remote add origin "$ORIGIN_WARN_DIR"
+
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"SHIPLOG_ALLOW_MISSING_POLICY=1"* ]]
+  [[ "$output" == *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
+  rm -rf "$ORIGIN_WARN_DIR"
+}
+
 @test "setup backups and diffs policy on overwrite" {
   mkdir -p .shiplog
   rm -f .shiplog/policy.json.bak.*

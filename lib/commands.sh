@@ -1530,6 +1530,12 @@ cmd_setup() {
   local dry_run=0
   local remote
   remote=$(shiplog_remote_name)
+  local remote_missing_policy=0
+  local remote_missing_trust=0
+  local remote_probe_checked=0
+  local remote_probe_failed=0
+  local remote_probe_error=""
+  local remote_hint_message=""
   # Trust passthrough args
   local -a trust_args; trust_args=()
 
@@ -1693,6 +1699,40 @@ cmd_setup() {
     fi
   fi
 
+    if [ "$do_auto_push" -eq 0 ] && has_remote_origin; then
+      remote_probe_checked=1
+      local ls_output
+      if ls_output=$(git ls-remote "$remote" "$POLICY_REF" 2>&1); then
+        if [ -z "$ls_output" ]; then
+          remote_missing_policy=1
+        fi
+      else
+        remote_probe_failed=1
+        remote_probe_error="$ls_output"
+      fi
+      if [ "$remote_probe_failed" -eq 0 ]; then
+        if ls_output=$(git ls-remote "$remote" "$TRUST_REF" 2>&1); then
+          if [ -z "$ls_output" ]; then
+            remote_missing_trust=1
+          fi
+        else
+          remote_probe_failed=1
+          remote_probe_error="$ls_output"
+        fi
+      fi
+      if [ "$remote_probe_failed" -eq 0 ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
+        if [ "$remote_missing_policy" -eq 1 ] && [ "$remote_missing_trust" -eq 1 ]; then
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF or $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove them after pushing."
+        elif [ "$remote_missing_policy" -eq 1 ]; then
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_POLICY=1 while you bootstrap, then remove it after pushing."
+        else
+          remote_hint_message="Remote $remote does not yet have $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove it after pushing."
+        fi
+      elif [ "$remote_probe_failed" -eq 1 ] && [ -z "$remote_hint_message" ] && [ -n "$remote_probe_error" ]; then
+        remote_hint_message="Warning: unable to query remote $remote for bootstrap hints ($remote_probe_error)"
+      fi
+    fi
+
     # Handle optional auto-push to configured remote
     if [ "$do_auto_push" -eq 1 ] && has_remote_origin; then
       # Push policy ref if it exists
@@ -1716,6 +1756,9 @@ cmd_setup() {
     fi
     if [ "$do_auto_push" -eq 1 ]; then
       "$bosun" style --title "Setup" -- "Auto-pushed configured refs to $remote"
+    fi
+    if [ -n "$remote_hint_message" ]; then
+      "$bosun" style --title "Server Hint" -- "$remote_hint_message"
     fi
     # Always print next-step commands (advice only)
     "$bosun" style --title "Next Steps" -- $'Configure local signing (optional):\n  git config --local user.name "Your Name"\n  git config --local user.email "you@example.com"\n  git config --local gpg.format ssh\n  git config --local user.signingkey ~/.ssh/your_signing_key.pub\n  git config --local commit.gpgSign true'
@@ -1744,6 +1787,9 @@ cmd_setup() {
     printf '  %s\n' "[if created] git push --no-verify $remote $TRUST_REF"
     fi
     printf '  %s\n' "git shiplog policy show --json"
+    if [ -n "$remote_hint_message" ]; then
+      printf '%s\n' "$remote_hint_message"
+    fi
   fi
 }
 
