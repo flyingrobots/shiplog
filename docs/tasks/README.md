@@ -89,7 +89,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Alpha Progress
 
 ```text
-█████████████████████████████████████████░░░░░░░░░ 82% (97/117 weighted points)
+█████████████████████████████████████████░░░░░░░░░ 83% (98/117 weighted points)
 # Tasks: 65/76
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
