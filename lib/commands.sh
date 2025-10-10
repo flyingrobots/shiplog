@@ -2,23 +2,27 @@
 # shiplog command implementations
 
 has_remote_origin() {
-  git config --get remote.origin.url >/dev/null 2>&1
+  local remote
+  remote=$(shiplog_remote_name)
+  git config --get remote."$remote".url >/dev/null 2>&1
 }
 
 get_remote_oid() {
-  local ref="$1" output
-  if ! output=$(git ls-remote origin "$ref" 2>&1); then
-    printf '⚠️ shiplog: unable to query origin for %s (%s)\n' "$ref" "$output" >&2
+  local ref="$1" output remote
+  remote=$(shiplog_remote_name)
+  if ! output=$(git ls-remote "$remote" "$ref" 2>&1); then
+    printf '⚠️ shiplog: unable to query %s for %s (%s)\n' "$remote" "$ref" "$output" >&2
     return 1
   fi
   printf '%s' "$(printf '%s\n' "$output" | awk 'NF{print $1; exit}')"
 }
 
 fast_forward_ref() {
-  local ref="$1" context="${2:-fast-forward}"
+  local ref="$1" context="${2:-fast-forward}" remote
+  remote=$(shiplog_remote_name)
   local fetch_output
-  if ! fetch_output=$(git fetch origin "$ref:$ref" 2>&1); then
-    die "shiplog: failed to ${context} $ref from origin: $fetch_output"
+  if ! fetch_output=$(git fetch "$remote" "$ref:$ref" 2>&1); then
+    die "shiplog: failed to ${context} $ref from $remote: $fetch_output"
   fi
 }
 
@@ -70,7 +74,9 @@ maybe_sync_shiplog_ref() {
       fast_forward_ref "$ref"
       ;;
     diverged)
-      die "shiplog: $ref has diverged between local and origin; reconcile before writing"
+      local remote
+      remote=$(shiplog_remote_name)
+      die "shiplog: $ref has diverged between local and $remote; reconcile before writing"
       ;;
   esac
 }
@@ -148,18 +154,20 @@ cmd_version() {
 
 cmd_init() {
   ensure_in_repo
+  local remote
+  remote=$(shiplog_remote_name)
   local fetch_value="+$REF_ROOT/*:$REF_ROOT/*"
-  if ! git config --get-all remote.origin.fetch 2>/dev/null | grep -Fxq "$fetch_value"; then
-    git config --add remote.origin.fetch "$fetch_value"
+  if ! git config --get-all remote."$remote".fetch 2>/dev/null | grep -Fxq "$fetch_value"; then
+    git config --add remote."$remote".fetch "$fetch_value"
   fi
 
   local existing_push
-  existing_push=$(git config --get-all remote.origin.push 2>/dev/null || true)
+  existing_push=$(git config --get-all remote."$remote".push 2>/dev/null || true)
   if ! printf '%s\n' "$existing_push" | grep -Fxq "$REF_ROOT/*:$REF_ROOT/*"; then
-    git config --add remote.origin.push "$REF_ROOT/*:$REF_ROOT/*"
+    git config --add remote."$remote".push "$REF_ROOT/*:$REF_ROOT/*"
   fi
-  if [ -z "$existing_push" ] && ! git config --get-all remote.origin.push 2>/dev/null | grep -Fxq "HEAD"; then
-    git config --add remote.origin.push HEAD
+  if [ -z "$existing_push" ] && ! git config --get-all remote."$remote".push 2>/dev/null | grep -Fxq "HEAD"; then
+    git config --add remote."$remote".push HEAD
   fi
 
   if [ "$(git config --get core.logAllRefUpdates 2>/dev/null)" != "true" ]; then
@@ -273,14 +281,16 @@ EOF
   local journal_ref="$(ref_journal "$env")"
   local notes_ref="$NOTES_REF"
   local trust_ref="${TRUST_REF:-$TRUST_REF_DEFAULT}"
-  local origin_available=0
+  local remote
+  remote=$(shiplog_remote_name)
+  local remote_available=0
   if has_remote_origin; then
-    origin_available=1
+    remote_available=1
     if [ "${dry_run:-0}" -ne 1 ]; then
       maybe_sync_shiplog_ref "$trust_ref"
       maybe_sync_shiplog_ref "$journal_ref"
       if [ -n "$notes_ref" ]; then
-        git fetch origin "$notes_ref" >/dev/null 2>&1 || true
+        git fetch "$remote" "$notes_ref" >/dev/null 2>&1 || true
       fi
     fi
   fi
@@ -288,7 +298,7 @@ EOF
   local trust_oid
   trust_oid=$(git rev-parse -q --verify "$trust_ref" 2>/dev/null || true)
   if [ -z "$trust_oid" ]; then
-    die "shiplog: trust ref $trust_ref not found. Fetch it (git fetch origin '+refs/_shiplog/trust/*:refs/_shiplog/trust/*') and run ./scripts/shiplog-trust-sync.sh"
+    die "shiplog: trust ref $trust_ref not found. Fetch it (git fetch $remote '+refs/_shiplog/trust/*:refs/_shiplog/trust/*') and run ./scripts/shiplog-trust-sync.sh"
   fi
 
   local service status reason ticket region cluster ns artifact_tag artifact_image run_url
@@ -427,7 +437,7 @@ EOF
     fi
   fi
 
-  if [ "$origin_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
+  if [ "$remote_available" -eq 1 ] && [ "${SHIPLOG_AUTO_PUSH:-1}" != "0" ]; then
     # Determine effective auto-push: flags > git config > env/default
     local autopush_effective
     if [ "${SHIPLOG_AUTO_PUSH_FLAG:-0}" = "1" ]; then
@@ -443,23 +453,23 @@ EOF
     fi
     if [ "$autopush_effective" != "0" ]; then
       local push_output
-      if ! push_output=$(git push origin "$journal_ref" 2>&1); then
-        die "shiplog: failed to push $journal_ref to origin: $push_output"
+      if ! push_output=$(git push --no-verify "$remote" "$journal_ref" 2>&1); then
+        die "shiplog: failed to push $journal_ref to $remote: $push_output"
       fi
       if [ "$note_attached" -eq 1 ]; then
-        if ! push_output=$(git push origin "$notes_ref" 2>&1); then
-          die "shiplog: failed to push $notes_ref to origin: $push_output"
+        if ! push_output=$(git push --no-verify "$remote" "$notes_ref" 2>&1); then
+          die "shiplog: failed to push $notes_ref to $remote: $push_output"
         fi
       fi
       if shiplog_can_use_bosun; then
         local bosun
         bosun=$(shiplog_bosun_bin)
-        "$bosun" style --title "Push" -- "📤 Pushed $journal_ref to origin"
+        "$bosun" style --title "Push" -- "📤 Pushed $journal_ref to $remote"
       elif ! is_boring; then
-        printf '📤 Pushed %s to origin\n' "$journal_ref"
+        printf '📤 Pushed %s to %s\n' "$journal_ref" "$remote"
       fi
-    elif [ "$origin_available" -eq 1 ] && [ "$autopush_effective" = "0" ] && ! is_boring; then
-      printf 'ℹ️ shiplog: auto-push disabled; remember to publish %s when ready.\n' "$journal_ref"
+    elif [ "$remote_available" -eq 1 ] && [ "$autopush_effective" = "0" ] && ! is_boring; then
+      printf 'ℹ️ shiplog: auto-push disabled; remember to publish %s to %s when ready.\n' "$journal_ref" "$remote"
     fi
   fi
 }
@@ -1072,9 +1082,10 @@ cmd_publish() {
         cat <<'EOF'
 Usage: git shiplog publish [--env ENV] [--no-notes] [--policy] [--trust] [--all]
 
-Push Shiplog refs to origin without writing a new entry. By default pushes the
-current environment journal and its notes. Use --env to pick a journal; --all to
-push all journals under the ref root. Optionally include policy/trust refs.
+Push Shiplog refs to the configured remote (defaults to origin) without writing
+new entries. By default pushes the current environment journal and its notes.
+Use --env to pick a journal; --all to push all journals under the ref root.
+Optionally include policy/trust refs.
 EOF
         return 0 ;;
       --) shift; break ;;
@@ -1082,7 +1093,9 @@ EOF
     esac
   done
 
-  has_remote_origin || die "shiplog: no origin configured"
+  local remote
+  remote=$(shiplog_remote_name)
+  has_remote_origin || die "shiplog: remote '$remote' not configured"
 
   local refs=()
   if [ "$all_envs" -eq 1 ]; then
@@ -1092,18 +1105,18 @@ EOF
   fi
 
   for r in "${refs[@]}"; do
-    git push origin "$r" || die "shiplog: failed to push $r"
+    git push --no-verify "$remote" "$r" || die "shiplog: failed to push $r"
     if [ "$push_notes" -eq 1 ]; then
-      git push origin "$NOTES_REF" >/dev/null 2>&1 || true
+      git push --no-verify "$remote" "$NOTES_REF" >/dev/null 2>&1 || true
     fi
   done
 
-  [ "$push_policy" -eq 1 ] && git push origin "$POLICY_REF" >/dev/null 2>&1 || true
-  [ "$push_trust" -eq 1 ] && git push origin "${TRUST_REF:-$TRUST_REF_DEFAULT}" >/dev/null 2>&1 || true
+  [ "$push_policy" -eq 1 ] && git push --no-verify "$remote" "$POLICY_REF" >/dev/null 2>&1 || true
+  [ "$push_trust" -eq 1 ] && git push --no-verify "$remote" "${TRUST_REF:-$TRUST_REF_DEFAULT}" >/dev/null 2>&1 || true
 
   if shiplog_can_use_bosun; then
     local bosun; bosun=$(shiplog_bosun_bin)
-    "$bosun" style --title "Publish" -- "📤 Pushed Shiplog refs to origin"
+    "$bosun" style --title "Publish" -- "📤 Pushed Shiplog refs to $remote"
   fi
 }
 
@@ -1228,24 +1241,64 @@ cmd_policy() {
         die "shiplog: policy JSON is not parseable"
       fi
 
-      # Structural checks (jq-only; AJV lives in CI)
-      # - require_signed must be boolean
-      # - authors.default_allowlist must be array of strings (>=1)
-      # - Optional: deployment_requirements, if present, must be an object
-      # - Optional ref fields, if present, must start with refs/
-      local errs
-      errs=$(printf '%s\n' "$raw_policy" | jq -r '
-        . as $root |
-        def is_string_array: type=="array" and (all(.[]?; type=="string"));
-        def err($m): $m;
-        [
-          ( if ($root|has("require_signed")) and (($root.require_signed)|type=="boolean") then empty else err("require_signed: boolean required") end ),
-          ( if ($root|has("authors")) and (($root.authors|has("default_allowlist")) and ($root.authors.default_allowlist|is_string_array) and (($root.authors.default_allowlist|length) > 0)) then empty else err("authors.default_allowlist: non-empty array of strings required") end ),
-          ( if ($root|has("deployment_requirements")) then ( if ($root.deployment_requirements|type=="object") then empty else err("deployment_requirements: object required") end ) else empty end ),
-          ( if ($root|has("notes_ref")) then ( if (($root.notes_ref|type=="string") and ($root.notes_ref|startswith("refs/"))) then empty else err("notes_ref: must start with refs/") end ) else empty end ),
-          ( if ($root|has("journals_ref_prefix")) then ( if (($root.journals_ref_prefix|type=="string") and ($root.journals_ref_prefix|startswith("refs/"))) then empty else err("journals_ref_prefix: must start with refs/") end ) else empty end ),
-          ( if ($root|has("anchors_ref_prefix")) then ( if (($root.anchors_ref_prefix|type=="string") and ($root.anchors_ref_prefix|startswith("refs/"))) then empty else err("anchors_ref_prefix: must start with refs/") end ) else empty end )
-        ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
+
+      # Structural checks (jq-only; AJV lives in CI). scripts/lib/policy_validate.jq is canonical.
+      local errs=""
+      local validator_status=0
+      local validator_bin=""
+      local validator_filter=""
+      local search_root="${SHIPLOG_HOME:-$PWD}"
+      local candidate
+      for candidate in \
+        "${SHIPLOG_POLICY_VALIDATE_BIN:-}" \
+        "$search_root/scripts/policy/validate.sh" \
+        "$PWD/scripts/policy/validate.sh"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+          validator_bin="$candidate"
+          break
+        fi
+      done
+      if [ -z "$validator_bin" ]; then
+        for candidate in \
+          "${SHIPLOG_POLICY_VALIDATOR:-}" \
+          "$search_root/scripts/lib/policy_validate.jq" \
+          "$PWD/scripts/lib/policy_validate.jq"; do
+          if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+            validator_filter="$candidate"
+            break
+          fi
+        done
+      fi
+      if [ -n "$validator_bin" ]; then
+        errs=$(printf '%s\n' "$raw_policy" | "$validator_bin" --stdin 2>&1)
+        validator_status=$?
+      else
+        if [ -z "$validator_filter" ]; then
+          die "shiplog: policy validator filter not found (expected scripts/lib/policy_validate.jq)"
+        fi
+        errs=$(printf '%s\n' "$raw_policy" | jq -r -f "$validator_filter" 2>&1)
+        validator_status=$?
+        if [ "$validator_status" -ne 0 ]; then
+          if [ -n "$errs" ]; then
+            printf '%s\n' "$errs" >&2
+          fi
+          printf 'shiplog: policy validator jq exited with status %s\n' "$validator_status" >&2
+          return "$validator_status"
+        fi
+      fi
+
+      if [ -n "$validator_bin" ]; then
+        if [ "$validator_status" -gt 1 ]; then
+          if [ -n "$errs" ]; then
+            printf '%s\n' "$errs" >&2
+          fi
+          printf 'shiplog: policy validator exited with status %s\n' "$validator_status" >&2
+          return "$validator_status"
+        fi
+        if [ "$validator_status" -eq 1 ] && [ -z "$errs" ]; then
+          errs="policy.json failed validation"
+        fi
+      fi
 
       if [ -n "$errs" ]; then
         if shiplog_can_use_bosun; then
@@ -1259,6 +1312,7 @@ cmd_policy() {
         fi
         return 1
       fi
+      [ "$validator_status" -eq 0 ] || return 1
 
       if shiplog_can_use_bosun; then
         local bosun; bosun=$(shiplog_bosun_bin)
@@ -1278,11 +1332,31 @@ cmd_policy() {
       else printf '{"version":"1.0.0","require_signed":%s}
 ' "$val" >"$tmp"; fi
       policy_install_file "$tmp" "$policy_file"
-      if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"; else printf 'Set require_signed to %s in %s
-' "$val" "$policy_file"; fi
-      if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null; if shiplog_can_use_bosun; then local bosun; bosun=$(shiplog_bosun_bin); "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"; else printf 'Updated policy ref locally. Run: git push origin refs/_shiplog/policy/current
-'; fi; else printf 'Note: sync helper missing; commit and publish policy manually.
-'; fi ;;
+      local using_bosun=0 bosun=""
+      if shiplog_can_use_bosun; then
+        using_bosun=1
+        bosun=$(shiplog_bosun_bin)
+      fi
+
+      if [ "$using_bosun" -eq 1 ]; then
+        "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
+      else
+        printf 'Set require_signed to %s in %s\n' "$val" "$policy_file"
+      fi
+
+      local sync_helper="$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh"
+      local publish_remote; publish_remote=$(shiplog_remote_name)
+      if [ -x "$sync_helper" ]; then
+        SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$sync_helper" "$policy_file" >/dev/null
+        if [ "$using_bosun" -eq 1 ]; then
+          "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
+        else
+          printf 'Updated policy ref locally. Run: git push --no-verify %s %s\n' "$publish_remote" "refs/_shiplog/policy/current"
+        fi
+      else
+        printf 'Note: sync helper missing; commit and publish policy manually.\n'
+      fi
+      ;;
     toggle)
       local current="${SHIPLOG_SIGN_EFFECTIVE:-0}"; local new="false"; [ "$current" = "0" ] && new=true || new=false; cmd_policy require-signed "$new" ;;
     *) die "Unknown policy subcommand: $action" ;;
@@ -1454,6 +1528,8 @@ cmd_setup() {
   local strict_envs_in="${SHIPLOG_SETUP_STRICT_ENVS:-}" # space-separated env names
   local do_auto_push=0
   local dry_run=0
+  local remote
+  remote=$(shiplog_remote_name)
   # Trust passthrough args
   local -a trust_args; trust_args=()
 
@@ -1617,15 +1693,15 @@ cmd_setup() {
     fi
   fi
 
-    # Handle optional auto-push to origin
+    # Handle optional auto-push to configured remote
     if [ "$do_auto_push" -eq 1 ] && has_remote_origin; then
       # Push policy ref if it exists
       if git rev-parse --verify "$POLICY_REF" >/dev/null 2>&1; then
-        git push origin "$POLICY_REF" >/dev/null
+        git push --no-verify "$remote" "$POLICY_REF" >/dev/null
       fi
       # Push trust ref if it exists
       if git rev-parse --verify "$TRUST_REF" >/dev/null 2>&1; then
-        git push origin "$TRUST_REF" >/dev/null
+        git push --no-verify "$remote" "$TRUST_REF" >/dev/null
       fi
     fi
   fi
@@ -1634,24 +1710,26 @@ cmd_setup() {
     local bosun; bosun=$(shiplog_bosun_bin)
     if [ "$dry_run" -eq 0 ]; then
       "$bosun" style --title "Setup" -- "Wrote .shiplog/policy.json (strictness: $strictness)"
-      "$bosun" style --title "Setup" -- "Updated $POLICY_REF locally (run git push origin $POLICY_REF to publish)"
+      "$bosun" style --title "Setup" -- "Updated $POLICY_REF locally (run git push --no-verify $remote $POLICY_REF to publish)"
     else
       "$bosun" style --title "Setup" -- "Dry-run: no files or refs changed"
     fi
     if [ "$do_auto_push" -eq 1 ]; then
-      "$bosun" style --title "Setup" -- "Auto-pushed configured refs to origin"
+      "$bosun" style --title "Setup" -- "Auto-pushed configured refs to $remote"
     fi
     # Always print next-step commands (advice only)
     "$bosun" style --title "Next Steps" -- $'Configure local signing (optional):\n  git config --local user.name "Your Name"\n  git config --local user.email "you@example.com"\n  git config --local gpg.format ssh\n  git config --local user.signingkey ~/.ssh/your_signing_key.pub\n  git config --local commit.gpgSign true'
     if [ "$do_auto_push" -eq 0 ]; then
-      "$bosun" style --title "Next Steps" -- $'Publish refs when ready:\n  git push origin '"$POLICY_REF"$'\n  [if created] git push origin '"$TRUST_REF"''
+      local publish_msg
+      printf -v publish_msg 'Publish refs when ready:\n  git push --no-verify %s %s\n  [if created] git push --no-verify %s %s' "$remote" "$POLICY_REF" "$remote" "$TRUST_REF"
+      "$bosun" style --title "Next Steps" -- "$publish_msg"
     fi
     "$bosun" style --title "Next Steps" -- $'Inspect effective policy:\n  git shiplog policy show --json'
   else
     if [ "$dry_run" -eq 0 ]; then
       printf 'Wrote .shiplog/policy.json (strictness: %s)\n' "$strictness"
-      printf 'Updated %s locally. Run: git push origin %s\n' "$POLICY_REF" "$POLICY_REF"
-      [ "$do_auto_push" -eq 1 ] && printf 'Auto-pushed configured refs to origin.\n'
+      printf 'Updated %s locally. Run: git push --no-verify %s %s\n' "$POLICY_REF" "$remote" "$POLICY_REF"
+      [ "$do_auto_push" -eq 1 ] && printf 'Auto-pushed configured refs to %s.\n' "$remote"
     else
       printf 'Dry-run: no files or refs changed.\n'
     fi
@@ -1662,8 +1740,8 @@ cmd_setup() {
     printf '  %s\n' "git config --local user.signingkey ~/.ssh/your_signing_key.pub"
     printf '  %s\n' "git config --local commit.gpgSign true"
     if [ "$do_auto_push" -eq 0 ]; then
-      printf '  %s\n' "git push origin $POLICY_REF"
-      printf '  %s\n' "[if created] git push origin $TRUST_REF"
+    printf '  %s\n' "git push --no-verify $remote $POLICY_REF"
+    printf '  %s\n' "[if created] git push --no-verify $remote $TRUST_REF"
     fi
     printf '  %s\n' "git shiplog policy show --json"
   fi
@@ -1934,7 +2012,7 @@ Usage:
                          --strictness open|balanced|strict
                          --authors "a@b c@d" (balanced)
                          --strict-envs "prod staging" (strict per-env)
-                         --auto-push (push policy/trust refs to origin)
+                        --auto-push (push policy/trust refs to the configured remote)
 
 Global Options:
   --env ENV            Target environment (default: $DEFAULT_ENV)
@@ -1955,7 +2033,8 @@ Environment Variables:
   SHIPLOG_TAG          Container image tag
   SHIPLOG_RUN_URL      CI/CD pipeline URL
   SHIPLOG_LOG          Path to log file to attach as notes
-  SHIPLOG_AUTO_PUSH    Auto-push to origin (default: 1)
+  SHIPLOG_AUTO_PUSH    Auto-push to the configured remote (default: 1)
+  SHIPLOG_REMOTE       Remote name used for Shiplog fetch/publish/push (default: origin or git config shiplog.remote)
   SHIPLOG_ASSUME_YES   Auto-confirm prompts (default: 0)
   SHIPLOG_BORING       Enable non-interactive mode (default: 0)
   SHIPLOG_DRY_RUN      Enable dry-run mode (1/true/yes/on; 0/false/no/off disables)

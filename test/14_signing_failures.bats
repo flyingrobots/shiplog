@@ -56,7 +56,7 @@ setup() {
   # Enforce signatures for this test file
   cat > .shiplog/policy.json <<'JSON'
 {
-  "version": 1,
+  "version": "1.0.0",
   "require_signed": true,
   "authors": {"default_allowlist": ["shiplog-tester@example.com"]}
 }

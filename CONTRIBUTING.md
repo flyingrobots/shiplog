@@ -24,3 +24,14 @@ Local pre-commit linters (optional but recommended)
   - yamllint (`*.yml`, `*.yaml`)
 - If a tool is missing, the hook fails by default. To skip missing tools (not lint failures), set `SHIPLOG_LINT_SKIP_MISSING=1` for a single commit.
 - Alternative (global hooks): `git config --global core.hooksPath ~/.config/git/hooks` then place Shiplog's pre-commit script there.
+
+Shell scripts & ShellCheck
+- CI runs `shellcheck -S error -s bash` through `.github/workflows/lint.yml` against `bin/git-shiplog`, every tracked `*.sh`, and the full `contrib/hooks/**` tree (nested directories included).
+- `scripts/dev/pre-commit-lints.sh` reuses the same severity so running the pre-commit hook (or invoking the script directly) matches CI behavior on staged files.
+- Prefer fixes over suppressions. If you must keep a `# shellcheck disable=SCXXXX`, scope it narrowly and include a short justification (for example: `# shellcheck disable=SC2086 # intentional glob expansion`).
+- To lint everything locally, run:
+  ```sh
+  git ls-files -z -- bin/git-shiplog '*.sh' 'contrib/hooks/*' \
+    | xargs -0 shellcheck -S error -s bash
+  ```
+  (Add more globs if you introduce new shell-heavy directories.)

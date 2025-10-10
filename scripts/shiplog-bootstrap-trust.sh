@@ -4,6 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHIPLOG_HOME="${SHIPLOG_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
+COMMON_LIB="$SHIPLOG_HOME/lib/common.sh"
+if [ -f "$COMMON_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$COMMON_LIB"
+else
+  echo "shiplog-bootstrap-trust: missing $COMMON_LIB" >&2
+  exit 1
+fi
+
+SHIPLOG_REMOTE_NAME="$(shiplog_remote_name)"
+
 BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
 if command -v "$BOSUN_BIN" >/dev/null 2>&1; then
   BOSUN_AVAILABLE=1
@@ -22,7 +33,7 @@ shiplog-bootstrap-trust.sh
 
 Bootstraps the signer roster for refs/_shiplog/trust/root by gathering maintainer metadata,
 writing .shiplog/trust.json and .shiplog/allowed_signers, building the genesis commit, and
-(optionally) pushing it to origin.
+(optionally) pushing it to the configured remote (defaults to origin).
 
 Usage: shiplog-bootstrap-trust.sh [--force] [--no-push] [--yes] [--plain]
        shiplog-bootstrap-trust.sh [TRUST_OPTIONS...] [--force] [--no-push]
@@ -533,10 +544,10 @@ printf '✅ Wrote %s and %s\n' "$trust_path" "$signers_path"
 printf '✅ Created trust commit %s\n' "$GENESIS"
 
 if [ "$DO_PUSH" -eq 1 ]; then
-  if prompt_confirm "Push $TRUST_REF to origin now?" 1; then
-    git push origin "$TRUST_REF"
+  if prompt_confirm "Push $TRUST_REF to $SHIPLOG_REMOTE_NAME now?" 1; then
+    git push --no-verify "$SHIPLOG_REMOTE_NAME" "$TRUST_REF"
   else
-    echo "Skipped push; run 'git push origin $TRUST_REF' when ready." >&2
+    echo "Skipped push; run 'git push --no-verify $SHIPLOG_REMOTE_NAME $TRUST_REF' when ready." >&2
   fi
 else
   echo "Skipping push as requested (use git push when ready)."

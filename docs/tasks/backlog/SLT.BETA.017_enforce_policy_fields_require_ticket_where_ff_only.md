@@ -12,11 +12,10 @@
     "Hook: enforce ff_only via policy switch (keep current FF checks as baseline)",
     "Docs: examples and guidance"
   ],
-  "blocked_by": ["SLT.ALPHA.020"],
+  "blocked_by": ["SLT.ALPHA.030"],
   "notes": [],
   "created": "2025-10-03",
   "updated": "2025-10-03",
   "estimate": "med",
   "expected_complexity": "medium"
 }
-

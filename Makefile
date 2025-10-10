@@ -6,6 +6,7 @@ ENABLE_SIGNING  ?= false
 DOCKER_BUILD_OPTS ?=
 CONTAINER_NAME  ?= shiplog-tests-run
 RUN_ID          := $(shell date +%s)
+DOCKER_RUN_OPTS ?=
 
 .PHONY: all build test build-signing test-signing clean
 
@@ -19,7 +20,7 @@ build:
 
 test: build
 	- docker rm -f $(CONTAINER_NAME) >/dev/null 2>&1 || true
-	docker run --rm --name $(CONTAINER_NAME) -v "$(CURDIR)":/workspace $(IMAGE)
+	docker run --rm --name $(CONTAINER_NAME) $(DOCKER_RUN_OPTS) $(IMAGE)
 
 ## Convenience: force-signing build
 build-signing:
@@ -28,7 +29,7 @@ build-signing:
 test-signing:
 	$(MAKE) DOCKER_BUILD_OPTS="$(DOCKER_BUILD_OPTS)" build-signing
 	- docker rm -f $(CONTAINER_NAME)-signing >/dev/null 2>&1 || true
-	docker run --rm --name $(CONTAINER_NAME)-signing -v $(CURDIR):/workspace $(IMAGE)
+	docker run --rm --name $(CONTAINER_NAME)-signing $(DOCKER_RUN_OPTS) $(IMAGE)
 
 ## Clean local dangling images/containers (non-destructive)
 clean:

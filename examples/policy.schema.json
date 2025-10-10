@@ -4,8 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "version",
-    "authors"
+    "version"
   ],
   "properties": {
     "schema": { "type": "string" },

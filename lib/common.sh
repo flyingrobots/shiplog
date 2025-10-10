@@ -61,6 +61,20 @@ shiplog_can_use_bosun() {
   shiplog_have_bosun
 }
 
+shiplog_remote_name() {
+  if [ -n "${SHIPLOG_REMOTE:-}" ]; then
+    printf '%s' "$SHIPLOG_REMOTE"
+    return
+  fi
+  local cfg
+  cfg=$(git config shiplog.remote 2>/dev/null || true)
+  if [ -n "$cfg" ]; then
+    printf '%s' "$cfg"
+    return
+  fi
+  printf '%s' "origin"
+}
+
 shiplog_is_dry_run() {
   case "${SHIPLOG_DRY_RUN:-0}" in
     1|true|yes|on) return 0 ;;

@@ -100,14 +100,17 @@ bar() { # args: pct -> 50-char bar (UTF-8 safe without tr)
   printf '%s' "$out"
 }
 
-render_pb() { # args: title pct completed total
-  local title="$1" pct="$2" comp="$3" tot="$4"
+render_pb() { # args: title pct weighted_done weighted_total task_done task_total
+  local title="$1" pct="$2" wdone="$3" wtotal="$4" tdone="$5" ttotal="$6"
   local bs
   bs=$(bar "$pct")
   printf '#### %s\n' "$title"
   # Keep a blank line between heading and fence to satisfy Markdown style
-  printf '\n```text\n' 
-  printf '%s %s%% (%s/%s)\n' "$bs" "$pct" "$comp" "$tot"
+  printf '\n```text\n'
+  printf '%s %s%% (%s/%s weighted points)\n' "$bs" "$pct" "$wdone" "$wtotal"
+  if [ -n "$tdone" ] && [ -n "$ttotal" ] && [ "$ttotal" -gt 0 ]; then
+    printf '# Tasks: %s/%s\n' "$tdone" "$ttotal"
+  fi
   printf '|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n'
   printf '0   10   20   30   40   50   60   70   80   90  100%%\n'
   printf '```\n'
@@ -138,12 +141,12 @@ omvp=$pmvp ; oalpha=$palpha ; obeta=$pbeta ; ov1=$pv1
 overall=$(( (40*omvp + 30*oalpha + 20*obeta + 10*ov1) / 100 ))
 
 # Update docs/tasks/README.md
-content_mvp=$(render_pb "MVP Progress" "$pmvp" "$done_count_MVP" "$total_count_MVP" )
-content_alpha=$(render_pb "Alpha Progress" "$palpha" "$done_count_Alpha" "$total_count_Alpha" )
-content_beta=$(render_pb "Beta Progress" "$pbeta" "$done_count_Beta" "$total_count_Beta" )
-content_v1=$(render_pb "v1.0.0 Progress" "$pv1" "$done_count_v1" "$total_count_v1" )
+content_mvp=$(render_pb "MVP Progress" "$pmvp" "$done_weight_MVP" "$total_weight_MVP" "$done_count_MVP" "$total_count_MVP" )
+content_alpha=$(render_pb "Alpha Progress" "$palpha" "$done_weight_Alpha" "$total_weight_Alpha" "$done_count_Alpha" "$total_count_Alpha" )
+content_beta=$(render_pb "Beta Progress" "$pbeta" "$done_weight_Beta" "$total_weight_Beta" "$done_count_Beta" "$total_count_Beta" )
+content_v1=$(render_pb "v1.0.0 Progress" "$pv1" "$done_weight_v1" "$total_weight_v1" "$done_count_v1" "$total_count_v1" )
 bos=$(bar "$overall")
-content_overall=$(printf '#### %s\n\n```text\n%s %s%% (weighted)\n|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n0   10   20   30   40   50   60   70   80   90  100%%\n```\n' "Overall" "$bos" "$overall")
+content_overall=$(printf '#### %s\n\n```text\n%s %s%% (weighted blend)\n|••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|\n0   10   20   30   40   50   60   70   80   90  100%%\n```\n' "Overall" "$bos" "$overall")
 
 replace_block "$README_TASKS" "MVP" "$content_mvp"
 replace_block "$README_TASKS" "Alpha" "$content_alpha"

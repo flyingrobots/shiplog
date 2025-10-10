@@ -13,11 +13,11 @@
   ],
   "blocked_by": [],
   "notes": [
-    "Partially implemented: workflow exists and runs at -S error; this task tracks documentation and final coverage audit."
+    "2025-10-09: Documented ShellCheck coverage/suppression policy in CONTRIBUTING and aligned the pre-commit helper with CI severity (-S error).",
+    "CI lint job already runs shellcheck over bin/git-shiplog, contrib/hooks/**, and **/*.sh on PRs and pushes."
   ],
   "created": "2025-09-25",
-  "updated": "2025-10-06",
+  "updated": "2025-10-09",
   "estimate": "med",
   "expected_complexity": "low"
 }
-

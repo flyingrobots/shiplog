@@ -20,7 +20,7 @@ ajv validate --spec=draft2020 --schema examples/policy.schema.json --data .shipl
 | `format_compat` | string | Semantic version range indicating compatible policy parsers (e.g., ">=1.0.0 <2.0.0"). |
 | `require_signed` | boolean | Require signatures for journal entries. |
 | `allow_ssh_signers_file` | string | Path to SSH allowed signers file (relative paths resolve from repo root). |
-| `authors` | object | Defines which email addresses are permitted to author shiplog entries, with optional per-environment overrides. |
+| `authors` | object | Optional but recommended; defines which email addresses may author Shiplog entries (with optional per-environment overrides). |
 | `deployment_requirements` | object | Per-environment guardrails for Shiplog entries. |
 | `ff_only` | boolean | Enforce fast-forward updates to Shiplog refs. |
 | `notes_ref` | string | Git notes ref storing log attachments. |
@@ -62,3 +62,5 @@ Missing fields inherit from the `default` entry when present.
 - Run `ajv validate -s examples/policy.schema.json -d .shiplog/policy.json` in CI to block invalid policies.
 - If `require_signed` is `true`, ensure `allow_ssh_signers_file` exists and is readable by automation.
 - Keep semantic versioning consistent to signal breaking policy format changes.
+- Before committing or publishing `.shiplog/policy.json`, run `scripts/policy/validate.sh` or `git shiplog policy validate`.
+- The validator enforces canonical semver versions and optional-field rules defined in `scripts/lib/policy_validate.jq`, so failing locally prevents broken pushes.

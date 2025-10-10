@@ -1,5 +1,5 @@
 {
-  "id": "SLT.ALPHA.020",
+  "id": "SLT.ALPHA.030",
   "labels": ["policy", "schema", "ci", "docs"],
   "milestone": "Alpha",
   "name": "Align policy schema, writers, and CI validation",
@@ -14,11 +14,10 @@
   ],
   "blocked_by": [],
   "notes": [
-    "Partially implemented: CLI 'policy validate' exists; AJV step added (non-blocking). This task tracks final alignment and gating decision."
+    "2025-10-09: Trimmed schema to enforced fields, expanded CLI validation, updated docs, and gated Ajv on policy-path PRs."
   ],
   "created": "2025-10-03",
-  "updated": "2025-10-06",
+  "updated": "2025-10-09",
   "estimate": "med",
   "expected_complexity": "medium"
 }
-

@@ -62,7 +62,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Overall
 
 ```text
-████████████████████████████████░░░░░░░░░░░░░░░░░░ 64% (weighted)
+█████████████████████████████████░░░░░░░░░░░░░░░░░ 66% (weighted blend)
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -73,7 +73,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### MVP Progress
 
 ```text
-██████████████████████████████████████████████████ 100% (1/1)
+██████████████████████████████████████████████████ 100% (3/3 weighted points)
+# Tasks: 1/1
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -88,7 +89,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Alpha Progress
 
 ```text
-███████████████████████████████████████░░░░░░░░░░░ 78% (62/76)
+█████████████████████████████████████████░░░░░░░░░ 82% (96/117 weighted points)
+# Tasks: 64/76
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -107,11 +109,11 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 - Active:
   - [SLT.ALPHA.012 — Align shellcheck coverage and suppressions](docs/tasks/active/SLT.ALPHA.012_align_shellcheck_coverage_and_suppressions.md)
-  - [SLT.ALPHA.020 — Align policy schema, writers, and CI validation](docs/tasks/active/SLT.ALPHA.020_policy_schema_alignment_and_validation.md)
 - Complete:
   - [SLT.ALPHA.001 — Show command docs page](docs/tasks/complete/SLT.ALPHA.001_show_docs_page.md)
   - [SLT.ALPHA.005 — Policy validate command](docs/tasks/complete/SLT.ALPHA.005_policy_validate_command.md)
   - [SLT.ALPHA.020 — macOS time helpers portability](docs/tasks/complete/SLT.ALPHA.020_macos_time_helpers_portability.md)
+  - [SLT.ALPHA.030 — Align policy schema, writers, and CI validation](docs/tasks/complete/SLT.ALPHA.030_policy_schema_alignment_and_validation.md)
   - [SLT.ALPHA.022 — Add CONTRIBUTING, Code of Conduct, and Security docs](docs/tasks/complete/SLT.ALPHA.022_repo_hygiene_policies.md)
   - [SLT.ALPHA.006 — Shellcheck workflow](docs/tasks/complete/SLT.ALPHA.006_shellcheck_workflow.md)
   - [SLT.ALPHA.017 — Tests for setup wizard and per-env policy](docs/tasks/complete/SLT.ALPHA.017_setup_wizard_tests.md)
@@ -171,7 +173,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### Beta Progress
 
 ```text
-███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (2/21)
+███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 7% (3/39 weighted points)
+# Tasks: 2/21
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -200,7 +203,8 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 #### v1.0.0 Progress
 
 ```text
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/2)
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 0% (0/5 weighted points)
+# Tasks: 0/2
 |••••|••••|••••|••••|••••|••••|••••|••••|••••|••••|
 0   10   20   30   40   50   60   70   80   90  100%
 ```
@@ -215,7 +219,6 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 
 - Backlog (new):
   - [SLT.ALPHA.019 — Align unsigned mode with trust requirement](docs/tasks/backlog/SLT.ALPHA.019_unsigned_mode_trust_requirement_alignment.md)
-  - [SLT.ALPHA.020 — Align policy schema, writers, and CI validation](docs/tasks/backlog/SLT.ALPHA.020_policy_schema_alignment_and_validation.md)
   - [SLT.ALPHA.021 — Fix docs test reference and ls status semantics](docs/tasks/backlog/SLT.ALPHA.021_docs_fix_test_ref_and_ls_status.md)
 
 <!-- tasks-moc:end -->

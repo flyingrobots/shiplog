@@ -27,7 +27,7 @@ teardown() {
 @test "policy show reports file source" {
   cat <<POLICY > .shiplog/policy.json
 {
-  "version": 1,
+  "version": "1.0.0",
   "require_signed": false,
   "authors": {
     "default_allowlist": [
@@ -45,7 +45,7 @@ POLICY
 @test "policy allowlist permits write" {
   cat <<POLICY > .shiplog/policy.json
 {
-  "version": 1,
+  "version": "1.0.0",
   "require_signed": false,
   "authors": {
     "default_allowlist": [
