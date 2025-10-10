@@ -1,27 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMMON_LIB="$SCRIPT_ROOT/lib/common.sh"
+if [ -f "$COMMON_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$COMMON_LIB"
+else
+  echo "uninstall-shiplog: missing $COMMON_LIB" >&2
+  exit 1
+fi
+
 INSTALL_DIR=${SHIPLOG_HOME:-$HOME/.shiplog}
 PROFILE_FILE=${SHIPLOG_PROFILE:-}
 DRY_RUN=0
 SILENT=0
 NO_BACKUP=0
 FORCE=0
-
-resolve_remote_name() {
-  local remote="${SHIPLOG_REMOTE:-}"
-  if [ -n "$remote" ]; then
-    printf '%s' "$remote"
-    return
-  fi
-  local cfg
-  cfg=$(git config --get shiplog.remote 2>/dev/null || true)
-  if [ -n "$cfg" ]; then
-    printf '%s' "$cfg"
-  else
-    printf '%s' "origin"
-  fi
-}
 
 usage() {
   cat <<'USAGE'
@@ -172,7 +167,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remot
 fi
 
 if [ ${#unpublished_refs[@]} -gt 0 ] && [ "$FORCE" -eq 0 ]; then
-  remote_name=$(resolve_remote_name)
+  remote_name=$(shiplog_remote_name)
   log "Aborting uninstall: local Shiplog refs not pushed to $remote_name:"
   for ref in "${unpublished_refs[@]}"; do
     echo "  $ref"
