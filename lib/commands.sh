@@ -2092,18 +2092,18 @@ cmd_validate_trailer() {
     def req_str($k):
       ( .[$k]? ) as $v
       | if ($v | type) == "string" and ($v | length) > 0 then empty else "missing_or_invalid:" + $k end;
-    def req_nested_str($label; $value):
-      $value as $v
+    def req_nested_str($path; $label):
+      (try getpath($path) catch null) as $v
       | if ($v | type) == "string" and ($v | length) > 0 then empty else $label end;
-    def req_nested_num($label; $value):
-      $value as $v
+    def req_nested_num($path; $label):
+      (try getpath($path) catch null) as $v
       | if ($v | type) == "number" then empty else $label end;
     [
       req_str("env"),
       req_str("ts"),
       req_str("status"),
-      req_nested_str("missing_or_invalid:what.service"; .what?.service?),
-      req_nested_num("missing_or_invalid:when.dur_s"; .when?.dur_s?)
+      req_nested_str(["what", "service"]; "missing_or_invalid:what.service"),
+      req_nested_num(["when", "dur_s"]; "missing_or_invalid:when.dur_s")
     ]
     | map(select(length > 0))
     | .[]' 2>/dev/null || true)
