@@ -41,7 +41,7 @@ make_commit_with_trailer() {
            GIT_COMMITTER_NAME="Shiplog Tester" \
            GIT_COMMITTER_EMAIL="shiplog-tester@example.com" \
            git commit-tree "$tree" -p "$parent" <<<"$message")
-  git update-ref "$ref" "$commit" "$parent"
+  printf '%s\n' "$commit"
 }
 
 @test "validate-trailer succeeds on latest entry" {
@@ -53,16 +53,20 @@ make_commit_with_trailer() {
 
 @test "validate-trailer fails on malformed JSON trailer" {
   write_valid_entry
-  make_commit_with_trailer $'shiplog: malformed trailer\n\n---\n{"env": "prod"'
-  run git shiplog validate-trailer
+  local bad_commit
+  bad_commit=$(make_commit_with_trailer $'shiplog: malformed trailer\n\n---\n{"env": "prod"')
+  [ -n "$bad_commit" ]
+  run git shiplog validate-trailer "$bad_commit"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Invalid JSON trailer"* || "$output" == *"parse"* ]]
 }
 
 @test "validate-trailer flags missing required fields" {
   write_valid_entry
-  make_commit_with_trailer $'shiplog: missing fields\n\n---\n{"env":"prod","ts":"2025-10-10T00:00:00Z","status":"success","what":{},"when":{"dur_s":5}}'
-  run git shiplog validate-trailer
+  local missing_commit
+  missing_commit=$(make_commit_with_trailer $'shiplog: missing fields\n\n---\n{"env":"prod","ts":"2025-10-10T00:00:00Z","status":"success","what":{},"when":{"dur_s":5}}')
+  [ -n "$missing_commit" ]
+  run git shiplog validate-trailer "$missing_commit"
   [ "$status" -ne 0 ]
   [[ "$output" == *"missing_or_invalid:what.service"* ]]
 }

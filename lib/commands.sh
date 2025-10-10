@@ -2087,26 +2087,38 @@ cmd_validate_trailer() {
     return 1
   fi
   # Structural validation: required fields and basic types
-  local ERR
-  ERR=$(printf '%s\n' "$json" | jq -r '
-    def req_str($k):
-      ( .[$k]? ) as $v
-      | if ($v | type) == "string" and ($v | length) > 0 then empty else "missing_or_invalid:" + $k end;
-    def req_nested_str($path; $label):
-      (try getpath($path) catch null) as $v
-      | if ($v | type) == "string" and ($v | length) > 0 then empty else $label end;
-    def req_nested_num($path; $label):
-      (try getpath($path) catch null) as $v
-      | if ($v | type) == "number" then empty else $label end;
+  local ERR jq_output jq_status
+  jq_output=$(printf '%s\n' "$json" | jq -r '
+    def _validate($label; $value; $expected; $minlen):
+      (try $value catch null) as $v
+      | if $expected == "string" then
+          if ($v | type) == "string" and ($v | length) >= $minlen then empty else $label end
+        elif $expected == "number" then
+          if ($v | type) == "number" then empty else $label end
+        else
+          empty
+        end;
+    def req_str($key):
+      _validate("missing_or_invalid:" + $key; .[$key]?; "string"; 1);
+    def req_nested_str($label; $path):
+      _validate($label; (try getpath($path) catch null); "string"; 1);
+    def req_nested_num($label; $path):
+      _validate($label; (try getpath($path) catch null); "number"; 0);
     [
       req_str("env"),
       req_str("ts"),
       req_str("status"),
-      req_nested_str(["what", "service"]; "missing_or_invalid:what.service"),
-      req_nested_num(["when", "dur_s"]; "missing_or_invalid:when.dur_s")
+      req_nested_str("missing_or_invalid:what.service"; ["what", "service"]),
+      req_nested_num("missing_or_invalid:when.dur_s"; ["when", "dur_s"])
     ]
     | map(select(length > 0))
-    | .[]' 2>/dev/null || true)
+    | .[]' 2>&1)
+  jq_status=$?
+  if [ "$jq_status" -ne 0 ]; then
+    [ -n "$jq_output" ] && printf '%s\n' "$jq_output" >&2
+    die "shiplog: trailer validation failed (jq status $jq_status)"
+  fi
+  ERR="$jq_output"
   if [ -n "$ERR" ]; then
     if shiplog_can_use_bosun; then
       local bosun; bosun=$(shiplog_bosun_bin)
