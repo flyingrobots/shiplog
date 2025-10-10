@@ -97,7 +97,6 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 <!-- /progress bar: Alpha -->
 
 - Backlog:
-  - [SLT.ALPHA.002 — Document tooling versions in README](docs/tasks/backlog/SLT.ALPHA.002_tooling_versions_in_readme.md)
   - [SLT.ALPHA.003 — Verify command JSON output](docs/tasks/backlog/SLT.ALPHA.003_verify_json_output.md)
   - [SLT.ALPHA.004 — Validate-trailer tests](docs/tasks/backlog/SLT.ALPHA.004_validate_trailer_tests.md)
   - [SLT.ALPHA.007 — Harden docs/plugins.md usage guidance](docs/tasks/backlog/SLT.ALPHA.007_docs_plugins_usage_guidance.md)
@@ -110,6 +109,7 @@ The following is the canonical progress bar. *Note that it is 50 characters wide
 - Active:
   - [SLT.ALPHA.012 — Align shellcheck coverage and suppressions](docs/tasks/active/SLT.ALPHA.012_align_shellcheck_coverage_and_suppressions.md)
 - Complete:
+  - [SLT.ALPHA.002 — Document tooling versions in README](docs/tasks/complete/SLT.ALPHA.002_tooling_versions_in_readme.md)
   - [SLT.ALPHA.001 — Show command docs page](docs/tasks/complete/SLT.ALPHA.001_show_docs_page.md)
   - [SLT.ALPHA.005 — Policy validate command](docs/tasks/complete/SLT.ALPHA.005_policy_validate_command.md)
   - [SLT.ALPHA.020 — macOS time helpers portability](docs/tasks/complete/SLT.ALPHA.020_macos_time_helpers_portability.md)

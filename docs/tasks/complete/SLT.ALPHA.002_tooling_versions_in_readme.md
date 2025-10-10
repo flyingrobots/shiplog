@@ -11,9 +11,11 @@
     "Align versions with CI matrix images"
   ],
   "blocked_by": [],
-  "notes": [],
+  "notes": [
+    "2025-10-10: Added Requirements block covering git/bash/jq/ssh-keygen to README and shiplog_readme."
+  ],
   "created": "2025-09-25",
-  "updated": "2025-09-25",
+  "updated": "2025-10-10",
   "estimate": "small",
   "expected_complexity": "low"
 }
