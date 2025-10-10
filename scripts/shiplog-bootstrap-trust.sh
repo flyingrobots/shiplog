@@ -3,10 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHIPLOG_HOME="${SHIPLOG_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-SHIPLOG_REMOTE_NAME="${SHIPLOG_REMOTE:-}"
-if [ -z "$SHIPLOG_REMOTE_NAME" ]; then
-  SHIPLOG_REMOTE_NAME=$(git config --get shiplog.remote 2>/dev/null || echo origin)
+
+COMMON_LIB="$SHIPLOG_HOME/lib/common.sh"
+if [ -f "$COMMON_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$COMMON_LIB"
+else
+  echo "shiplog-bootstrap-trust: missing $COMMON_LIB" >&2
+  exit 1
 fi
+
+SHIPLOG_REMOTE_NAME="$(shiplog_remote_name)"
 
 BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
 if command -v "$BOSUN_BIN" >/dev/null 2>&1; then

@@ -32,6 +32,17 @@ Notes:
 USAGE
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHIPLOG_HOME="${SHIPLOG_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+COMMON_LIB="$SHIPLOG_HOME/lib/common.sh"
+if [ -f "$COMMON_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$COMMON_LIB"
+else
+  echo "shiplog-migrate-ref-root: missing $COMMON_LIB" >&2
+  exit 1
+fi
+
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
 
 DRY=0 REMOVE_OLD=0 DO_PUSH=0 FROM_ROOT="" TO_ROOT=""
@@ -116,10 +127,7 @@ if [ "$REMOVE_OLD" -eq 1 ]; then
   done
 fi
 
-REMOTE_NAME="${SHIPLOG_REMOTE:-}"
-if [ -z "$REMOTE_NAME" ]; then
-  REMOTE_NAME=$(git config --get shiplog.remote 2>/dev/null || echo origin)
-fi
+REMOTE_NAME="$(shiplog_remote_name)"
 
 if [ "$DO_PUSH" -eq 1 ]; then
   if git config --get remote."$REMOTE_NAME".url >/dev/null 2>&1; then

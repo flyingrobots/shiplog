@@ -74,6 +74,8 @@ EOF
   run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "refs/_shiplog/journal/staging"
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   rm -f .git/hooks/pre-push .git/prepush.log
   rm -rf "$REMOTE_DIR"
 }
@@ -123,6 +125,8 @@ EOF
   run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "refs/_shiplog/journal/staging"
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   rm -f .git/hooks/pre-push .git/prepush-publish.log
   rm -rf "$REMOTE_DIR"
 }

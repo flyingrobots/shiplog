@@ -1332,19 +1332,25 @@ cmd_policy() {
       else printf '{"version":"1.0.0","require_signed":%s}
 ' "$val" >"$tmp"; fi
       policy_install_file "$tmp" "$policy_file"
+      local using_bosun=0 bosun=""
       if shiplog_can_use_bosun; then
-        local bosun; bosun=$(shiplog_bosun_bin)
+        using_bosun=1
+        bosun=$(shiplog_bosun_bin)
+      fi
+
+      if [ "$using_bosun" -eq 1 ]; then
         "$bosun" style --title "Policy" -- "Set require_signed to $val in $policy_file"
       else
         printf 'Set require_signed to %s in %s\n' "$val" "$policy_file"
       fi
-      if [ -x "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" ]; then
-        SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh" "$policy_file" >/dev/null
-        if shiplog_can_use_bosun; then
-          local bosun; bosun=$(shiplog_bosun_bin)
+
+      local sync_helper="$SHIPLOG_HOME/scripts/shiplog-sync-policy.sh"
+      local publish_remote; publish_remote=$(shiplog_remote_name)
+      if [ -x "$sync_helper" ]; then
+        SHIPLOG_POLICY_SIGN=${SHIPLOG_POLICY_SIGN:-0} "$sync_helper" "$policy_file" >/dev/null
+        if [ "$using_bosun" -eq 1 ]; then
           "$bosun" style --title "Policy" -- "📤 Updated refs/_shiplog/policy/current (push to publish)"
         else
-          local publish_remote; publish_remote=$(shiplog_remote_name)
           printf 'Updated policy ref locally. Run: git push --no-verify %s %s\n' "$publish_remote" "refs/_shiplog/policy/current"
         fi
       else
