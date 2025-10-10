@@ -2089,15 +2089,24 @@ cmd_validate_trailer() {
   # Structural validation: required fields and basic types
   local ERR
   ERR=$(printf '%s\n' "$json" | jq -r '
-    def req_str($k): if has($k) and (.[$k]|type=="string" and (.[$k]|length)>0) then empty else "missing_or_invalid:"+$k end;
-    def req_num($k): if has($k) and (.[$k]|type=="number") then empty else "missing_or_invalid:"+$k end;
+    def req_str($k):
+      ( .[$k]? ) as $v
+      | if ($v | type) == "string" and ($v | length) > 0 then empty else "missing_or_invalid:" + $k end;
+    def req_nested_str($label; $value):
+      $value as $v
+      | if ($v | type) == "string" and ($v | length) > 0 then empty else $label end;
+    def req_nested_num($label; $value):
+      $value as $v
+      | if ($v | type) == "number" then empty else $label end;
     [
       req_str("env"),
       req_str("ts"),
       req_str("status"),
-      ( if has("what") and (.what|has("service") and (.what.service|type=="string" and (.what.service|length)>0)) then empty else "missing_or_invalid:what.service" end ),
-      ( if has("when") and (.when|has("dur_s") and (.when.dur_s|type=="number")) then empty else "missing_or_invalid:when.dur_s" end )
-    ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
+      req_nested_str("missing_or_invalid:what.service"; .what?.service?),
+      req_nested_num("missing_or_invalid:when.dur_s"; .when?.dur_s?)
+    ]
+    | map(select(length > 0))
+    | .[]' 2>/dev/null || true)
   if [ -n "$ERR" ]; then
     if shiplog_can_use_bosun; then
       local bosun; bosun=$(shiplog_bosun_bin)
