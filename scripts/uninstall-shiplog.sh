@@ -18,6 +18,8 @@ SILENT=0
 NO_BACKUP=0
 FORCE=0
 
+REMOTE_NAME=$(shiplog_remote_name)
+
 usage() {
   cat <<'USAGE'
 Shiplog uninstaller
@@ -136,13 +138,13 @@ git_config_remove_refspec() {
   done
 }
 
-git_config_remove_refspec remote.origin.fetch "+refs/_shiplog/*:refs/_shiplog/*"
-git_config_remove_refspec remote.origin.push "refs/_shiplog/*:refs/_shiplog/*"
+git_config_remove_refspec "remote.${REMOTE_NAME}.fetch" "+refs/_shiplog/*:refs/_shiplog/*"
+git_config_remove_refspec "remote.${REMOTE_NAME}.push" "refs/_shiplog/*:refs/_shiplog/*"
 
 unpublished_refs=()
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remote.origin.url >/dev/null 2>&1; then
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get "remote.${REMOTE_NAME}.url" >/dev/null 2>&1; then
   if command -v ssh >/dev/null 2>&1; then
-    if ! run git fetch origin 'refs/_shiplog/*:refs/_shiplog/*'; then
+    if ! run git fetch "$REMOTE_NAME" 'refs/_shiplog/*:refs/_shiplog/*'; then
       log "Warning: unable to fetch refs/_shiplog/*"
     fi
   else
@@ -152,7 +154,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remot
     [ -n "$ref" ] || continue
     local_tip=$(git rev-parse "$ref" 2>/dev/null || echo "")
     [ -n "$local_tip" ] || continue
-    remote_tip=$(timeout 30 git ls-remote origin "$ref" 2>/dev/null | awk '{print $1}' || echo "")
+    remote_tip=$(timeout 30 git ls-remote "$REMOTE_NAME" "$ref" 2>/dev/null | awk '{print $1}' || echo "")
     if [ -z "$remote_tip" ]; then
       unpublished_refs+=("$ref")
       continue
@@ -167,12 +169,11 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config --get remot
 fi
 
 if [ ${#unpublished_refs[@]} -gt 0 ] && [ "$FORCE" -eq 0 ]; then
-  remote_name=$(shiplog_remote_name)
-  log "Aborting uninstall: local Shiplog refs not pushed to $remote_name:"
+  log "Aborting uninstall: local Shiplog refs not pushed to $REMOTE_NAME:"
   for ref in "${unpublished_refs[@]}"; do
     echo "  $ref"
   done
-  log "Push them with: git push --no-verify $remote_name <ref> (or rerun with --force)."
+  log "Push them with: git push --no-verify $REMOTE_NAME <ref> (or rerun with --force)."
   exit 1
 fi
 
