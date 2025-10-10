@@ -192,7 +192,7 @@ fi
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
 [ -n "$REPO_ROOT" ] || die "shiplog-bootstrap-trust: unable to determine repository root from $CWD"
 if ! REPO_ROOT=$(cd "$REPO_ROOT" 2>/dev/null && pwd -P); then
-  die "shiplog-bootstrap-trust: repository root path is not accessible"
+  die "shiplog-bootstrap-trust: repository root path is not accessible: $REPO_ROOT"
 fi
 [ -d "$REPO_ROOT" ] || die "shiplog-bootstrap-trust: repository root is not a directory: $REPO_ROOT"
 
