@@ -37,6 +37,19 @@ git shiplog write    # prompts for metadata; enforces policy/allowlists
 git shiplog publish --env prod
 ```
 
+### Requirements
+
+Shiplog leans on the standard Git toolchain. Verify these are available first:
+
+| Tool | Minimum Version | Why it matters |
+|------|-----------------|----------------|
+| git  | 2.35+ | Recent Git releases handle the refspecs and fast-forward checks Shiplog performs. |
+| bash | 5.0+ | Helper scripts run under bash with `set -euo pipefail`, arrays, and `mapfile`. |
+| jq   | 1.7+ | Policy validation, JSON exports, and the CLI’s structured output require jq – run `install-shiplog-deps.sh` to install it. |
+| ssh-keygen | OpenSSH 8.2+ (for `ssh-keygen -Y verify`) | Needed when using attestation trust mode or verifying SSH signatures. |
+
+`scripts/install-shiplog.sh` clones Shiplog under `$SHIPLOG_HOME` and invokes `install-shiplog-deps.sh`, which provisions jq. Match or exceed these versions on CI runners (see Dockerfile matrix) to avoid surprises.
+
 Prefer a plan first? Use the config wizard:
 
 ```bash
