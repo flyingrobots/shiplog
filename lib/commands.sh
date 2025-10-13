@@ -1722,15 +1722,19 @@ cmd_setup() {
       fi
       if [ "$remote_probe_failed" -eq 0 ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
         if [ "$remote_missing_policy" -eq 1 ] && [ "$remote_missing_trust" -eq 1 ]; then
-          remote_hint_message="Remote $remote does not yet have $POLICY_REF or $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove them after pushing."
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF or $TRUST_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 "
+          remote_hint_message+="while you bootstrap, then remove them after pushing."
         elif [ "$remote_missing_policy" -eq 1 ]; then
-          remote_hint_message="Remote $remote does not yet have $POLICY_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_POLICY=1 while you bootstrap, then remove it after pushing."
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_POLICY=1 while you bootstrap, then remove it after pushing."
         else
-          remote_hint_message="Remote $remote does not yet have $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove it after pushing."
+          remote_hint_message="Remote $remote does not yet have $TRUST_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove it after pushing."
         fi
-      elif [ "$remote_probe_failed" -eq 1 ] && [ -z "$remote_hint_message" ] && [ -n "$remote_probe_error" ]; then
-        remote_hint_message="Warning: unable to query remote $remote for bootstrap hints ($remote_probe_error)"
-      fi
     fi
 
     # Handle optional auto-push to configured remote
