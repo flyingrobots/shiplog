@@ -11,9 +11,11 @@
     "Assert validate-trailer exits non-zero and prints expected errors"
   ],
   "blocked_by": [],
-  "notes": [],
+  "notes": [
+    "2025-10-10: Added test/24_validate_trailer.bats covering malformed JSON and missing field errors."
+  ],
   "created": "2025-09-25",
-  "updated": "2025-09-25",
+  "updated": "2025-10-10",
   "estimate": "small",
   "expected_complexity": "low"
 }

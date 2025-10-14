@@ -2087,25 +2087,56 @@ cmd_validate_trailer() {
     return 1
   fi
   # Structural validation: required fields and basic types
-  local ERR
-  ERR=$(printf '%s\n' "$json" | jq -r '
-    def req_str($k): if has($k) and (.[$k]|type=="string" and (.[$k]|length)>0) then empty else "missing_or_invalid:"+$k end;
-    def req_num($k): if has($k) and (.[$k]|type=="number") then empty else "missing_or_invalid:"+$k end;
+  local err jq_output jq_status
+  jq_output=$(printf '%s\n' "$json" | jq -r '
+    def _validate($msg; $value; $expected; $minlen):
+      (try $value catch null) as $v
+      | if $expected == "string" then
+          if ($v | type) == "string" and ($v | length) >= $minlen then empty else $msg end
+        elif $expected == "number" then
+          if ($v | type) == "number" then empty else $msg end
+        else
+          empty
+        end;
+    def req_str($key):
+      _validate("missing_or_invalid:" + $key; .[$key]?; "string"; 1);
+    def req_enum_str($key; $allowed):
+      (try .[$key] catch null) as $v
+      | if (($v | type) == "string")
+        and ($v | length) >= 1
+        and (($allowed | index($v)) != null)
+        then empty else "missing_or_invalid:" + $key end;
+    def req_nested_str($msg; $path):
+      _validate($msg; (try getpath($path) catch null); "string"; 1);
+    def req_nested_int_ge($msg; $path; $min):
+      (try getpath($path) catch null) as $v
+      | if (($v | type) == "number")
+        and ((($v | floor) == $v))
+        and ($v >= $min)
+        then empty else $msg end;
     [
       req_str("env"),
       req_str("ts"),
-      req_str("status"),
-      ( if has("what") and (.what|has("service") and (.what.service|type=="string" and (.what.service|length)>0)) then empty else "missing_or_invalid:what.service" end ),
-      ( if has("when") and (.when|has("dur_s") and (.when.dur_s|type=="number")) then empty else "missing_or_invalid:when.dur_s" end )
-    ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
-  if [ -n "$ERR" ]; then
+      req_enum_str("status"; ["success","failed","in_progress","skipped","override","revert","finalize"]),
+      req_nested_str("missing_or_invalid:what.service"; ["what", "service"]),
+      req_nested_int_ge("missing_or_invalid:when.dur_s"; ["when", "dur_s"]; 0)
+    ]
+    | map(select(length > 0))
+    | .[]' 2>&1)
+  jq_status=$?
+  if [ "$jq_status" -ne 0 ]; then
+    [ -n "$jq_output" ] && printf '%s\n' "$jq_output" >&2
+    die "shiplog: trailer validation failed (jq status $jq_status)"
+  fi
+  err="$jq_output"
+  if [ -n "$err" ]; then
     if shiplog_can_use_bosun; then
       local bosun; bosun=$(shiplog_bosun_bin)
       "$bosun" style --title "Trailer Validation" -- "❌ Invalid trailer for $target"
-      printf '%s\n' "$ERR" | "$bosun" style --title "Errors" --
+      printf '%s\n' "$err" | "$bosun" style --title "Errors" --
     else
       printf '❌ Invalid trailer for %s\n' "$target" >&2
-      printf '%s\n' "$ERR" >&2
+      printf '%s\n' "$err" >&2
     fi
     return 1
   fi
