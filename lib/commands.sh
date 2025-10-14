@@ -2089,21 +2089,21 @@ cmd_validate_trailer() {
   # Structural validation: required fields and basic types
   local ERR jq_output jq_status
   jq_output=$(printf '%s\n' "$json" | jq -r '
-    def _validate($label; $value; $expected; $minlen):
+    def _validate($msg; $value; $expected; $minlen):
       (try $value catch null) as $v
       | if $expected == "string" then
-          if ($v | type) == "string" and ($v | length) >= $minlen then empty else $label end
+          if ($v | type) == "string" and ($v | length) >= $minlen then empty else $msg end
         elif $expected == "number" then
-          if ($v | type) == "number" then empty else $label end
+          if ($v | type) == "number" then empty else $msg end
         else
           empty
         end;
     def req_str($key):
       _validate("missing_or_invalid:" + $key; .[$key]?; "string"; 1);
-    def req_nested_str($label; $path):
-      _validate($label; (try getpath($path) catch null); "string"; 1);
-    def req_nested_num($label; $path):
-      _validate($label; (try getpath($path) catch null); "number"; 0);
+    def req_nested_str($msg; $path):
+      _validate($msg; (try getpath($path) catch null); "string"; 1);
+    def req_nested_num($msg; $path):
+      _validate($msg; (try getpath($path) catch null); "number"; 0);
     [
       req_str("env"),
       req_str("ts"),
