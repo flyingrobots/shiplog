@@ -2087,7 +2087,7 @@ cmd_validate_trailer() {
     return 1
   fi
   # Structural validation: required fields and basic types
-  local ERR jq_output jq_status
+  local err jq_output jq_status
   jq_output=$(printf '%s\n' "$json" | jq -r '
     def _validate($msg; $value; $expected; $minlen):
       (try $value catch null) as $v
@@ -2100,16 +2100,26 @@ cmd_validate_trailer() {
         end;
     def req_str($key):
       _validate("missing_or_invalid:" + $key; .[$key]?; "string"; 1);
+    def req_enum_str($key; $allowed):
+      (try .[$key] catch null) as $v
+      | if (($v | type) == "string")
+        and ($v | length) >= 1
+        and (($allowed | index($v)) != null)
+        then empty else "missing_or_invalid:" + $key end;
     def req_nested_str($msg; $path):
       _validate($msg; (try getpath($path) catch null); "string"; 1);
-    def req_nested_num($msg; $path):
-      _validate($msg; (try getpath($path) catch null); "number"; 0);
+    def req_nested_int_ge($msg; $path; $min):
+      (try getpath($path) catch null) as $v
+      | if (($v | type) == "number")
+        and ((($v | floor) == $v))
+        and ($v >= $min)
+        then empty else $msg end;
     [
       req_str("env"),
       req_str("ts"),
-      req_str("status"),
+      req_enum_str("status"; ["success","failed","in_progress","skipped","override","revert","finalize"]),
       req_nested_str("missing_or_invalid:what.service"; ["what", "service"]),
-      req_nested_num("missing_or_invalid:when.dur_s"; ["when", "dur_s"])
+      req_nested_int_ge("missing_or_invalid:when.dur_s"; ["when", "dur_s"]; 0)
     ]
     | map(select(length > 0))
     | .[]' 2>&1)
@@ -2118,15 +2128,15 @@ cmd_validate_trailer() {
     [ -n "$jq_output" ] && printf '%s\n' "$jq_output" >&2
     die "shiplog: trailer validation failed (jq status $jq_status)"
   fi
-  ERR="$jq_output"
-  if [ -n "$ERR" ]; then
+  err="$jq_output"
+  if [ -n "$err" ]; then
     if shiplog_can_use_bosun; then
       local bosun; bosun=$(shiplog_bosun_bin)
       "$bosun" style --title "Trailer Validation" -- "❌ Invalid trailer for $target"
-      printf '%s\n' "$ERR" | "$bosun" style --title "Errors" --
+      printf '%s\n' "$err" | "$bosun" style --title "Errors" --
     else
       printf '❌ Invalid trailer for %s\n' "$target" >&2
-      printf '%s\n' "$ERR" >&2
+      printf '%s\n' "$err" >&2
     fi
     return 1
   fi
