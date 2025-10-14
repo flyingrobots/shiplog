@@ -13,8 +13,6 @@ else
   exit 1
 fi
 
-SHIPLOG_REMOTE_NAME="$(shiplog_remote_name)"
-
 BOSUN_BIN="${SHIPLOG_BOSUN_BIN:-$SHIPLOG_HOME/scripts/bosun}"
 if command -v "$BOSUN_BIN" >/dev/null 2>&1; then
   BOSUN_AVAILABLE=1
@@ -187,12 +185,18 @@ case "$(printf '%s' "$SIGN_TRUST_RAW" | tr '[:upper:]' '[:lower:]' | sed -e 's/^
   *) echo "WARN: invalid SHIPLOG_SIGN_TRUST='$SIGN_TRUST_RAW'; defaulting to 1" >&2; SIGN_TRUST=1 ;;
 esac
 
+CWD=$(pwd -P 2>/dev/null || pwd)
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  die "run this script inside a git repository"
+  die "shiplog-bootstrap-trust: $CWD is not inside a git repository"
 fi
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-[ -n "$REPO_ROOT" ] || die "Failed to determine repository root"
-[ -d "$REPO_ROOT" ] || die "Repository root is not a directory: $REPO_ROOT"
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+[ -n "$REPO_ROOT" ] || die "shiplog-bootstrap-trust: unable to determine repository root from $CWD"
+if ! REPO_ROOT=$(cd "$REPO_ROOT" 2>/dev/null && pwd -P); then
+  die "shiplog-bootstrap-trust: repository root path is not accessible: $REPO_ROOT"
+fi
+[ -d "$REPO_ROOT" ] || die "shiplog-bootstrap-trust: repository root is not a directory: $REPO_ROOT"
+
+SHIPLOG_REMOTE_NAME="$(shiplog_remote_name)"
 
 TRUST_REF="refs/_shiplog/trust/root"
 if git show-ref --verify --quiet "$TRUST_REF" && [ "$FORCE" -ne 1 ]; then

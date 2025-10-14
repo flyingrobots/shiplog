@@ -13,10 +13,11 @@
   ],
   "blocked_by": [],
   "notes": [
-    "DX feedback noted the script refusal was good but should hint at required repo context"
+    "DX feedback noted the script refusal was good but should hint at required repo context",
+    "2025-10-10: script now prints the working directory in the error message and Bats asserts the hint"
   ],
   "created": "2025-09-30",
-  "updated": "2025-09-30",
+  "updated": "2025-10-10",
   "estimate": "sm",
   "expected_complexity": "low"
 }

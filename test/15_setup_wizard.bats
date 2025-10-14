@@ -130,11 +130,59 @@ teardown() {
   git init --bare "$ORIGIN_WARN_DIR"
   git remote add origin "$ORIGIN_WARN_DIR"
 
+  run git --git-dir="$ORIGIN_WARN_DIR" rev-parse --verify refs/_shiplog/policy/current
+  [ "$status" -ne 0 ]
+  run git --git-dir="$ORIGIN_WARN_DIR" rev-parse --verify refs/_shiplog/trust/root
+  [ "$status" -ne 0 ]
+
   run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
   [ "$status" -eq 0 ]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_POLICY=1"* ]]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
   rm -rf "$ORIGIN_WARN_DIR"
+}
+
+@test "setup does not warn when remote refs exist" {
+  ORIGIN_OK_DIR=$(mktemp -d)
+  git remote remove origin >/dev/null 2>&1 || true
+  git init --bare "$ORIGIN_OK_DIR"
+  git remote add origin "$ORIGIN_OK_DIR"
+
+  mkdir -p tmp
+  echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY shiplog@test" > tmp/testkey.pub
+  export SHIPLOG_TRUST_COUNT=1
+  export SHIPLOG_TRUST_ID="shiplog-trust-root"
+  export SHIPLOG_TRUST_1_NAME="Shiplog Tester"
+  export SHIPLOG_TRUST_1_EMAIL="shiplog-tester@example.com"
+  export SHIPLOG_TRUST_1_ROLE="root"
+  export SHIPLOG_TRUST_1_PGP_FPR=""
+  export SHIPLOG_TRUST_1_SSH_KEY_PATH="$(pwd)/tmp/testkey.pub"
+  export SHIPLOG_TRUST_1_PRINCIPAL="shiplog-tester@example.com"
+  export SHIPLOG_TRUST_1_REVOKED="no"
+  export SHIPLOG_TRUST_THRESHOLD=1
+  export SHIPLOG_TRUST_COMMIT_MESSAGE="shiplog: trust root v1 (GENESIS)"
+  export SHIPLOG_ASSUME_YES=1
+  export SHIPLOG_PLAIN=1
+
+  run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push
+  [ "$status" -eq 0 ]
+
+  unset SHIPLOG_TRUST_COUNT SHIPLOG_TRUST_ID SHIPLOG_TRUST_1_NAME SHIPLOG_TRUST_1_EMAIL
+  unset SHIPLOG_TRUST_1_ROLE SHIPLOG_TRUST_1_PGP_FPR SHIPLOG_TRUST_1_SSH_KEY_PATH SHIPLOG_TRUST_1_PRINCIPAL
+  unset SHIPLOG_TRUST_1_REVOKED SHIPLOG_TRUST_THRESHOLD SHIPLOG_TRUST_COMMIT_MESSAGE SHIPLOG_ASSUME_YES SHIPLOG_PLAIN
+
+  run git --git-dir="$ORIGIN_OK_DIR" rev-parse --verify refs/_shiplog/policy/current
+  [ "$status" -eq 0 ]
+  run git --git-dir="$ORIGIN_OK_DIR" rev-parse --verify refs/_shiplog/trust/root
+  [ "$status" -eq 0 ]
+
+  run env SHIPLOG_SETUP_STRICTNESS=open git shiplog setup
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"SHIPLOG_ALLOW_MISSING_POLICY=1"* ]]
+  [[ "$output" != *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
+
+  rm -f tmp/testkey.pub
+  rm -rf "$ORIGIN_OK_DIR"
 }
 
 @test "setup backups and diffs policy on overwrite" {

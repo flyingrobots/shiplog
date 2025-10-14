@@ -1532,10 +1532,9 @@ cmd_setup() {
   remote=$(shiplog_remote_name)
   local remote_missing_policy=0
   local remote_missing_trust=0
-  local remote_probe_checked=0
-  local remote_probe_failed=0
   local remote_probe_error=""
   local remote_hint_message=""
+  local remote_probe_timeout="${SHIPLOG_REMOTE_PROBE_TIMEOUT:-10}"
   # Trust passthrough args
   local -a trust_args; trust_args=()
 
@@ -1700,27 +1699,34 @@ cmd_setup() {
   fi
 
     if [ "$do_auto_push" -eq 0 ] && has_remote_origin; then
-      remote_probe_checked=1
-      local ls_output
-      if ls_output=$(git ls-remote "$remote" "$POLICY_REF" 2>&1); then
-        if [ -z "$ls_output" ]; then
+      local probe_output=""
+      local probe_status=0
+      local -a probe_cmd=(git ls-remote "$remote" "$POLICY_REF" "$TRUST_REF")
+      if command -v timeout >/dev/null 2>&1; then
+        probe_cmd=(timeout "$remote_probe_timeout" "${probe_cmd[@]}")
+      fi
+      set +e
+      probe_output=$("${probe_cmd[@]}" 2>&1)
+      probe_status=$?
+      set -e
+      if [ "$probe_status" -eq 0 ]; then
+        if ! printf '%s\n' "$probe_output" | awk -F'\t' 'NF>1 {print $2}' | grep -Fx "$POLICY_REF" >/dev/null 2>&1; then
           remote_missing_policy=1
         fi
+        if ! printf '%s\n' "$probe_output" | awk -F'\t' 'NF>1 {print $2}' | grep -Fx "$TRUST_REF" >/dev/null 2>&1; then
+          remote_missing_trust=1
+        fi
       else
-        remote_probe_failed=1
-        remote_probe_error="$ls_output"
-      fi
-      if [ "$remote_probe_failed" -eq 0 ]; then
-        if ls_output=$(git ls-remote "$remote" "$TRUST_REF" 2>&1); then
-          if [ -z "$ls_output" ]; then
-            remote_missing_trust=1
-          fi
+        if [ "$probe_status" -eq 124 ]; then
+          remote_probe_error="timeout after ${remote_probe_timeout}"
         else
-          remote_probe_failed=1
-          remote_probe_error="$ls_output"
+          remote_probe_error="$probe_output"
+          if [ -z "$remote_probe_error" ]; then
+            remote_probe_error="git ls-remote exited with status $probe_status"
+          fi
         fi
       fi
-      if [ "$remote_probe_failed" -eq 0 ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
+      if [ -z "$remote_probe_error" ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
         if [ "$remote_missing_policy" -eq 1 ] && [ "$remote_missing_trust" -eq 1 ]; then
           remote_hint_message="Remote $remote does not yet have $POLICY_REF or $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove them after pushing."
         elif [ "$remote_missing_policy" -eq 1 ]; then
@@ -1728,7 +1734,7 @@ cmd_setup() {
         else
           remote_hint_message="Remote $remote does not yet have $TRUST_REF. If your server runs the Shiplog pre-receive hook, temporarily set SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove it after pushing."
         fi
-      elif [ "$remote_probe_failed" -eq 1 ] && [ -z "$remote_hint_message" ] && [ -n "$remote_probe_error" ]; then
+      elif [ -n "$remote_probe_error" ] && [ -z "$remote_hint_message" ]; then
         remote_hint_message="Warning: unable to query remote $remote for bootstrap hints ($remote_probe_error)"
       fi
     fi
@@ -2133,25 +2139,56 @@ cmd_validate_trailer() {
     return 1
   fi
   # Structural validation: required fields and basic types
-  local ERR
-  ERR=$(printf '%s\n' "$json" | jq -r '
-    def req_str($k): if has($k) and (.[$k]|type=="string" and (.[$k]|length)>0) then empty else "missing_or_invalid:"+$k end;
-    def req_num($k): if has($k) and (.[$k]|type=="number") then empty else "missing_or_invalid:"+$k end;
+  local err jq_output jq_status
+  jq_output=$(printf '%s\n' "$json" | jq -r '
+    def _validate($msg; $value; $expected; $minlen):
+      (try $value catch null) as $v
+      | if $expected == "string" then
+          if ($v | type) == "string" and ($v | length) >= $minlen then empty else $msg end
+        elif $expected == "number" then
+          if ($v | type) == "number" then empty else $msg end
+        else
+          empty
+        end;
+    def req_str($key):
+      _validate("missing_or_invalid:" + $key; .[$key]?; "string"; 1);
+    def req_enum_str($key; $allowed):
+      (try .[$key] catch null) as $v
+      | if (($v | type) == "string")
+        and ($v | length) >= 1
+        and (($allowed | index($v)) != null)
+        then empty else "missing_or_invalid:" + $key end;
+    def req_nested_str($msg; $path):
+      _validate($msg; (try getpath($path) catch null); "string"; 1);
+    def req_nested_int_ge($msg; $path; $min):
+      (try getpath($path) catch null) as $v
+      | if (($v | type) == "number")
+        and ((($v | floor) == $v))
+        and ($v >= $min)
+        then empty else $msg end;
     [
       req_str("env"),
       req_str("ts"),
-      req_str("status"),
-      ( if has("what") and (.what|has("service") and (.what.service|type=="string" and (.what.service|length)>0)) then empty else "missing_or_invalid:what.service" end ),
-      ( if has("when") and (.when|has("dur_s") and (.when.dur_s|type=="number")) then empty else "missing_or_invalid:when.dur_s" end )
-    ] | map(select(.!=null)) | .[]' 2>/dev/null || true)
-  if [ -n "$ERR" ]; then
+      req_enum_str("status"; ["success","failed","in_progress","skipped","override","revert","finalize"]),
+      req_nested_str("missing_or_invalid:what.service"; ["what", "service"]),
+      req_nested_int_ge("missing_or_invalid:when.dur_s"; ["when", "dur_s"]; 0)
+    ]
+    | map(select(length > 0))
+    | .[]' 2>&1)
+  jq_status=$?
+  if [ "$jq_status" -ne 0 ]; then
+    [ -n "$jq_output" ] && printf '%s\n' "$jq_output" >&2
+    die "shiplog: trailer validation failed (jq status $jq_status)"
+  fi
+  err="$jq_output"
+  if [ -n "$err" ]; then
     if shiplog_can_use_bosun; then
       local bosun; bosun=$(shiplog_bosun_bin)
       "$bosun" style --title "Trailer Validation" -- "❌ Invalid trailer for $target"
-      printf '%s\n' "$ERR" | "$bosun" style --title "Errors" --
+      printf '%s\n' "$err" | "$bosun" style --title "Errors" --
     else
       printf '❌ Invalid trailer for %s\n' "$target" >&2
-      printf '%s\n' "$ERR" >&2
+      printf '%s\n' "$err" >&2
     fi
     return 1
   fi
