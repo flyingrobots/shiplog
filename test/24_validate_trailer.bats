@@ -72,8 +72,10 @@ make_commit_with_trailer() {
 
 @test "validate-trailer fails on malformed JSON trailer" {
   write_valid_entry
+  local malformed_trailer
+  malformed_trailer=$'shiplog: malformed trailer\n\n---\n{"env": "prod"'
   local bad_commit
-  bad_commit=$(make_commit_with_trailer $'shiplog: malformed trailer\n\n---\n{"env": "prod"')
+  bad_commit=$(make_commit_with_trailer "$malformed_trailer")
   [ -n "$bad_commit" ]
   run git shiplog validate-trailer "$bad_commit"
   [ "$status" -ne 0 ]
@@ -82,8 +84,10 @@ make_commit_with_trailer() {
 
 @test "validate-trailer flags missing required fields" {
   write_valid_entry
+  local incomplete_trailer
+  incomplete_trailer=$'shiplog: missing fields\n\n---\n{"env":"prod","ts":"2025-10-10T00:00:00Z","status":"success","what":{},"when":{"dur_s":5}}'
   local missing_commit
-  missing_commit=$(make_commit_with_trailer $'shiplog: missing fields\n\n---\n{"env":"prod","ts":"2025-10-10T00:00:00Z","status":"success","what":{},"when":{"dur_s":5}}')
+  missing_commit=$(make_commit_with_trailer "$incomplete_trailer")
   [ -n "$missing_commit" ]
   run git shiplog validate-trailer "$missing_commit"
   [ "$status" -ne 0 ]
