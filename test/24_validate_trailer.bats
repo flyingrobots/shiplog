@@ -48,7 +48,7 @@ make_commit_with_trailer() {
   write_valid_entry
   run git shiplog validate-trailer
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Trailer OK"* ]]
+  [[ "$output" == *"✅ Trailer OK for"* ]]
 }
 
 @test "validate-trailer fails on malformed JSON trailer" {
