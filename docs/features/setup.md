@@ -93,7 +93,7 @@ Notes:
 - During bootstrap, you may set (temporarily) on the hook user:
   - `SHIPLOG_ALLOW_MISSING_POLICY=1`
   - `SHIPLOG_ALLOW_MISSING_TRUST=1`
-  See contrib/README.md for details.
+  See contrib/README.md for details. When `git shiplog setup` detects that these refs are missing on your remote (and auto-push is disabled), it prints this reminder so you can relax the hook until the initial push succeeds.
 
 ## Switching Later
 

@@ -16,10 +16,11 @@
   "blocked_by": [],
   "notes": [
     "integrate with shiplog-bootstrap-trust.sh env mode",
-    "support multiple maintainers"
+    "support multiple maintainers",
+    "2025-10-10: setup warns when policy/trust refs are absent on the remote and reminds admins to set SHIPLOG_ALLOW_MISSING_{POLICY,TRUST} during bootstrap."
   ],
   "created": "2025-09-25",
-  "updated": "2025-09-25",
+  "updated": "2025-10-10",
   "estimate": "big",
   "expected_complexity": "high"
 }

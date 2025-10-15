@@ -1530,6 +1530,11 @@ cmd_setup() {
   local dry_run=0
   local remote
   remote=$(shiplog_remote_name)
+  local remote_missing_policy=0
+  local remote_missing_trust=0
+  local remote_probe_error=""
+  local remote_hint_message=""
+  local remote_probe_timeout="${SHIPLOG_REMOTE_PROBE_TIMEOUT:-10}"
   # Trust passthrough args
   local -a trust_args; trust_args=()
 
@@ -1693,6 +1698,54 @@ cmd_setup() {
     fi
   fi
 
+    if [ "$do_auto_push" -eq 0 ] && has_remote_origin; then
+      local probe_output=""
+      local probe_status=0
+      local -a probe_cmd=(git ls-remote "$remote" "$POLICY_REF" "$TRUST_REF")
+      if command -v timeout >/dev/null 2>&1; then
+        probe_cmd=(timeout "$remote_probe_timeout" "${probe_cmd[@]}")
+      fi
+      set +e
+      probe_output=$("${probe_cmd[@]}" 2>&1)
+      probe_status=$?
+      set -e
+      if [ "$probe_status" -eq 0 ]; then
+        if ! printf '%s\n' "$probe_output" | awk -F'\t' 'NF>1 {print $2}' | grep -Fx "$POLICY_REF" >/dev/null 2>&1; then
+          remote_missing_policy=1
+        fi
+        if ! printf '%s\n' "$probe_output" | awk -F'\t' 'NF>1 {print $2}' | grep -Fx "$TRUST_REF" >/dev/null 2>&1; then
+          remote_missing_trust=1
+        fi
+      else
+        if [ "$probe_status" -eq 124 ]; then
+          remote_probe_error="timeout after ${remote_probe_timeout}"
+        else
+          remote_probe_error="$probe_output"
+          if [ -z "$remote_probe_error" ]; then
+            remote_probe_error="git ls-remote exited with status $probe_status"
+          fi
+        fi
+      fi
+      if [ -z "$remote_probe_error" ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
+        if [ "$remote_missing_policy" -eq 1 ] && [ "$remote_missing_trust" -eq 1 ]; then
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF or $TRUST_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_POLICY=1 and SHIPLOG_ALLOW_MISSING_TRUST=1 "
+          remote_hint_message+="while you bootstrap, then remove them after pushing."
+        elif [ "$remote_missing_policy" -eq 1 ]; then
+          remote_hint_message="Remote $remote does not yet have $POLICY_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_POLICY=1 while you bootstrap, then remove it after pushing."
+        else
+          remote_hint_message="Remote $remote does not yet have $TRUST_REF. "
+          remote_hint_message+="If your server runs the Shiplog pre-receive hook, temporarily set "
+          remote_hint_message+="SHIPLOG_ALLOW_MISSING_TRUST=1 while you bootstrap, then remove it after pushing."
+        fi
+      elif [ -n "$remote_probe_error" ] && [ -z "$remote_hint_message" ]; then
+        remote_hint_message="Warning: unable to query remote $remote for bootstrap hints ($remote_probe_error)"
+      fi
+    fi
+
     # Handle optional auto-push to configured remote
     if [ "$do_auto_push" -eq 1 ] && has_remote_origin; then
       # Push policy ref if it exists
@@ -1716,6 +1769,9 @@ cmd_setup() {
     fi
     if [ "$do_auto_push" -eq 1 ]; then
       "$bosun" style --title "Setup" -- "Auto-pushed configured refs to $remote"
+    fi
+    if [ -n "$remote_hint_message" ]; then
+      "$bosun" style --title "Server Hint" -- "$remote_hint_message"
     fi
     # Always print next-step commands (advice only)
     "$bosun" style --title "Next Steps" -- $'Configure local signing (optional):\n  git config --local user.name "Your Name"\n  git config --local user.email "you@example.com"\n  git config --local gpg.format ssh\n  git config --local user.signingkey ~/.ssh/your_signing_key.pub\n  git config --local commit.gpgSign true'
@@ -1744,6 +1800,9 @@ cmd_setup() {
     printf '  %s\n' "[if created] git push --no-verify $remote $TRUST_REF"
     fi
     printf '  %s\n' "git shiplog policy show --json"
+    if [ -n "$remote_hint_message" ]; then
+      printf '%s\n' "$remote_hint_message"
+    fi
   fi
 }
 
