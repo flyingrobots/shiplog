@@ -5,6 +5,19 @@ SHIPLOG_SANDBOX_REPO="${SHIPLOG_SANDBOX_REPO:-https://github.com/flyingrobots/sh
 SHIPLOG_SANDBOX_BRANCH="${SHIPLOG_SANDBOX_BRANCH:-main}"
 SHIPLOG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-$(pwd)}"
 
+# Record the repository/windows where the helper was sourced so we can restore
+# the caller's remote configuration even if a test exits early. Tests should
+# never mutate the developer's working clone, but belt-and-suspenders restores
+# keep ad-hoc host runs safe.
+SHIPLOG_ORIGINAL_ORIGIN_PRESENT=0
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git remote | grep -qx origin; then
+    SHIPLOG_ORIGINAL_ORIGIN_PRESENT=1
+    SHIPLOG_ORIGINAL_ORIGIN_FETCH="$(git remote get-url origin 2>/dev/null || true)"
+    SHIPLOG_ORIGINAL_ORIGIN_PUSH="$(git remote get-url --push origin 2>/dev/null || true)"
+  fi
+fi
+
 shiplog_install_cli() {
   local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
 
@@ -88,6 +101,41 @@ shiplog_cleanup_sandbox_repo() {
   if [[ -n "${SHIPLOG_SANDBOX_DIR:-}" && -d "$SHIPLOG_SANDBOX_DIR" ]]; then
     rm -rf "$SHIPLOG_SANDBOX_DIR"
     unset SHIPLOG_SANDBOX_DIR
+  fi
+
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    local has_origin
+    has_origin=0
+    if git remote | grep -qx origin; then
+      has_origin=1
+    fi
+
+    if [[ "${SHIPLOG_ORIGINAL_ORIGIN_PRESENT:-0}" = "1" ]]; then
+      # Ensure origin exists and points back to the original URL captured when
+      # the helper was sourced. This protects host clones when tests are run
+      # outside the Docker harness.
+      if [[ "$has_origin" -eq 0 ]]; then
+        git remote add origin "$SHIPLOG_ORIGINAL_ORIGIN_FETCH"
+      else
+        local current_fetch
+        current_fetch="$(git remote get-url origin 2>/dev/null || true)"
+        if [[ "$current_fetch" != "$SHIPLOG_ORIGINAL_ORIGIN_FETCH" ]]; then
+          git remote set-url origin "$SHIPLOG_ORIGINAL_ORIGIN_FETCH"
+        fi
+      fi
+      if [[ -n "${SHIPLOG_ORIGINAL_ORIGIN_PUSH:-}" ]]; then
+        local current_push
+        current_push="$(git remote get-url --push origin 2>/dev/null || true)"
+        if [[ "$current_push" != "$SHIPLOG_ORIGINAL_ORIGIN_PUSH" ]]; then
+          git remote set-url --push origin "$SHIPLOG_ORIGINAL_ORIGIN_PUSH"
+        fi
+      fi
+    else
+      # Original repo had no origin; remove any temporary one the tests added.
+      if [[ "$has_origin" -eq 1 ]]; then
+        git remote remove origin >/dev/null 2>&1 || true
+      fi
+    fi
   fi
 }
 
