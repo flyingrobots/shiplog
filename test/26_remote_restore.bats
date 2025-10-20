@@ -39,15 +39,15 @@ teardown() {
   local stray_remote_dir
   stray_remote_dir=$(mktemp -d)
   git init -q --bare "$stray_remote_dir"
+  if ! git -c safe.directory="$SHIPLOG_TEST_ROOT" -C "$SHIPLOG_TEST_ROOT" remote add stray "$stray_remote_dir" >/dev/null 2>&1; then
+    rm -rf "$stray_remote_dir"
+    skip "caller repository is read-only; skipping remote restore coverage"
+  fi
   trap '(
     git -c safe.directory="'$SHIPLOG_TEST_ROOT'" -C "$SHIPLOG_TEST_ROOT" remote remove stray >/dev/null 2>&1 || true
     rm -rf "$stray_remote_dir"
   )' RETURN
   SHIPLOG_TEMP_REMOTE_DIRS+=("$stray_remote_dir")
-  (
-    cd "$SHIPLOG_TEST_ROOT" || exit 1
-    git remote add stray "$stray_remote_dir" || exit 1
-  )
 
   if [ "$ORIG_HAVE_ORIGIN" -eq 1 ]; then
     (

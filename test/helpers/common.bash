@@ -12,12 +12,10 @@ declare -Ag SHIPLOG_STD_ENV_WAS_SET=()
 
 declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
 declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
-SHIPLOG_CALLER_REPO_CAPTURED=0
+declare -gi SHIPLOG_CALLER_REPO_CAPTURED=0
 
-shiplog_mark_safe_directory() {
-  local dir="$1"
-  # Ignore failure if config already present or git is unavailable
-  git config --global --add safe.directory "$dir" >/dev/null 2>&1 || true
+shiplog_git_caller() {
+  git -c safe.directory="$SHIPLOG_TEST_ROOT" -C "$SHIPLOG_TEST_ROOT" "$@"
 }
 
 shiplog_helper_error() {
@@ -25,29 +23,43 @@ shiplog_helper_error() {
   return 1
 }
 
-shiplog_snapshot_caller_repo_state() {
-  local prev_dir="$PWD"
+shiplog_reset_remote_snapshot_state() {
   SHIPLOG_ORIG_REMOTE_ORDER=()
   unset SHIPLOG_ORIG_REMOTES_CONFIG
   declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
   SHIPLOG_CALLER_REPO_CAPTURED=0
+}
 
-  if cd "$SHIPLOG_TEST_ROOT" 2>/dev/null; then
-    shiplog_mark_safe_directory "$SHIPLOG_TEST_ROOT"
-    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      SHIPLOG_CALLER_REPO_CAPTURED=1
-      while IFS= read -r remote; do
-        [ -n "$remote" ] || continue
-        SHIPLOG_ORIG_REMOTE_ORDER+=("$remote")
-        local escaped
-        escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
-        SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]=$(git config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null | awk '{key=$1; sub($1 FS, ""); print key "\t" $0}')
-      done < <(git remote)
-    fi
-    if ! cd "$prev_dir"; then
-      shiplog_helper_error "Failed to restore working directory to $prev_dir" || return 1
-    fi
+shiplog_snapshot_caller_repo_state() {
+  local -a new_order=()
+  local -A new_config=()
+
+  if ! shiplog_git_caller rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    shiplog_helper_error "Caller repository is not a git repository: $SHIPLOG_TEST_ROOT" || return 1
   fi
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes: $remote_list" || return 1
+  fi
+
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    new_order+=("$remote")
+    local escaped config
+    escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
+    config=$(shiplog_git_caller config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null)
+    new_config["$remote"]="$config"
+  done <<< "$remote_list"
+
+  shiplog_reset_remote_snapshot_state
+  SHIPLOG_CALLER_REPO_CAPTURED=1
+  SHIPLOG_ORIG_REMOTE_ORDER=("${new_order[@]}")
+  local remote
+  for remote in "${new_order[@]}"; do
+    SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]="${new_config[$remote]}"
+  done
+  return 0
 }
 
 shiplog_cleanup_temp_remotes() {
@@ -63,117 +75,107 @@ shiplog_cleanup_temp_remotes() {
 shiplog_restore_caller_remotes() {
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ] || return 0
 
-  local prev_dir="$PWD"
-  if ! cd "$SHIPLOG_TEST_ROOT" 2>/dev/null; then
-    SHIPLOG_CALLER_REPO_CAPTURED=0
-    SHIPLOG_ORIG_REMOTE_ORDER=()
-    unset SHIPLOG_ORIG_REMOTES_CONFIG
-    declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
-    return 0
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes during restore: $remote_list" || return 1
   fi
-  shiplog_mark_safe_directory "$SHIPLOG_TEST_ROOT"
 
-  declare -A __shiplog_expected_remotes=()
+  declare -A expected=()
   local remote
   for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
-    __shiplog_expected_remotes["$remote"]=1
+    expected["$remote"]=1
   done
 
+  declare -A present=()
   while IFS= read -r remote; do
     [ -n "$remote" ] || continue
-    if [[ -z "${__shiplog_expected_remotes[$remote]+_}" ]]; then
-      if ! git remote remove "$remote" >/dev/null 2>&1; then
-        shiplog_helper_error "Failed to remove unexpected remote '$remote'" || return 1
+    present["$remote"]=1
+    if [[ -z ${expected[$remote]+_} ]]; then
+      local remove_err
+      if ! remove_err=$(shiplog_git_caller remote remove "$remote" 2>&1); then
+        shiplog_helper_error "Failed to remove unexpected remote ""$remote"": $remove_err" || return 1
       fi
-      git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+      shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
     fi
-  done < <(git remote)
+  done <<< "$remote_list"
 
   for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
-    local config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
-    local remote_list
-    if ! remote_list=$(git remote); then
-      shiplog_helper_error "Failed to list remotes while restoring '$remote'" || return 1
-    fi
-    if printf '%s\n' "$remote_list" | grep -qx "$remote"; then
-      if ! git remote remove "$remote" >/dev/null 2>&1; then
-        shiplog_helper_error "Failed to remove remote '$remote' prior to restore" || return 1
-      fi
-    fi
-    git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
-    [ -n "$config" ] || continue
+    local desired_config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
+    local escaped current_config
+    escaped=$(printf '%s' "$remote" | sed "s/[][\.*^$]/\&/g")
+    current_config=$(shiplog_git_caller config --local --get-regexp "^remote\.${escaped}\." 2>/dev/null)
 
-    local -a urls=() fetches=() pushurls=() other_keys=() other_values=()
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      local key value
-      key=${line%%$'\t'*}
-      value=${line#*$'\t'}
-      case "$key" in
-        remote."$remote".url)
-          urls+=("$value")
-          ;;
-        remote."$remote".pushurl)
-          pushurls+=("$value")
-          ;;
-        remote."$remote".fetch)
-          fetches+=("$value")
-          ;;
-        *)
-          other_keys+=("$key")
-          other_values+=("$value")
-          ;;
-      esac
-    done <<< "$config"
-
-    if [ ${#urls[@]} -gt 0 ]; then
-      if ! git remote add "$remote" "${urls[0]}" >/dev/null 2>&1; then
-        shiplog_helper_error "Failed to add remote '$remote' with URL ${urls[0]}" || return 1
+    if [[ -z ${present[$remote]+_} ]]; then
+      local first_url=""
+      if [ -n "$desired_config" ]; then
+        while IFS= read -r line; do
+          [ -n "$line" ] || continue
+          local key value
+          key=${line%% *}
+          value=${line#* }
+          if [[ "$key" == "remote.$remote.url" ]]; then
+            first_url="$value"
+            break
+          fi
+        done <<< "$desired_config"
       fi
-      git config --local --unset-all remote."$remote".url >/dev/null 2>&1 || true
-      local url
-      for url in "${urls[@]}"; do
-        if ! git config --local --add remote."$remote".url "$url"; then
-          shiplog_helper_error "Failed to restore remote.$remote.url=$url" || return 1
+      if [ -z "$first_url" ]; then
+        shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
+      fi
+      local add_err
+      if ! add_err=$(shiplog_git_caller remote add "$remote" "$first_url" 2>&1); then
+        shiplog_helper_error "Failed to re-add remote \"$remote\": $add_err" || return 1
+      fi
+      present["$remote"]=1
+      current_config=""
+    fi
+
+    if [ "$current_config" = "$desired_config" ]; then
+      continue
+    fi
+
+    if [ -n "$current_config" ]; then
+      local reset_err
+      if ! reset_err=$(shiplog_git_caller remote remove "$remote" 2>&1); then
+        shiplog_helper_error "Failed to reset remote \"$remote\": $reset_err" || return 1
+      fi
+      shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+      local readd_err first_url=""
+      if [ -n "$desired_config" ]; then
+        while IFS= read -r line; do
+          [ -n "$line" ] || continue
+          local key value
+          key=${line%% *}
+          value=${line#* }
+          if [[ "$key" == "remote.$remote.url" ]]; then
+            first_url="$value"
+            break
+          fi
+        done <<< "$desired_config"
+      fi
+      if [ -n "$first_url" ]; then
+        if ! readd_err=$(shiplog_git_caller remote add "$remote" "$first_url" 2>&1); then
+          shiplog_helper_error "Failed to re-add remote \"$remote\" after reset: $readd_err" || return 1
         fi
-      done
+      fi
     fi
 
-    git config --local --unset-all remote."$remote".fetch >/dev/null 2>&1 || true
-    local fetch
-    for fetch in "${fetches[@]}"; do
-      if ! git config --local --add remote."$remote".fetch "$fetch"; then
-        shiplog_helper_error "Failed to restore remote.$remote.fetch=$fetch" || return 1
-      fi
-    done
-
-    git config --local --unset-all remote."$remote".pushurl >/dev/null 2>&1 || true
-    local pushurl
-    for pushurl in "${pushurls[@]}"; do
-      if ! git config --local --add remote."$remote".pushurl "$pushurl"; then
-        shiplog_helper_error "Failed to restore remote.$remote.pushurl=$pushurl" || return 1
-      fi
-    done
-
-    local idx
-    for idx in "${!other_keys[@]}"; do
-      local key="${other_keys[$idx]}"
-      local value="${other_values[$idx]}"
-      git config --local --unset-all "$key" >/dev/null 2>&1 || true
-      if ! git config --local --add "$key" "$value"; then
-        shiplog_helper_error "Failed to restore $key=$value" || return 1
-      fi
-    done
+    shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+    if [ -n "$desired_config" ]; then
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        local key value
+        key=${line%% *}
+        value=${line#* }
+        if ! shiplog_git_caller config --local --add "$key" "$value" >/dev/null 2>&1; then
+          shiplog_helper_error "Failed to restore $key=$value" || return 1
+        fi
+      done <<< "$desired_config"
+    fi
   done
 
-  if ! cd "$prev_dir"; then
-    shiplog_helper_error "Failed to restore working directory to $prev_dir" || return 1
-  fi
-
-  SHIPLOG_CALLER_REPO_CAPTURED=0
-  SHIPLOG_ORIG_REMOTE_ORDER=()
-  unset SHIPLOG_ORIG_REMOTES_CONFIG
-  declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+  shiplog_reset_remote_snapshot_state
+  return 0
 }
 
 shiplog_capture_env_var() {
@@ -226,33 +228,33 @@ shiplog_use_temp_remote() {
     return 1
   fi
 
-  shiplog_mark_safe_directory "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-
   dir=$(mktemp -d)
   local remote_list
   if ! remote_list=$(git remote); then
     rm -rf "$dir"
-    shiplog_helper_error "Failed to list remotes before creating '$remote'" || return 1
+    shiplog_helper_error "Failed to list remotes before creating \"$remote\"" || return 1
   fi
   if printf '%s\n' "$remote_list" | grep -qx "$remote"; then
-    if ! git remote remove "$remote" >/dev/null 2>&1; then
+    local remove_err
+    if ! remove_err=$(git remote remove "$remote" 2>&1); then
       rm -rf "$dir"
-      shiplog_helper_error "Failed to remove existing remote '$remote'" || return 1
+      shiplog_helper_error "Failed to remove existing remote \"$remote\": $remove_err" || return 1
     fi
   fi
   if ! git init -q --bare "$dir"; then
     rm -rf "$dir"
-    shiplog_helper_error "Failed to initialize bare repo for remote '$remote'" || return 1
+    shiplog_helper_error "Failed to initialize bare repo for remote \"$remote\"" || return 1
   fi
-  if ! git remote add "$remote" "$dir"; then
+  local add_err
+  if ! add_err=$(git remote add "$remote" "$dir" 2>&1); then
     rm -rf "$dir"
-    shiplog_helper_error "Failed to add temporary remote '$remote'" || return 1
+    shiplog_helper_error "Failed to add temporary remote \"$remote\": $add_err" || return 1
   fi
   if [[ -n "${__var}" ]]; then
     if ! printf -v "$__var" '%s' "$dir"; then
       git remote remove "$remote" >/dev/null 2>&1 || true
       rm -rf "$dir"
-      shiplog_helper_error "Failed to export path for temporary remote '$remote'" || return 1
+      shiplog_helper_error "Failed to export path for temporary remote \"$remote\"" || return 1
     fi
   fi
   SHIPLOG_TEMP_REMOTE_DIRS+=("$dir")
@@ -315,7 +317,10 @@ shiplog_use_sandbox_repo() {
 # configuration for later restoration.
   local dest
   dest="${1:-}"
-  shiplog_snapshot_caller_repo_state
+  if ! shiplog_snapshot_caller_repo_state; then
+    echo "ERROR: Failed to snapshot caller repo state for restoration" >&2
+    return 1
+  fi
   if [[ -z "$dest" ]]; then
     dest="$(mktemp -d)"
   else
@@ -347,7 +352,9 @@ shiplog_use_sandbox_repo() {
 shiplog_cleanup_sandbox_repo() {
 # Return to the original working tree, delete the sandbox repo, clean temp
 # remotes, and restore the caller repo remotes.
-  cd "$SHIPLOG_TEST_ROOT"
+  if ! cd "$SHIPLOG_TEST_ROOT"; then
+    shiplog_helper_error "Failed to return to $SHIPLOG_TEST_ROOT during cleanup" || return 1
+  fi
   if [[ -n "${SHIPLOG_SANDBOX_DIR:-}" && -d "$SHIPLOG_SANDBOX_DIR" ]]; then
     rm -rf "$SHIPLOG_SANDBOX_DIR"
     unset SHIPLOG_SANDBOX_DIR
@@ -473,7 +480,7 @@ shiplog_bootstrap_policy_ref() {
 }
 
 shiplog_standard_setup() {
-  shiplog_standard_env_begin
+  shiplog_standard_env_begin  # Snapshot canonical env vars; expected to succeed in test harness.
   shiplog_install_cli
   shiplog_use_sandbox_repo
   shiplog_bootstrap_trust
