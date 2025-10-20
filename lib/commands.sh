@@ -17,6 +17,15 @@ get_remote_oid() {
   printf '%s' "$(printf '%s\n' "$output" | awk 'NF{print $1; exit}')"
 }
 
+sanitize_remote_error() {
+  local raw="$1" sanitized
+  sanitized=$(printf '%s' "$raw" | tr -d '\r' | awk '{
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+    if (length($0) > 0) { print; exit }
+  }')
+  printf '%s' "$sanitized"
+}
+
 fast_forward_ref() {
   local ref="$1" context="${2:-fast-forward}" remote
   remote=$(shiplog_remote_name)
@@ -1720,9 +1729,9 @@ cmd_setup() {
         if [ "$probe_status" -eq 124 ]; then
           remote_probe_error="timeout after ${remote_probe_timeout}"
         else
-          remote_probe_error="$probe_output"
+          remote_probe_error="$(sanitize_remote_error "$probe_output")"
           if [ -z "$remote_probe_error" ]; then
-            remote_probe_error="git ls-remote exited with status $probe_status"
+            remote_probe_error="command failed with exit code $probe_status"
           fi
         fi
       fi
