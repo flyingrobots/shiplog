@@ -40,7 +40,7 @@ teardown() {
   stray_remote_dir=$(mktemp -d)
   git init -q --bare "$stray_remote_dir"
   trap '(
-    cd "$SHIPLOG_TEST_ROOT" >/dev/null 2>&1 && git remote remove stray >/dev/null 2>&1 || true
+    git -c safe.directory="'$SHIPLOG_TEST_ROOT'" -C "$SHIPLOG_TEST_ROOT" remote remove stray >/dev/null 2>&1 || true
     rm -rf "$stray_remote_dir"
   )' RETURN
   SHIPLOG_TEMP_REMOTE_DIRS+=("$stray_remote_dir")

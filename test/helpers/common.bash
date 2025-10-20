@@ -37,7 +37,9 @@ shiplog_snapshot_caller_repo_state() {
         SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]=$(git config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null | awk '{key=$1; sub($1 FS, ""); print key "\t" $0}')
       done < <(git remote)
     fi
-    cd "$prev_dir" || true
+    if ! cd "$prev_dir"; then
+      shiplog_helper_error "Failed to restore working directory to $prev_dir" || return 1
+    fi
   fi
 }
 
@@ -81,7 +83,11 @@ shiplog_restore_caller_remotes() {
 
   for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
     local config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
-    if git remote | grep -qx "$remote"; then
+    local remote_list
+    if ! remote_list=$(git remote); then
+      shiplog_helper_error "Failed to list remotes while restoring '$remote'" || return 1
+    fi
+    if printf '%s\n' "$remote_list" | grep -qx "$remote"; then
       if ! git remote remove "$remote" >/dev/null 2>&1; then
         shiplog_helper_error "Failed to remove remote '$remote' prior to restore" || return 1
       fi
@@ -152,7 +158,9 @@ shiplog_restore_caller_remotes() {
     done
   done
 
-  cd "$prev_dir" || true
+  if ! cd "$prev_dir"; then
+    shiplog_helper_error "Failed to restore working directory to $prev_dir" || return 1
+  fi
 
   SHIPLOG_CALLER_REPO_CAPTURED=0
   SHIPLOG_ORIG_REMOTE_ORDER=()
@@ -211,9 +219,15 @@ shiplog_use_temp_remote() {
   fi
 
   dir=$(mktemp -d)
-  if git remote | grep -qx "$remote"; then
+  local remote_list
+  if ! remote_list=$(git remote); then
+    rm -rf "$dir"
+    shiplog_helper_error "Failed to list remotes before creating '$remote'" || return 1
+  fi
+  if printf '%s\n' "$remote_list" | grep -qx "$remote"; then
     if ! git remote remove "$remote" >/dev/null 2>&1; then
-      shiplog_helper_error "Failed to remove existing remote '$remote'" || { rm -rf "$dir"; return 1; }
+      rm -rf "$dir"
+      shiplog_helper_error "Failed to remove existing remote '$remote'" || return 1
     fi
   fi
   if ! git init -q --bare "$dir"; then
@@ -224,10 +238,14 @@ shiplog_use_temp_remote() {
     rm -rf "$dir"
     shiplog_helper_error "Failed to add temporary remote '$remote'" || return 1
   fi
-  SHIPLOG_TEMP_REMOTE_DIRS+=("$dir")
   if [[ -n "${__var}" ]]; then
-    printf -v "$__var" '%s' "$dir"
+    if ! printf -v "$__var" '%s' "$dir"; then
+      git remote remove "$remote" >/dev/null 2>&1 || true
+      rm -rf "$dir"
+      shiplog_helper_error "Failed to export path for temporary remote '$remote'" || return 1
+    fi
   fi
+  SHIPLOG_TEMP_REMOTE_DIRS+=("$dir")
 }
 
 shiplog_install_cli() {

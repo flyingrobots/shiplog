@@ -110,10 +110,6 @@ teardown() {
   make_entry_unsigned
   run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
-  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
-  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
-  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
 }
 
 @test "(skipped) server does not trust client-side allowed_signers" {
