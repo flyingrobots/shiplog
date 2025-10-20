@@ -17,10 +17,7 @@ teardown() {
   export SHIPLOG_AUTO_PUSH=0
   git config shiplog.autoPush false
   # Create a bare remote and set as origin
-  REMOTE_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init -q --bare "$REMOTE_DIR"
-  git remote add origin "$REMOTE_DIR"
+  shiplog_use_temp_remote origin REMOTE_DIR
   # Write an entry locally (no push)
   export SHIPLOG_BORING=1
   export SHIPLOG_SERVICE=pub
@@ -50,10 +47,7 @@ teardown() {
   export SHIPLOG_CLUSTER=cluster-1
   export SHIPLOG_NAMESPACE=ns-remote
   git shiplog init >/dev/null
-  REMOTE_DIR=$(mktemp -d)
-  git remote remove "$SHIPLOG_REMOTE" >/dev/null 2>&1 || true
-  git init -q --bare "$REMOTE_DIR"
-  git remote add "$SHIPLOG_REMOTE" "$REMOTE_DIR"
+  shiplog_use_temp_remote "$SHIPLOG_REMOTE" REMOTE_DIR
   cat > .git/hooks/pre-push <<'EOF'
 #!/usr/bin/env bash
 echo "hook" >> .git/prepush.log
@@ -77,7 +71,6 @@ EOF
   git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   rm -f .git/hooks/pre-push .git/prepush.log
-  rm -rf "$REMOTE_DIR"
 }
 
 @test "publish uses SHIPLOG_REMOTE and skips pre-push hook" {
@@ -91,10 +84,7 @@ EOF
   export SHIPLOG_CLUSTER=cluster-2
   export SHIPLOG_NAMESPACE=ns-remote
   git shiplog init >/dev/null
-  REMOTE_DIR=$(mktemp -d)
-  git remote remove "$SHIPLOG_REMOTE" >/dev/null 2>&1 || true
-  git init -q --bare "$REMOTE_DIR"
-  git remote add "$SHIPLOG_REMOTE" "$REMOTE_DIR"
+  shiplog_use_temp_remote "$SHIPLOG_REMOTE" REMOTE_DIR
   cat > .git/hooks/pre-push <<'EOF'
 #!/usr/bin/env bash
 echo "hook" >> .git/prepush-publish.log
@@ -128,5 +118,4 @@ EOF
   git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
   rm -f .git/hooks/pre-push .git/prepush-publish.log
-  rm -rf "$REMOTE_DIR"
 }

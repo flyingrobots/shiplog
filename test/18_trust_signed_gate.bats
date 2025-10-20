@@ -5,15 +5,10 @@ load helpers/common
 setup() {
   shiplog_standard_setup
   # Prepare a bare remote for exercising the pre-receive hook
-  REMOTE_DIR=$(mktemp -d)
-  pushd "$REMOTE_DIR" >/dev/null
-  git init -q --bare
-  popd >/dev/null
-  git remote add origin "$REMOTE_DIR"
+  shiplog_use_temp_remote origin REMOTE_DIR
 }
 
 teardown() {
-  rm -rf "$REMOTE_DIR" 2>/dev/null || true
   shiplog_standard_teardown
 }
 

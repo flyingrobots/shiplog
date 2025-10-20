@@ -40,18 +40,11 @@ JSON
   git config user.email "shiplog-tester@example.com"
   export SHIPLOG_AUTO_PUSH=0
 
-  REMOTE_DIR=$(mktemp -d)
-  git init --bare "$REMOTE_DIR"
+  shiplog_use_temp_remote "$REMOTE_NAME" REMOTE_DIR
   install_hook_remote
-  git remote remove "$REMOTE_NAME" >/dev/null 2>&1 || true
-  git remote add "$REMOTE_NAME" "$REMOTE_DIR"
 }
 
 teardown() {
-  git remote remove "$REMOTE_NAME" >/dev/null 2>&1 || true
-  if [ -n "$REMOTE_DIR" ]; then
-    rm -rf "$REMOTE_DIR"
-  fi
   shiplog_cleanup_sandbox_repo
 }
 

@@ -5,14 +5,10 @@ load helpers/common
 setup() {
   shiplog_standard_setup
   git shiplog init >/dev/null
-  REMOTE_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init -q --bare "$REMOTE_DIR"
-  git remote add origin "$REMOTE_DIR"
+  shiplog_use_temp_remote origin REMOTE_DIR
 }
 
 teardown() {
-  rm -rf -- "$REMOTE_DIR" 2>/dev/null || true
   shiplog_standard_teardown
 }
 

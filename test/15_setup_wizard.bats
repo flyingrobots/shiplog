@@ -70,10 +70,7 @@ teardown() {
 
 @test "setup strict per-env writes deployment_requirements and can auto-push" {
   # Create a bare origin and set as remote
-  ORIGIN_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init --bare "$ORIGIN_DIR"
-  git remote add origin "$ORIGIN_DIR"
+  shiplog_use_temp_remote origin ORIGIN_DIR
 
   run env SHIPLOG_SETUP_STRICTNESS=strict SHIPLOG_SETUP_STRICT_ENVS="prod staging" SHIPLOG_SETUP_AUTO_PUSH=1 git shiplog setup --auto-push --strict-envs "prod staging"
   [ "$status" -eq 0 ]
@@ -90,16 +87,11 @@ teardown() {
   run git --git-dir="$ORIGIN_DIR" rev-parse --verify refs/_shiplog/policy/current
   [ "$status" -eq 0 ]
   # Cleanup
-  rm -rf "$ORIGIN_DIR"
 }
 
 @test "setup strict env-driven auto-pushes trust to origin" {
   # Prepare origin
-  ORIGIN2_DIR=$(mktemp -d)
-  trap "rm -rf '$ORIGIN2_DIR'" EXIT
-  git remote remove origin >/dev/null 2>&1 || true
-  git init --bare "$ORIGIN2_DIR"
-  git remote add origin "$ORIGIN2_DIR"
+  shiplog_use_temp_remote origin ORIGIN2_DIR
 
   # Fake key
   mkdir -p tmp
@@ -125,10 +117,7 @@ teardown() {
 }
 
 @test "setup warns about missing remote refs when not auto-pushing" {
-  ORIGIN_WARN_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init --bare "$ORIGIN_WARN_DIR"
-  git remote add origin "$ORIGIN_WARN_DIR"
+  shiplog_use_temp_remote origin ORIGIN_WARN_DIR
 
   run git --git-dir="$ORIGIN_WARN_DIR" rev-parse --verify refs/_shiplog/policy/current
   [ "$status" -ne 0 ]
@@ -139,14 +128,10 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_POLICY=1"* ]]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
-  rm -rf "$ORIGIN_WARN_DIR"
 }
 
 @test "setup does not warn when remote refs exist" {
-  ORIGIN_OK_DIR=$(mktemp -d)
-  git remote remove origin >/dev/null 2>&1 || true
-  git init --bare "$ORIGIN_OK_DIR"
-  git remote add origin "$ORIGIN_OK_DIR"
+  shiplog_use_temp_remote origin ORIGIN_OK_DIR
 
   mkdir -p tmp
   echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY shiplog@test" > tmp/testkey.pub
@@ -182,7 +167,6 @@ teardown() {
   [[ "$output" != *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
 
   rm -f tmp/testkey.pub
-  rm -rf "$ORIGIN_OK_DIR"
 }
 
 @test "setup backups and diffs policy on overwrite" {

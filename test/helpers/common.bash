@@ -5,18 +5,192 @@ SHIPLOG_SANDBOX_REPO="${SHIPLOG_SANDBOX_REPO:-https://github.com/flyingrobots/sh
 SHIPLOG_SANDBOX_BRANCH="${SHIPLOG_SANDBOX_BRANCH:-main}"
 SHIPLOG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-$(pwd)}"
 
-# Record the repository/windows where the helper was sourced so we can restore
-# the caller's remote configuration even if a test exits early. Tests should
-# never mutate the developer's working clone, but belt-and-suspenders restores
-# keep ad-hoc host runs safe.
-SHIPLOG_ORIGINAL_ORIGIN_PRESENT=0
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  if git remote | grep -qx origin; then
-    SHIPLOG_ORIGINAL_ORIGIN_PRESENT=1
-    SHIPLOG_ORIGINAL_ORIGIN_FETCH="$(git remote get-url origin 2>/dev/null || true)"
-    SHIPLOG_ORIGINAL_ORIGIN_PUSH="$(git remote get-url --push origin 2>/dev/null || true)"
+declare -ag SHIPLOG_TEMP_REMOTE_DIRS=()
+declare -ag SHIPLOG_STD_ENV_VARS=()
+declare -Ag SHIPLOG_STD_ENV_VALUES=()
+declare -Ag SHIPLOG_STD_ENV_WAS_SET=()
+
+declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
+declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+SHIPLOG_CALLER_REPO_CAPTURED=0
+
+shiplog_snapshot_caller_repo_state() {
+  local prev_dir="$PWD"
+  SHIPLOG_ORIG_REMOTE_ORDER=()
+  unset SHIPLOG_ORIG_REMOTES_CONFIG
+  declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+  SHIPLOG_CALLER_REPO_CAPTURED=0
+
+  if cd "$SHIPLOG_TEST_ROOT" 2>/dev/null; then
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      SHIPLOG_CALLER_REPO_CAPTURED=1
+      while IFS= read -r remote; do
+        [ -n "$remote" ] || continue
+        SHIPLOG_ORIG_REMOTE_ORDER+=("$remote")
+        local escaped
+        escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
+        SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]=$(git config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null | awk '{key=$1; sub($1 FS, ""); print key "\t" $0}')
+      done < <(git remote)
+    fi
+    cd "$prev_dir" || true
   fi
-fi
+}
+
+shiplog_cleanup_temp_remotes() {
+  if [ ${#SHIPLOG_TEMP_REMOTE_DIRS[@]} -gt 0 ]; then
+    local dir
+    for dir in "${SHIPLOG_TEMP_REMOTE_DIRS[@]}"; do
+      [ -n "$dir" ] && rm -rf "$dir"
+    done
+    SHIPLOG_TEMP_REMOTE_DIRS=()
+  fi
+}
+
+shiplog_restore_caller_remotes() {
+  [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ] || return 0
+
+  local prev_dir="$PWD"
+  if ! cd "$SHIPLOG_TEST_ROOT" 2>/dev/null; then
+    SHIPLOG_CALLER_REPO_CAPTURED=0
+    SHIPLOG_ORIG_REMOTE_ORDER=()
+    unset SHIPLOG_ORIG_REMOTES_CONFIG
+    declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+    return 0
+  fi
+
+  declare -A __shiplog_expected_remotes=()
+  local remote
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    __shiplog_expected_remotes["$remote"]=1
+  done
+
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    if [[ -z "${__shiplog_expected_remotes[$remote]+_}" ]]; then
+      git remote remove "$remote" >/dev/null 2>&1 || true
+      git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+    fi
+  done < <(git remote)
+
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    local config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
+    git remote remove "$remote" >/dev/null 2>&1 || true
+    git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+    [ -n "$config" ] || continue
+
+    local -a urls=() fetches=() pushurls=() other_keys=() other_values=()
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      local key value
+      key=${line%%$'\t'*}
+      value=${line#*$'\t'}
+      case "$key" in
+        remote."$remote".url)
+          urls+=("$value")
+          ;;
+        remote."$remote".pushurl)
+          pushurls+=("$value")
+          ;;
+        remote."$remote".fetch)
+          fetches+=("$value")
+          ;;
+        *)
+          other_keys+=("$key")
+          other_values+=("$value")
+          ;;
+      esac
+    done <<< "$config"
+
+    if [ ${#urls[@]} -gt 0 ]; then
+      git remote add "$remote" "${urls[0]}" >/dev/null 2>&1 || git remote set-url "$remote" "${urls[0]}" >/dev/null 2>&1 || true
+      git config --local --unset-all remote."$remote".url >/dev/null 2>&1 || true
+      local url
+      for url in "${urls[@]}"; do
+        git config --local --add remote."$remote".url "$url"
+      done
+    fi
+
+    git config --local --unset-all remote."$remote".fetch >/dev/null 2>&1 || true
+    local fetch
+    for fetch in "${fetches[@]}"; do
+      git config --local --add remote."$remote".fetch "$fetch"
+    done
+
+    git config --local --unset-all remote."$remote".pushurl >/dev/null 2>&1 || true
+    local pushurl
+    for pushurl in "${pushurls[@]}"; do
+      git config --local --add remote."$remote".pushurl "$pushurl"
+    done
+
+    local idx
+    for idx in "${!other_keys[@]}"; do
+      local key="${other_keys[$idx]}"
+      local value="${other_values[$idx]}"
+      git config --local --unset-all "$key" >/dev/null 2>&1 || true
+      git config --local --add "$key" "$value"
+    done
+  done
+
+  cd "$prev_dir" || true
+
+  SHIPLOG_CALLER_REPO_CAPTURED=0
+  SHIPLOG_ORIG_REMOTE_ORDER=()
+  unset SHIPLOG_ORIG_REMOTES_CONFIG
+  declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+}
+
+shiplog_capture_env_var() {
+  local var="$1"
+  if [[ -n "${SHIPLOG_STD_ENV_WAS_SET[$var]+_}" ]]; then
+    return 0
+  fi
+  if [[ ${!var+x} ]]; then
+    SHIPLOG_STD_ENV_VALUES["$var"]="${!var}"
+    SHIPLOG_STD_ENV_WAS_SET["$var"]=1
+  else
+    SHIPLOG_STD_ENV_VALUES["$var"]=""
+    SHIPLOG_STD_ENV_WAS_SET["$var"]=0
+  fi
+  SHIPLOG_STD_ENV_VARS+=("$var")
+}
+
+shiplog_standard_env_begin() {
+  SHIPLOG_STD_ENV_VARS=()
+  unset SHIPLOG_STD_ENV_VALUES
+  declare -Ag SHIPLOG_STD_ENV_VALUES=()
+  unset SHIPLOG_STD_ENV_WAS_SET
+  declare -Ag SHIPLOG_STD_ENV_WAS_SET=()
+
+  shiplog_capture_env_var PATH
+  shiplog_capture_env_var SHIPLOG_HOME
+  shiplog_capture_env_var SHIPLOG_LIB_DIR
+  shiplog_capture_env_var SHIPLOG_BOSUN_BIN
+  shiplog_capture_env_var SHIPLOG_REF_ROOT
+  shiplog_capture_env_var SHIPLOG_NOTES_REF
+  shiplog_capture_env_var SHIPLOG_SIGN
+  shiplog_capture_env_var SHIPLOG_SANDBOX_DIR
+  shiplog_capture_env_var SHIPLOG_USE_LOCAL_SANDBOX
+}
+
+shiplog_use_temp_remote() {
+  local remote="${1:-origin}"
+  local __var="${2:-}"
+  local dir
+
+  if [[ -z "${SHIPLOG_SANDBOX_DIR:-}" ]]; then
+    echo "ERROR: shiplog_use_temp_remote must be called after shiplog_use_sandbox_repo" >&2
+    return 1
+  fi
+
+  dir=$(mktemp -d)
+  git remote remove "$remote" >/dev/null 2>&1 || true
+  git init -q --bare "$dir"
+  git remote add "$remote" "$dir"
+  SHIPLOG_TEMP_REMOTE_DIRS+=("$dir")
+  if [[ -n "${__var}" ]]; then
+    printf -v "$__var" '%s' "$dir"
+  fi
+}
 
 shiplog_install_cli() {
   local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
@@ -68,6 +242,7 @@ shiplog_clone_sandbox_repo() {
 shiplog_use_sandbox_repo() {
   local dest
   dest="${1:-}"
+  shiplog_snapshot_caller_repo_state
   if [[ -z "$dest" ]]; then
     dest="$(mktemp -d)"
   else
@@ -103,40 +278,8 @@ shiplog_cleanup_sandbox_repo() {
     unset SHIPLOG_SANDBOX_DIR
   fi
 
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    local has_origin
-    has_origin=0
-    if git remote | grep -qx origin; then
-      has_origin=1
-    fi
-
-    if [[ "${SHIPLOG_ORIGINAL_ORIGIN_PRESENT:-0}" = "1" ]]; then
-      # Ensure origin exists and points back to the original URL captured when
-      # the helper was sourced. This protects host clones when tests are run
-      # outside the Docker harness.
-      if [[ "$has_origin" -eq 0 ]]; then
-        git remote add origin "$SHIPLOG_ORIGINAL_ORIGIN_FETCH"
-      else
-        local current_fetch
-        current_fetch="$(git remote get-url origin 2>/dev/null || true)"
-        if [[ "$current_fetch" != "$SHIPLOG_ORIGINAL_ORIGIN_FETCH" ]]; then
-          git remote set-url origin "$SHIPLOG_ORIGINAL_ORIGIN_FETCH"
-        fi
-      fi
-      if [[ -n "${SHIPLOG_ORIGINAL_ORIGIN_PUSH:-}" ]]; then
-        local current_push
-        current_push="$(git remote get-url --push origin 2>/dev/null || true)"
-        if [[ "$current_push" != "$SHIPLOG_ORIGINAL_ORIGIN_PUSH" ]]; then
-          git remote set-url --push origin "$SHIPLOG_ORIGINAL_ORIGIN_PUSH"
-        fi
-      fi
-    else
-      # Original repo had no origin; remove any temporary one the tests added.
-      if [[ "$has_origin" -eq 1 ]]; then
-        git remote remove origin >/dev/null 2>&1 || true
-      fi
-    fi
-  fi
+  shiplog_cleanup_temp_remotes
+  shiplog_restore_caller_remotes
 }
 
 shiplog_setup_test_signing() {
@@ -255,6 +398,7 @@ shiplog_bootstrap_policy_ref() {
 }
 
 shiplog_standard_setup() {
+  shiplog_standard_env_begin
   shiplog_install_cli
   shiplog_use_sandbox_repo
   shiplog_bootstrap_trust
@@ -275,6 +419,22 @@ shiplog_standard_setup() {
 
 shiplog_standard_teardown() {
   shiplog_cleanup_sandbox_repo
+
+  local var
+  for var in "${SHIPLOG_STD_ENV_VARS[@]}"; do
+    if [[ ${SHIPLOG_STD_ENV_WAS_SET[$var]:-0} -eq 1 ]]; then
+      printf -v "$var" '%s' "${SHIPLOG_STD_ENV_VALUES[$var]}"
+      export "$var"
+    else
+      unset "$var"
+    fi
+  done
+
+  SHIPLOG_STD_ENV_VARS=()
+  unset SHIPLOG_STD_ENV_VALUES
+  declare -Ag SHIPLOG_STD_ENV_VALUES=()
+  unset SHIPLOG_STD_ENV_WAS_SET
+  declare -Ag SHIPLOG_STD_ENV_WAS_SET=()
 }
 
 # --- Test-only helpers for robust SSH principal acceptance ---

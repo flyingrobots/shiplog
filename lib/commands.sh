@@ -18,12 +18,32 @@ get_remote_oid() {
 }
 
 sanitize_remote_error() {
-  local raw="$1" sanitized
-  sanitized=$(printf '%s' "$raw" | tr -d '\r' | awk '{
-    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-    if (length($0) > 0) { print; exit }
-  }')
-  printf '%s' "$sanitized"
+  local raw="$1" count=0 first="" second="" line trimmed
+  while IFS= read -r line; do
+    trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$trimmed" ] || continue
+    count=$((count + 1))
+    if [ $count -eq 1 ]; then
+      first="$trimmed"
+    elif [ $count -eq 2 ]; then
+      second="$trimmed"
+    fi
+  done <<< "$(printf '%s' "$raw" | tr -d '\r')"
+
+  case $count in
+    0)
+      printf ''
+      ;;
+    1)
+      printf '%s' "$first"
+      ;;
+    2)
+      printf '%s; %s' "$first" "$second"
+      ;;
+    *)
+      printf '%s; %s; (+%d more lines)' "$first" "$second" $((count - 2))
+      ;;
+  esac
 }
 
 fast_forward_ref() {
