@@ -14,6 +14,12 @@ declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
 declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
 SHIPLOG_CALLER_REPO_CAPTURED=0
 
+shiplog_mark_safe_directory() {
+  local dir="$1"
+  # Ignore failure if config already present or git is unavailable
+  git config --global --add safe.directory "$dir" >/dev/null 2>&1 || true
+}
+
 shiplog_helper_error() {
   echo "ERROR: $*" >&2
   return 1
@@ -27,6 +33,7 @@ shiplog_snapshot_caller_repo_state() {
   SHIPLOG_CALLER_REPO_CAPTURED=0
 
   if cd "$SHIPLOG_TEST_ROOT" 2>/dev/null; then
+    shiplog_mark_safe_directory "$SHIPLOG_TEST_ROOT"
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       SHIPLOG_CALLER_REPO_CAPTURED=1
       while IFS= read -r remote; do
@@ -64,6 +71,7 @@ shiplog_restore_caller_remotes() {
     declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
     return 0
   fi
+  shiplog_mark_safe_directory "$SHIPLOG_TEST_ROOT"
 
   declare -A __shiplog_expected_remotes=()
   local remote
@@ -217,6 +225,8 @@ shiplog_use_temp_remote() {
     echo "ERROR: shiplog_use_temp_remote must be called from inside a git repository" >&2
     return 1
   fi
+
+  shiplog_mark_safe_directory "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
   dir=$(mktemp -d)
   local remote_list
