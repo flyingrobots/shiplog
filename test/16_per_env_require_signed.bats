@@ -45,6 +45,16 @@ JSON
 }
 
 teardown() {
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  if [ -n "$REMOTE_DIR" ] && [ -d "$REMOTE_DIR" ]; then
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  fi
   shiplog_cleanup_sandbox_repo
 }
 
@@ -71,10 +81,14 @@ make_entry_unsigned() {
   make_entry_unsigned staging
   run git push "$REMOTE_NAME" refs/_shiplog/journal/staging
   [ "$status" -eq 0 ]
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
 
   # Prod unsigned should fail
   make_entry_unsigned prod
   run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
   [[ "$output" == *"missing required signature"* ]]
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
 }

@@ -5,6 +5,17 @@ load helpers/common
 REMOTE_DIR=""
 REMOTE_NAME="shiplog-test"
 
+cleanup_signing_refs() {
+  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  if [ -n "$REMOTE_DIR" ] && [ -d "$REMOTE_DIR" ]; then
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  fi
+}
+
 install_hook_remote() {
   local hook_source="${SHIPLOG_HOOK_PATH:-$SHIPLOG_PROJECT_ROOT/contrib/hooks/pre-receive.shiplog}"
   install -m 0755 "$hook_source" "$REMOTE_DIR/hooks/pre-receive"
@@ -31,6 +42,10 @@ JSON
     git commit-tree "$tree" -m "shiplog: trust root v1 (GENESIS)")
   git update-ref refs/_shiplog/trust/root "$commit"
   git push -q "$REMOTE_NAME" refs/_shiplog/trust/root
+  local push_status=$?
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  return $push_status
 }
 
 make_entry_unsigned() {
@@ -76,6 +91,7 @@ JSON
 }
 
 teardown() {
+  cleanup_signing_refs
   shiplog_cleanup_sandbox_repo
 }
 
@@ -94,6 +110,10 @@ teardown() {
   make_entry_unsigned
   run git push "$REMOTE_NAME" refs/_shiplog/journal/prod
   [ "$status" -ne 0 ]
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
 }
 
 @test "(skipped) server does not trust client-side allowed_signers" {

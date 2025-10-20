@@ -14,6 +14,11 @@ declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
 declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
 SHIPLOG_CALLER_REPO_CAPTURED=0
 
+shiplog_helper_error() {
+  echo "ERROR: $*" >&2
+  return 1
+}
+
 shiplog_snapshot_caller_repo_state() {
   local prev_dir="$PWD"
   SHIPLOG_ORIG_REMOTE_ORDER=()
@@ -67,14 +72,20 @@ shiplog_restore_caller_remotes() {
   while IFS= read -r remote; do
     [ -n "$remote" ] || continue
     if [[ -z "${__shiplog_expected_remotes[$remote]+_}" ]]; then
-      git remote remove "$remote" >/dev/null 2>&1 || true
+      if ! git remote remove "$remote" >/dev/null 2>&1; then
+        shiplog_helper_error "Failed to remove unexpected remote '$remote'" || return 1
+      fi
       git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
     fi
   done < <(git remote)
 
   for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
     local config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
-    git remote remove "$remote" >/dev/null 2>&1 || true
+    if git remote | grep -qx "$remote"; then
+      if ! git remote remove "$remote" >/dev/null 2>&1; then
+        shiplog_helper_error "Failed to remove remote '$remote' prior to restore" || return 1
+      fi
+    fi
     git config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
     [ -n "$config" ] || continue
 
@@ -102,24 +113,32 @@ shiplog_restore_caller_remotes() {
     done <<< "$config"
 
     if [ ${#urls[@]} -gt 0 ]; then
-      git remote add "$remote" "${urls[0]}" >/dev/null 2>&1 || git remote set-url "$remote" "${urls[0]}" >/dev/null 2>&1 || true
+      if ! git remote add "$remote" "${urls[0]}" >/dev/null 2>&1; then
+        shiplog_helper_error "Failed to add remote '$remote' with URL ${urls[0]}" || return 1
+      fi
       git config --local --unset-all remote."$remote".url >/dev/null 2>&1 || true
       local url
       for url in "${urls[@]}"; do
-        git config --local --add remote."$remote".url "$url"
+        if ! git config --local --add remote."$remote".url "$url"; then
+          shiplog_helper_error "Failed to restore remote.$remote.url=$url" || return 1
+        fi
       done
     fi
 
     git config --local --unset-all remote."$remote".fetch >/dev/null 2>&1 || true
     local fetch
     for fetch in "${fetches[@]}"; do
-      git config --local --add remote."$remote".fetch "$fetch"
+      if ! git config --local --add remote."$remote".fetch "$fetch"; then
+        shiplog_helper_error "Failed to restore remote.$remote.fetch=$fetch" || return 1
+      fi
     done
 
     git config --local --unset-all remote."$remote".pushurl >/dev/null 2>&1 || true
     local pushurl
     for pushurl in "${pushurls[@]}"; do
-      git config --local --add remote."$remote".pushurl "$pushurl"
+      if ! git config --local --add remote."$remote".pushurl "$pushurl"; then
+        shiplog_helper_error "Failed to restore remote.$remote.pushurl=$pushurl" || return 1
+      fi
     done
 
     local idx
@@ -127,7 +146,9 @@ shiplog_restore_caller_remotes() {
       local key="${other_keys[$idx]}"
       local value="${other_values[$idx]}"
       git config --local --unset-all "$key" >/dev/null 2>&1 || true
-      git config --local --add "$key" "$value"
+      if ! git config --local --add "$key" "$value"; then
+        shiplog_helper_error "Failed to restore $key=$value" || return 1
+      fi
     done
   done
 
@@ -182,10 +203,25 @@ shiplog_use_temp_remote() {
     return 1
   fi
 
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "ERROR: shiplog_use_temp_remote must be called from inside a git repository" >&2
+    return 1
+  fi
+
   dir=$(mktemp -d)
-  git remote remove "$remote" >/dev/null 2>&1 || true
-  git init -q --bare "$dir"
-  git remote add "$remote" "$dir"
+  if git remote | grep -qx "$remote"; then
+    if ! git remote remove "$remote" >/dev/null 2>&1; then
+      shiplog_helper_error "Failed to remove existing remote '$remote'" || { rm -rf "$dir"; return 1; }
+    fi
+  fi
+  if ! git init -q --bare "$dir"; then
+    rm -rf "$dir"
+    shiplog_helper_error "Failed to initialize bare repo for remote '$remote'" || return 1
+  fi
+  if ! git remote add "$remote" "$dir"; then
+    rm -rf "$dir"
+    shiplog_helper_error "Failed to add temporary remote '$remote'" || return 1
+  fi
   SHIPLOG_TEMP_REMOTE_DIRS+=("$dir")
   if [[ -n "${__var}" ]]; then
     printf -v "$__var" '%s' "$dir"

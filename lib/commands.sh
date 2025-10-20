@@ -18,30 +18,43 @@ get_remote_oid() {
 }
 
 sanitize_remote_error() {
-  local raw="$1" count=0 first="" second="" line trimmed
-  while IFS= read -r line; do
-    trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    [ -n "$trimmed" ] || continue
-    count=$((count + 1))
-    if [ $count -eq 1 ]; then
-      first="$trimmed"
-    elif [ $count -eq 2 ]; then
-      second="$trimmed"
-    fi
-  done <<< "$(printf '%s' "$raw" | tr -d '\r')"
+  local raw_input="$1"
+  local normalized_input first_line="" second_line="" trimmed_line=""
+  local current_line total_lines=0 extra_lines=0
 
-  case $count in
+  normalized_input=$(printf '%s' "$raw_input" | tr -d '\r')
+
+  while IFS= read -r current_line; do
+    case "$current_line" in
+      *[![:space:]]*)
+        total_lines=$((total_lines + 1))
+        if [ $total_lines -eq 1 ]; then
+          trimmed_line=$(printf '%s' "$current_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          first_line="$trimmed_line"
+        elif [ $total_lines -eq 2 ]; then
+          trimmed_line=$(printf '%s' "$current_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          second_line="$trimmed_line"
+        else
+          extra_lines=$((extra_lines + 1))
+        fi
+        ;;
+    esac
+  done <<< "$normalized_input"
+
+  # The extra_lines counter lets us summarize long outputs with a concise
+  # "(+N more lines)" suffix while still reporting the most actionable text.
+  case $total_lines in
     0)
       printf ''
       ;;
     1)
-      printf '%s' "$first"
+      printf '%s' "$first_line"
       ;;
     2)
-      printf '%s; %s' "$first" "$second"
+      printf '%s; %s' "$first_line" "$second_line"
       ;;
     *)
-      printf '%s; %s; (+%d more lines)' "$first" "$second" $((count - 2))
+      printf '%s; %s; (+%d more lines)' "$first_line" "$second_line" "$extra_lines"
       ;;
   esac
 }

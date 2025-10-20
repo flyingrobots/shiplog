@@ -87,6 +87,8 @@ teardown() {
   run git --git-dir="$ORIGIN_DIR" rev-parse --verify refs/_shiplog/policy/current
   [ "$status" -eq 0 ]
   # Cleanup
+  git --git-dir="$ORIGIN_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
 }
 
 @test "setup strict env-driven auto-pushes trust to origin" {
@@ -114,6 +116,8 @@ teardown() {
   [ "$status" -eq 0 ]
   run git --git-dir="$ORIGIN2_DIR" rev-parse --verify refs/_shiplog/trust/root
   [ "$status" -eq 0 ]
+  git --git-dir="$ORIGIN2_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
 }
 
 @test "setup warns about missing remote refs when not auto-pushing" {
@@ -128,6 +132,8 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_POLICY=1"* ]]
   [[ "$output" == *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
+
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
 }
 
 @test "setup does not warn when remote refs exist" {
@@ -167,6 +173,10 @@ teardown() {
   [[ "$output" != *"SHIPLOG_ALLOW_MISSING_TRUST=1"* ]]
 
   rm -f tmp/testkey.pub
+  git --git-dir="$ORIGIN_OK_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git --git-dir="$ORIGIN_OK_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
 }
 
 @test "setup backups and diffs policy on overwrite" {

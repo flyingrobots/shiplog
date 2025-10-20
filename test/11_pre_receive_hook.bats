@@ -5,6 +5,17 @@ load helpers/common
 REMOTE_DIR=""
 REMOTE_NAME="shiplog-test"
 
+cleanup_shiplog_refs() {
+  git update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  if [ -n "$REMOTE_DIR" ] && [ -d "$REMOTE_DIR" ]; then
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/prod >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/policy/current >/dev/null 2>&1 || true
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  fi
+}
+
 make_entry() {
   SHIPLOG_SERVICE="hook-test" \
   SHIPLOG_STATUS="success" \
@@ -96,6 +107,7 @@ setup() {
 }
 
 teardown() {
+  cleanup_shiplog_refs
   shiplog_cleanup_sandbox_repo
 }
 

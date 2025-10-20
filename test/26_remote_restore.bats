@@ -39,13 +39,23 @@ teardown() {
   local stray_remote_dir
   stray_remote_dir=$(mktemp -d)
   git init -q --bare "$stray_remote_dir"
+  trap '(
+    cd "$SHIPLOG_TEST_ROOT" >/dev/null 2>&1 && git remote remove stray >/dev/null 2>&1 || true
+    rm -rf "$stray_remote_dir"
+  )' RETURN
   SHIPLOG_TEMP_REMOTE_DIRS+=("$stray_remote_dir")
-  git -C "$SHIPLOG_TEST_ROOT" remote add stray "$stray_remote_dir"
+  (
+    cd "$SHIPLOG_TEST_ROOT" || exit 1
+    git remote add stray "$stray_remote_dir" || exit 1
+  )
 
   if [ "$ORIG_HAVE_ORIGIN" -eq 1 ]; then
-    git -C "$SHIPLOG_TEST_ROOT" config --add remote.origin.fetch '+refs/tags/*:refs/remotes/origin/tags'
-    git -C "$SHIPLOG_TEST_ROOT" config --add remote.origin.pushurl 'ssh://example/push'
-    git -C "$SHIPLOG_TEST_ROOT" config --add remote.origin.url 'ssh://example/extra'
+    (
+      cd "$SHIPLOG_TEST_ROOT" || exit 1
+      git config --add remote.origin.fetch '+refs/tags/*:refs/remotes/origin/tags' || exit 1
+      git config --add remote.origin.pushurl 'ssh://example/push' || exit 1
+      git config --add remote.origin.url 'ssh://example/extra' || exit 1
+    )
   fi
 
   REMOTE_RESTORE_SKIPPED=1

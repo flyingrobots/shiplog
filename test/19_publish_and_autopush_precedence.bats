@@ -35,6 +35,9 @@ teardown() {
   run git --git-dir="$REMOTE_DIR" for-each-ref 'refs/_shiplog/journal/staging' --format='%(refname)'
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "refs/_shiplog/journal/staging"
+
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
+  git update-ref -d refs/_shiplog/journal/staging >/dev/null 2>&1 || true
 }
 
 @test "auto-push honors SHIPLOG_REMOTE and bypasses pre-push hook" {

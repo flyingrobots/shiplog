@@ -9,6 +9,12 @@ setup() {
 }
 
 teardown() {
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  if [ -n "$REMOTE_DIR" ] && [ -d "$REMOTE_DIR" ]; then
+    git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  fi
+  rm -rf .shiplog/trust_sigs >/dev/null 2>&1 || true
+  rm -f payload.txt payload.txt.sig >/dev/null 2>&1 || true
   shiplog_standard_teardown
 }
 
@@ -34,6 +40,9 @@ install_hook_with_gate() {
   run git push -q origin refs/_shiplog/trust/root
   [ "$status" -ne 0 ]
   [[ "$output" == *"pre-receive hook declined"* ]]
+
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
 }
 
 @test "signed trust push passes when SHIPLOG_REQUIRE_SIGNED_TRUST=1" {
@@ -79,4 +88,7 @@ JSON
     echo "------------------------"
   fi
   [ "$status" -eq 0 ]
+
+  git update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
+  git --git-dir="$REMOTE_DIR" update-ref -d refs/_shiplog/trust/root >/dev/null 2>&1 || true
 }
