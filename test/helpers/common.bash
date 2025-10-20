@@ -194,6 +194,8 @@ shiplog_standard_env_begin() {
 }
 
 shiplog_use_temp_remote() {
+# Helper documentation: ensures remote creation happens via throw-away bare
+# repos that the harness cleans up. Always call after shiplog_use_sandbox_repo.
   local remote="${1:-origin}"
   local __var="${2:-}"
   local dir
@@ -229,6 +231,9 @@ shiplog_use_temp_remote() {
 }
 
 shiplog_install_cli() {
+# Install git-shiplog into a writable bin directory (preferring /usr/local/bin)
+# and export SHIPLOG_HOME so tests reference the baked snapshot of the project.
+# Required for every Bats test bundle.
   local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
 
   if [[ ! -f "${project_home}/bin/git-shiplog" ]]; then
@@ -265,6 +270,8 @@ shiplog_install_cli() {
 }
 
 shiplog_clone_sandbox_repo() {
+# Clone the public testing sandbox repo into $1 (used when
+# SHIPLOG_USE_LOCAL_SANDBOX=0).
   local dest="$1"
   git clone -q "$SHIPLOG_SANDBOX_REPO" "$dest"
   (
@@ -276,6 +283,8 @@ shiplog_clone_sandbox_repo() {
 }
 
 shiplog_use_sandbox_repo() {
+# Create or clone a sandbox repo, cd into it, and snapshot the caller’s remote
+# configuration for later restoration.
   local dest
   dest="${1:-}"
   shiplog_snapshot_caller_repo_state
@@ -308,6 +317,8 @@ shiplog_use_sandbox_repo() {
 }
 
 shiplog_cleanup_sandbox_repo() {
+# Return to the original working tree, delete the sandbox repo, clean temp
+# remotes, and restore the caller repo remotes.
   cd "$SHIPLOG_TEST_ROOT"
   if [[ -n "${SHIPLOG_SANDBOX_DIR:-}" && -d "$SHIPLOG_SANDBOX_DIR" ]]; then
     rm -rf "$SHIPLOG_SANDBOX_DIR"

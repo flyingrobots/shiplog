@@ -94,6 +94,7 @@ Notes:
   - `SHIPLOG_ALLOW_MISSING_POLICY=1`
   - `SHIPLOG_ALLOW_MISSING_TRUST=1`
   See contrib/README.md for details. When `git shiplog setup` detects that these refs are missing on your remote (and auto-push is disabled), it prints this reminder so you can relax the hook until the initial push succeeds.
+- If the remote probe fails (e.g., due to timeouts or auth problems), setup now surfaces the first two trimmed stderr lines and indicates how many more lines were produced so you can act on the real failure instead of a generic status code.
 
 ## Switching Later
 

@@ -22,6 +22,14 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 - The entrypoint installs `bin/git-shiplog` into `/usr/local/bin/git-shiplog` and exports `SHIPLOG_BOSUN_BIN`, then runs Bats (`bats -r`).
 - Each Bats file calls `load helpers/common`, whose `shiplog_install_cli` helper ensures the CLI is present and executable before tests begin.
 
+## Test Author Checklist
+
+- **Sandbox first**: in `setup()`, call `shiplog_standard_setup` (or at minimum `shiplog_use_sandbox_repo`) so every test operates inside a disposable repo. Never hit the developer’s working tree.
+- **Temporary remotes**: use `shiplog_use_temp_remote <name> [var]` instead of `git remote add`. The helper creates a bare temp repo, registers it, and the teardown plumbing deletes it safely.
+- **Ref hygiene**: if your test creates or pushes `refs/_shiplog/*`, delete those refs (locally and in any temp remotes) before teardown. Shared helpers like `cleanup_*_refs` are provided for common suites.
+- **Environment restore**: shared helpers snapshot `PATH` and key `SHIPLOG_*` vars; if you introduce additional env/config mutations, capture and restore them so later tests start clean.
+- **Document helpers**: when you add a new helper or pattern, update this README or inline comments in `test/helpers/common.bash` so future contributors reuse it.
+
 ## Adding or Updating Tests
 1. Create a new `*.bats` file or update an existing one under `test/`.
 2. Reuse shared setup logic via `load helpers/common` and environment variables (`SHIPLOG_*`) rather than duplicating installation code.
