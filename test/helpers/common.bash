@@ -5,6 +5,36 @@ SHIPLOG_SANDBOX_REPO="${SHIPLOG_SANDBOX_REPO:-https://github.com/flyingrobots/sh
 SHIPLOG_SANDBOX_BRANCH="${SHIPLOG_SANDBOX_BRANCH:-main}"
 SHIPLOG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-$(pwd)}"
 
+declare -ag SHIPLOG_TEMP_REMOTE_DIRS=()
+declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
+declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+declare -gi SHIPLOG_CALLER_REPO_CAPTURED=0
+
+shiplog_git_caller() {
+  echo "ERROR: shiplog_git_caller not yet implemented" >&2
+  return 1
+}
+
+shiplog_helper_error() {
+  echo "ERROR: $*" >&2
+  return 1
+}
+
+shiplog_reset_remote_snapshot_state() {
+  SHIPLOG_ORIG_REMOTE_ORDER=()
+  unset SHIPLOG_ORIG_REMOTES_CONFIG
+  declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+  SHIPLOG_CALLER_REPO_CAPTURED=0
+}
+
+shiplog_snapshot_caller_repo_state() {
+  shiplog_helper_error "shiplog_snapshot_caller_repo_state not yet implemented"
+}
+
+shiplog_restore_caller_remotes() {
+  shiplog_helper_error "shiplog_restore_caller_remotes not yet implemented"
+}
+
 shiplog_install_cli() {
   local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
 
