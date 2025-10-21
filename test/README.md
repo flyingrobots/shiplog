@@ -28,6 +28,7 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 3. Use the global `--yes` flag instead of piping `yes |` when a test needs to auto-confirm prompts.
 4. Keep tests hermetic: they should initialize their own temporary repos, configure required policy files, and avoid relying on host state.
 5. Document new scenarios by updating `docs/features/` or the README feature table so tooling stays in sync.
+6. When simulating read-only `.git/config` behavior in tests, set `SHIPLOG_FORCE_REMOTE_RESTORE_SKIP=1` inside a subshell; the helper uses this flag to exercise the skip path since Docker runs as root.
 
 ## Running Specific Tests
 
