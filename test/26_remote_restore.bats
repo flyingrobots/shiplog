@@ -101,7 +101,6 @@ teardown() {
   local remote="shimtest-${BATS_TEST_NUMBER}"
   local temp_repo
   temp_repo="$(mktemp -d)"
-  _RESTORE_READONLY_TMPDIR="$temp_repo"
   (
     cd "$temp_repo"
     export SHIPLOG_TEST_ROOT="$temp_repo"
@@ -119,6 +118,7 @@ teardown() {
     [ "$status" -eq 0 ]
     [ -z "$output" ]
   )
+  rm -rf "$temp_repo"
 }
 
 @test "snapshot captures empty remote list" {
@@ -236,7 +236,7 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "^$remote$"
+  echo "$output" | grep -qxF "$remote"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -253,7 +253,7 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  ! echo "$output" | grep -q "^$remote$"
+  ! echo "$output" | grep -qxF "$remote"
 }
 
 @test "restore preserves remote order" {
@@ -284,6 +284,13 @@ teardown() {
   [ "$url1" = "https://example.invalid/first.git" ]
   [ "$url2" = "https://example.invalid/second.git" ]
   [ "$url3" = "https://example.invalid/third.git" ]
+
+  local n1 n2 n3
+  n1="$(grep -nE "^\\[remote \"$remote1\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  n2="$(grep -nE "^\\[remote \"$remote2\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  n3="$(grep -nE "^\\[remote \"$remote3\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n3" ]
+  [ "$n1" -lt "$n2" ] && [ "$n2" -lt "$n3" ]
 
   shiplog_git_caller remote remove "$remote1" >/dev/null 2>&1 || true
   shiplog_git_caller remote remove "$remote2" >/dev/null 2>&1 || true
@@ -378,17 +385,17 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "^$remote2$"
-  echo "$output" | grep -q "^$remote3$"
+  echo "$output" | grep -qxF "$remote2"
+  echo "$output" | grep -qxF "$remote3"
 
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  ! echo "$output" | grep -q "^$remote2$"
-  ! echo "$output" | grep -q "^$remote3$"
-  echo "$output" | grep -q "^$remote1$"
+  ! echo "$output" | grep -qxF "$remote2"
+  ! echo "$output" | grep -qxF "$remote3"
+  echo "$output" | grep -qxF "$remote1"
 
   shiplog_git_caller remote remove "$remote1" >/dev/null 2>&1 || true
 }
@@ -448,7 +455,7 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "^$remote$"
+  echo "$output" | grep -qxF "$remote"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -476,7 +483,7 @@ teardown() {
 
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Skipping remote restore: config is read-only"
+    echo "$output" | grep -q "Skipping remote restore: config is read-only"
 
   unset SHIPLOG_FORCE_REMOTE_RESTORE_SKIP
 }
@@ -490,7 +497,7 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "^$remote$"
+  echo "$output" | grep -qxF "$remote"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -575,7 +582,7 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  ! echo "$output" | grep -q "^extra-remote$"
+  ! echo "$output" | grep -qxF "extra-remote"
 
   shiplog_git_caller remote remove "$remote1" >/dev/null 2>&1 || true
   shiplog_git_caller remote remove "$remote2" >/dev/null 2>&1 || true
@@ -656,8 +663,8 @@ teardown() {
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "^$remote1$"
-  ! echo "$output" | grep -q "^$remote2$"
+  echo "$output" | grep -qxF "$remote1"
+  ! echo "$output" | grep -qxF "$remote2"
 
   shiplog_git_caller remote remove "$remote1" >/dev/null 2>&1 || true
 }
@@ -694,7 +701,7 @@ teardown() {
 
     run shiplog_git_caller remote
     [ "$status" -eq 0 ]
-    echo "$output" | grep -qF "$remote"
+    echo "$output" | grep -qxF "$remote"
 
     shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
   else
