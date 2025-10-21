@@ -70,7 +70,7 @@ shiplog_snapshot_caller_repo_state() {
     [ -n "$remote" ] || continue
     order+=("$remote")
     local escaped config
-    escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
+    escaped=$(printf '%s' "$remote" | sed 's/[\\[\].*^$?+(){}|-]/\\&/g')
     config=$(shiplog_git_caller config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null || true)
     config_map["$remote"]="$config"
   done <<<"$remote_list"
