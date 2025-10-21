@@ -166,16 +166,9 @@ teardown() {
   local rc=$?
   [ "$rc" -eq 0 ]
   [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -eq 3 ]
-
-  local seen_alpha=0 seen_beta=0 seen_gamma=0 remote
-  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
-    if [ "$remote" = "$remote1" ]; then seen_alpha=1; fi
-    if [ "$remote" = "$remote2" ]; then seen_beta=1; fi
-    if [ "$remote" = "$remote3" ]; then seen_gamma=1; fi
-  done
-  [ "$seen_alpha" -eq 1 ]
-  [ "$seen_beta" -eq 1 ]
-  [ "$seen_gamma" -eq 1 ]
+  [ "${SHIPLOG_ORIG_REMOTE_ORDER[0]}" = "$remote1" ]
+  [ "${SHIPLOG_ORIG_REMOTE_ORDER[1]}" = "$remote2" ]
+  [ "${SHIPLOG_ORIG_REMOTE_ORDER[2]}" = "$remote3" ]
 
   shiplog_git_caller remote remove "$remote1" >/dev/null 2>&1 || true
   shiplog_git_caller remote remove "$remote2" >/dev/null 2>&1 || true
