@@ -19,15 +19,15 @@ teardown() {
 @test "restore removes unexpected remotes" {
   local remote="shimtest-${BATS_TEST_NUMBER}"
   shiplog_snapshot_caller_repo_state
-  git remote add "$remote" https://example.invalid/original.git
-  run git remote
+  shiplog_git_caller remote add "$remote" https://example.invalid/original.git
+  run shiplog_git_caller remote
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "^$remote$"
 
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  run git remote
+  run shiplog_git_caller remote
   [ "$status" -eq 0 ]
   ! echo "$output" | grep -q "^$remote$"
 }
