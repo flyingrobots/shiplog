@@ -105,7 +105,7 @@ shiplog_restore_caller_remotes() {
     expected["$remote"]=1
   done
 
-  local listed rc
+  local listed
   while IFS= read -r listed; do
     [ -n "$listed" ] || continue
     if [[ -z ${expected[$listed]+_} ]]; then
@@ -292,7 +292,7 @@ shiplog_use_sandbox_repo() {
   else
     mkdir -p "$dest"
   fi
-  if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-0}" = "1" ]]; then
+  if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-1}" = "1" ]]; then
     # Initialize a local empty repo instead of cloning from network
     cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
     git init -q

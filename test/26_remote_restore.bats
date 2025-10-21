@@ -116,7 +116,8 @@ escape_remote_regex() {
 @test "snapshot captures empty remote list" {
   local remote
   shiplog_reset_remote_snapshot_state
-  for remote in $(shiplog_git_caller remote 2>/dev/null); do
+  shiplog_git_caller remote 2>/dev/null | while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
     shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
   done
 
@@ -707,11 +708,15 @@ escape_remote_regex() {
 
   shiplog_snapshot_caller_repo_state
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ]
+  [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -gt 0 ]
+  [ "${#SHIPLOG_ORIG_REMOTES_CONFIG[@]}" -gt 0 ]
 
   shiplog_restore_caller_remotes
   local rc=$?
   [ "$rc" -eq 0 ]
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 0 ]
+  [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -eq 0 ]
+  [ "${#SHIPLOG_ORIG_REMOTES_CONFIG[@]}" -eq 0 ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -766,9 +771,13 @@ escape_remote_regex() {
     run shiplog_restore_caller_remotes
     [ "$status" -eq 0 ]
 
-    run shiplog_git_caller remote
+    run shiplog_git_caller remote -v
     [ "$status" -eq 0 ]
     echo "$output" | grep -qxF "$remote"
+
+    run shiplog_git_caller remote get-url "$remote"
+    [ "$status" -eq 0 ]
+    [ "$output" = "https://example.invalid/special.git" ]
 
     shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
   else
