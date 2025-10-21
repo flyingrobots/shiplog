@@ -68,12 +68,14 @@ teardown() {
     git init -q
     git remote add origin https://example.invalid/readonly.git
     export SHIPLOG_TEST_ROOT="$temp_repo"
+    # Container runs as root; force helper to exercise read-only skip path.
+    export SHIPLOG_FORCE_REMOTE_RESTORE_SKIP=1
     shiplog_snapshot_caller_repo_state
     git remote remove origin
     chmod u-w .git/config
     run shiplog_restore_caller_remotes
     [ "$status" -eq 0 ]
-    echo "$stderr" | grep -q "Skipping remote restore: config is read-only"
+    echo "$output" | grep -q "Skipping remote restore: config is read-only"
     run git remote
     [ "$status" -eq 0 ]
     [ -z "$output" ]

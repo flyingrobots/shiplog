@@ -19,6 +19,22 @@ shiplog_helper_error() {
   return 1
 }
 
+shiplog_restore_exec() {
+  local context="$1"
+  shift
+  local output
+  if ! output=$(shiplog_git_caller "$@" 2>&1); then
+    if [[ "$output" =~ [Rr]ead-?only || "$output" =~ [Pp]ermission\ denied || "$output" =~ [Oo]peration\ not\ permitted ]]; then
+      shiplog_helper_error "Skipping remote restore: config is read-only" || true
+      shiplog_reset_remote_snapshot_state
+      return 1
+    fi
+    shiplog_helper_error "$context: $output" || true
+    return 2
+  fi
+  return 0
+}
+
 shiplog_reset_remote_snapshot_state() {
   SHIPLOG_ORIG_REMOTE_ORDER=()
   unset SHIPLOG_ORIG_REMOTES_CONFIG
@@ -27,11 +43,163 @@ shiplog_reset_remote_snapshot_state() {
 }
 
 shiplog_snapshot_caller_repo_state() {
-  shiplog_helper_error "shiplog_snapshot_caller_repo_state not yet implemented"
+  local -a order=()
+  declare -A config_map=()
+
+  if ! shiplog_git_caller rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    shiplog_helper_error "Caller repository is not a git repository: $SHIPLOG_TEST_ROOT" || return 1
+  fi
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes: $remote_list" || return 1
+  fi
+
+  local remote
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    order+=("$remote")
+    local escaped config
+    escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
+    config=$(shiplog_git_caller config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null || true)
+    config_map["$remote"]="$config"
+  done <<<"$remote_list"
+
+  shiplog_reset_remote_snapshot_state
+  SHIPLOG_ORIG_REMOTE_ORDER=("${order[@]}")
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]="${config_map[$remote]}"
+  done
+  SHIPLOG_CALLER_REPO_CAPTURED=1
+  return 0
 }
 
 shiplog_restore_caller_remotes() {
-  shiplog_helper_error "shiplog_restore_caller_remotes not yet implemented"
+  [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ] || return 0
+
+  # Test harness override: allows Bats to simulate read-only configs while running
+  # as root inside the Docker container. See test/26_remote_restore.bats.
+  if [[ "${SHIPLOG_FORCE_REMOTE_RESTORE_SKIP:-0}" = "1" ]]; then
+    shiplog_helper_error "Skipping remote restore: config is read-only" || true
+    shiplog_reset_remote_snapshot_state
+    return 0
+  fi
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes during restore: $remote_list" || return 1
+  fi
+
+  declare -A expected=()
+  local remote
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    expected["$remote"]=1
+  done
+
+  local listed rc
+  while IFS= read -r listed; do
+    [ -n "$listed" ] || continue
+    if [[ -z ${expected[$listed]+_} ]]; then
+      local removal_output
+      if ! removal_output=$(shiplog_git_caller remote remove "$listed" 2>&1); then
+        if [[ "$removal_output" =~ [Rr]ead-?only || "$removal_output" =~ [Pp]ermission\ denied || "$removal_output" =~ [Oo]peration\ not\ permitted ]]; then
+          shiplog_helper_error "Skipping remote restore: config is read-only" || true
+          shiplog_reset_remote_snapshot_state
+          return 0
+        fi
+        if [[ "$removal_output" =~ "No such remote" ]]; then
+          :
+        else
+          shiplog_helper_error "Failed to remove unexpected remote \"$listed\": $removal_output" || return 1
+        fi
+      fi
+      shiplog_git_caller config --local --remove-section "remote.$listed" >/dev/null 2>&1 || true
+    fi
+  done <<<"$remote_list"
+
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    local desired="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
+    shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+
+    [ -n "$desired" ] || continue
+
+    local first_url=""
+    local -a lines=()
+    local line
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      lines+=("$line")
+      local key value
+      key=${line%% *}
+      value=${line#* }
+      if [[ "$key" == "remote.$remote.url" && -z "$first_url" ]]; then
+        first_url="$value"
+      fi
+    done <<<"$desired"
+
+    if [ -z "$first_url" ]; then
+      shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
+    fi
+
+    shiplog_restore_exec "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"
+    case $? in
+      0) ;;
+      1) return 0 ;;
+      *) return 1 ;;
+    esac
+
+    shiplog_git_caller config --local --unset-all "remote.$remote.fetch" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --unset-all "remote.$remote.pushurl" >/dev/null 2>&1 || true
+
+    local primary_seen=0
+    local key value
+    for line in "${lines[@]}"; do
+      key=${line%% *}
+      value=${line#* }
+      case "$key" in
+        "remote.$remote.url")
+          if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
+            primary_seen=1
+            continue
+          fi
+          shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
+          case $? in
+            0) ;;
+            1) return 0 ;;
+            *) return 1 ;;
+          esac
+          ;;
+        "remote.$remote.pushurl")
+          shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
+          case $? in
+            0) ;;
+            1) return 0 ;;
+            *) return 1 ;;
+          esac
+          ;;
+        "remote.$remote.fetch")
+          shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
+          case $? in
+            0) ;;
+            1) return 0 ;;
+            *) return 1 ;;
+          esac
+          ;;
+        *)
+          shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
+          case $? in
+            0) ;;
+            1) return 0 ;;
+            *) return 1 ;;
+          esac
+          ;;
+      esac
+    done
+  done
+
+  shiplog_reset_remote_snapshot_state
+  return 0
 }
 
 shiplog_install_cli() {
