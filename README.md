@@ -37,7 +37,7 @@ A built-in **allow list enforces policy at the source**: only trusted contributo
 
 ## Quick Start
 
-### 1. InstallationInstall once on your workstation or CI runner.
+### 1. Install once on your workstation or CI runner.
 
 ```bash
 # Clone and set up the environment
