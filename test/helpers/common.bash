@@ -60,18 +60,18 @@ shiplog_snapshot_caller_repo_state() {
     shiplog_helper_error "Caller repository is not a git repository: $SHIPLOG_TEST_ROOT" || return 1
   fi
 
-  local remote_list
+  local remote_list config_dump
   if ! remote_list=$(shiplog_git_caller remote 2>&1); then
     shiplog_helper_error "Failed to list caller remotes: $remote_list" || return 1
   fi
+  config_dump=$(shiplog_git_caller config --local --get-regexp '^remote\.' 2>/dev/null || true)
 
   local remote
   while IFS= read -r remote; do
     [ -n "$remote" ] || continue
     order+=("$remote")
-    local escaped config
-    escaped=$(printf '%s' "$remote" | sed 's/[\\[\].*^$?+(){}|-]/\\&/g')
-    config=$(shiplog_git_caller config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null || true)
+    local config
+    config=$(printf '%s\n' "$config_dump" | grep -F "remote.${remote}." || true)
     config_map["$remote"]="$config"
   done <<<"$remote_list"
 
