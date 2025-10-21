@@ -11,8 +11,7 @@ declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
 declare -gi SHIPLOG_CALLER_REPO_CAPTURED=0
 
 shiplog_git_caller() {
-  echo "ERROR: shiplog_git_caller not yet implemented" >&2
-  return 1
+  git -c safe.directory="$SHIPLOG_TEST_ROOT" -C "$SHIPLOG_TEST_ROOT" "$@"
 }
 
 shiplog_helper_error() {
@@ -28,11 +27,132 @@ shiplog_reset_remote_snapshot_state() {
 }
 
 shiplog_snapshot_caller_repo_state() {
-  shiplog_helper_error "shiplog_snapshot_caller_repo_state not yet implemented"
+  local -a new_order=()
+  local -A new_config=()
+
+  if ! shiplog_git_caller rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    shiplog_helper_error "Caller repository is not a git repository: $SHIPLOG_TEST_ROOT" || return 1
+  fi
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes: $remote_list" || return 1
+  fi
+
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    new_order+=("$remote")
+    local escaped config
+    escaped=$(printf '%s' "$remote" | sed 's/[][\\.*^$]/\\&/g')
+    config=$(shiplog_git_caller config --local --get-regexp "^remote\\.${escaped}\\." 2>/dev/null)
+    new_config["$remote"]="$config"
+  done <<< "$remote_list"
+
+  shiplog_reset_remote_snapshot_state
+  SHIPLOG_CALLER_REPO_CAPTURED=1
+  SHIPLOG_ORIG_REMOTE_ORDER=("${new_order[@]}")
+  local remote
+  for remote in "${new_order[@]}"; do
+    SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]="${new_config[$remote]}"
+  done
+  return 0
 }
 
 shiplog_restore_caller_remotes() {
-  shiplog_helper_error "shiplog_restore_caller_remotes not yet implemented"
+  [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ] || return 0
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes during restore: $remote_list" || return 1
+  fi
+
+  declare -A expected=()
+  local remote
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    expected["$remote"]=1
+  done
+
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    if [[ -z ${expected[$remote]+_} ]]; then
+      shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
+      shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+    fi
+  done <<< "$remote_list"
+
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    local desired_config="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
+    local -a desired_lines=()
+    local first_url=""
+
+    if [ -n "$desired_config" ]; then
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        desired_lines+=("$line")
+        local key value
+        key=${line%% *}
+        value=${line#* }
+        if [[ "$key" == "remote.$remote.url" && -z "$first_url" ]]; then
+          first_url="$value"
+        fi
+      done <<< "$desired_config"
+    fi
+
+    shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+
+    if [ ${#desired_lines[@]} -eq 0 ]; then
+      continue
+    fi
+
+    if [ -z "$first_url" ]; then
+      shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
+    fi
+
+    local add_err
+    if ! add_err=$(shiplog_git_caller remote add "$remote" "$first_url" 2>&1); then
+      shiplog_helper_error "Failed to re-add remote \"$remote\": $add_err" || return 1
+    fi
+
+    shiplog_git_caller config --local --unset-all "remote.$remote.fetch" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --unset-all "remote.$remote.pushurl" >/dev/null 2>&1 || true
+
+    local primary_url_seen=0
+    local line key value
+    for line in "${desired_lines[@]}"; do
+      key=${line%% *}
+      value=${line#* }
+      case "$key" in
+        "remote.$remote.url")
+          if [ "$value" = "$first_url" ] && [ $primary_url_seen -eq 0 ]; then
+            primary_url_seen=1
+            continue
+          fi
+          if ! shiplog_git_caller remote set-url --add "$remote" "$value" >/dev/null 2>&1; then
+            shiplog_helper_error "Failed to add additional URL for \"$remote\": $value" || return 1
+          fi
+          ;;
+        "remote.$remote.pushurl")
+          if ! shiplog_git_caller remote set-url --push --add "$remote" "$value" >/dev/null 2>&1; then
+            shiplog_helper_error "Failed to add pushurl for \"$remote\": $value" || return 1
+          fi
+          ;;
+        "remote.$remote.fetch")
+          if ! shiplog_git_caller config --local --add "remote.$remote.fetch" "$value" >/dev/null 2>&1; then
+            shiplog_helper_error "Failed to restore fetch spec for \"$remote\": $value" || return 1
+          fi
+          ;;
+        *)
+          if ! shiplog_git_caller config --local --add "$key" "$value" >/dev/null 2>&1; then
+            shiplog_helper_error "Failed to restore $key=$value" || return 1
+          fi
+          ;;
+      esac
+    done
+  done
+
+  shiplog_reset_remote_snapshot_state
+  return 0
 }
 
 shiplog_install_cli() {
