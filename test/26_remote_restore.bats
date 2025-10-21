@@ -256,9 +256,9 @@ teardown() {
   [ "$url3" = "https://example.invalid/third.git" ]
 
   local n1 n2 n3
-  n1="$(grep -nE "^\\[remote \"$remote1\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
-  n2="$(grep -nE "^\\[remote \"$remote2\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
-  n3="$(grep -nE "^\\[remote \"$remote3\"\\]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  n1="$(grep -nF "[remote \"$remote1\"]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  n2="$(grep -nF "[remote \"$remote2\"]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
+  n3="$(grep -nF "[remote \"$remote3\"]" "$SHIPLOG_TEST_ROOT/.git/config" | head -n1 | cut -d: -f1)"
   [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n3" ]
   [ "$n1" -lt "$n2" ] && [ "$n2" -lt "$n3" ]
 
