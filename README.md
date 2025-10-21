@@ -1,281 +1,212 @@
 # 🚢🪵 Shiplog — Git‑Native Deployment Ledger
 
-Your deployment history belongs next to your code. Shiplog turns deployments, rollbacks, hotfixes, and ops events into immutable Git records — human‑readable for people, structured for machines.
+<img alt="shiplog" src="https://github.com/user-attachments/assets/3c4d88fd-f46e-46f2-83ee-cc761ffdf9ef" height="500" align="right" />
 
-—
+Remember that 2 AM incident where no one knew which version was deployed or who changed the config? _(We've ruled out Jenkins... For now.)_
+
+You spent hours digging through Slack threads and ephemeral CloudWatch logs trying to piece together what went wrong.
+
+That's because your deployment logs live in dashboards you don't control, in formats you can't query, already rotated out.
+
+**Shiplog fixes that.**
+
+It turns your Git repo into a **cryptographically signed, append-only ledger** of every step of every deployment. It's not another workflow; Shiplog is the **deployment primitive**. Think of it like a `git commit`, but for deployments. **Keep your existing workflows!**
+
+Run anything with:
+
+```bash
+git shiplog run <your-command>
+```
+
+Shiplog captures **stdout, stderr, exit code, timestamp, author, and reason**—everything you'd normally lose—and logs it in a signed, immutable ref right inside Git. Who/What/Where/When/Why/How; mystery solved. Deployment **logs now live with your codebase, but apart from it**. Provenance without clutter.
+
+A built-in **allow list enforces policy at the source**: only trusted contributors can deploy, or multiple parties can sign off before a **quorum** is met. Every run is verified. Every log is auditable. Every action is permanent.
+
+**Zero SaaS. Zero external infra. Zero guesswork. Policy as infrastructure, living right alongside your code.**
+
+---
 
 ## Highlights
 
-- Git all the way down: no new databases, no SaaS; data lives under refs in your repo.
-- Human + JSON: clean TTY views and script‑friendly output (`--json`, `--json-compact`, `--jsonl`).
-- Policy as code: allowlists, per‑env requirements, and signature rules stored in Git.
-- Multi‑sig trust: choose chain (commit signatures) or attestation (SSH `-Y verify`) quorum.
-- Opt‑in publish: write locally, publish when you decide; avoids noisy hooks mid‑deploy.
+- **Git All the Way Down**: No new databases, no SaaS. All data lives under Git refs in your own repository.
+- **Human & Machine-Readable**: Clean TTY views for humans and script-friendly structured output (`--json`, `--json-compact`, `--jsonl`).
+- **Policy as Code**: Allow lists, per-environment requirements, and signature rules are stored and enforced directly in Git.
+- **Multi-Sig Trust**: Choose between **Chain** (commit signatures) or **Attestation** (SSH -Y verify) for your required signing quorum.
 
-—
+---
 
 ## Quick Start
 
-Install once on your workstation or CI runner:
+### 1. InstallationInstall once on your workstation or CI runner.
 
 ```bash
+# Clone and set up the environment
 git clone https://github.com/flyingrobots/shiplog.git "$HOME/.shiplog"
-export SHIPLOG_HOME="$HOME/.shiplog" && export PATH="$SHIPLOG_HOME/bin:$PATH"
+export SHIPLOG_HOME="$HOME/.shiplog"
+export PATH="$SHIPLOG_HOME/bin:$PATH"
+
+# Install dependencies (mostly jq) and verify
 "$SHIPLOG_HOME/install-shiplog-deps.sh"
 git shiplog --version
 ```
 
-Initialize in your repo and record the first entry:
+### 2. Initialize and Log
+
+Initialize Shiplog in your repository and record your first entry.
 
 ```bash
 cd your-repo
 git shiplog init
-export SHIPLOG_ENV=prod SHIPLOG_SERVICE=web
-git shiplog write    # prompts for metadata; enforces policy/allowlists
 
-# Publish explicitly when ready (journals + notes)
+# Set environment variables for the deployment context
+export SHIPLOG_ENV=prod SHIPLOG_SERVICE=web
+
+# Option A: Capture a command run
+git shiplog run --service deploy --reason "canary" -- \
+  kubectl rollout status deploy/web
+
+# Option B: Manually write a journal entry (will prompt for metadata and enforce policy)
+git shiplog write 
+
+# Publish explicitly when ready (pushes journals, notes, policy, and trust refs)
 git shiplog publish --env prod
 ```
 
-### Requirements
+> [!tip]  
+> **Non-interactive/CI Tip**: Pass required fields via flags or environment variables to avoid prompts.
+> ```bash
+> SHIPLOG_ENV=prod SHIPLOG_SERVICE=web \
+> git shiplog --boring --yes write --status success --reason "first ci run"
+  
+### 3. Browse History
 
-Shiplog uses stock POSIX tooling; make sure the basics are available before diving in:
-
-| Tool | Minimum Version | Why it matters |
-|------|-----------------|----------------|
-| git  | 2.35+ | Shiplog leans on modern refspec handling and `git ls-remote`/`update-ref` behaviour shipped in recent releases. |
-| bash | 5.0+ | All helper scripts target bash (strict mode, `mapfile`, heredocs). |
-| jq   | 1.7+ | Policy validation and structured output use jq – run `install-shiplog-deps.sh` to install or upgrade. |
-| ssh-keygen | OpenSSH 8.2+ (for `ssh-keygen -Y verify`) | Required for attestation mode and trust signature verification. |
-
-Running `scripts/install-shiplog.sh` will clone Shiplog and invoke `install-shiplog-deps.sh`, which installs jq for you. On CI runners, keep jq and git pinned to versions at or above the matrix referenced in our Dockerfile.
-
-Prefer a plan first? Use the config wizard:
-
-```bash
-git shiplog config --interactive        # Prints a plan; add --apply to write policy/config
-git shiplog config --interactive --emit-github-ruleset    # Prints example GitHub Rulesets
-git shiplog config --interactive --emit-github-workflow   # Prints a CI verify workflow
-```
-
-Browse history (human + JSON):
+Review the deployment history with clean TTY or structured output.
 
 ```bash
 git shiplog ls --env prod
-git shiplog show --json-compact     # single entry, compact JSON
-git shiplog export-json             # NDJSON stream for dashboards
+git shiplog show --json-compact      # Single entry, compact JSON
+git shiplog export-json              # NDJSON stream for dashboards
 ```
 
-Wrap and capture a run:
+---
+
+## 🛠️ Requirements
+
+Shiplog uses stock POSIX tooling. Ensure the following minimum versions are available:
+
+| Tool | Minimum Version | Why it matters |
+|------|-----------------|----------------|
+| `git` | 2.35+ | Leans on modern refspec handling and `git ls-remote`/`update-ref`. |
+| `bash` | 5.0+ | All helper scripts target `bash` (strict mode, mapfile, heredocs). |
+| `jq` | 1.7+ | Policy validation and structured output. | 
+| `ssh-keygen` | OpenSSH 8.2+ | Required for attestation mode (`ssh-keygen -Y verify`). |
+
+> [!tip]  
+> Running `install-shiplog-deps.sh` (as done in the Quick Start) will install or upgrade `jq` for you.
+
+---
+
+## ⚙️ Configuration & Policy
+
+Prefer to plan your policy first? Use the interactive config wizard.
 
 ```bash
-git shiplog run --service deploy --reason "canary" -- \
-  kubectl rollout status deploy/web
-# Prints a minimal confirmation (default "🪵"); set SHIPLOG_CONFIRM_TEXT to override
+# Prints a plan; add --apply to write policy/config
+git shiplog config --interactive
+
+# Emits example GitHub Rulesets to stdout
+git shiplog config --interactive --emit-github-ruleset
+
+# Emits a CI verify workflow to stdout
+git shiplog config --interactive --emit-github-workflow
 ```
 
-Non‑interactive/CI tip: pass required fields via flags or env to avoid prompts.
+---
 
-```bash
-SHIPLOG_ENV=prod SHIPLOG_SERVICE=web \
-  git shiplog --boring --yes write --status success --reason "first run"
+## How It Works: Ref Structure
 
-printf '{"checks":{"smoke":"green"}}' | \
-  git shiplog append --service web --status success --json -
-```
+Shiplog stores all its data in lightweight Git refs, separate from your main code branches.
 
-—
+- **Journals**: `refs/_shiplog/journal/<env>` (The append-only deployment history)
+- **Policy**: `refs/_shiplog/policy/current` (Allow lists and rules)
+- **Trust**: `refs/_shiplog/trust/root` (Root of the trusted signers/keys)
+- **Notes**: Attachments (e.g., logs) under `refs/_shiplog/notes/logs` are associated with journal entries.
 
-## How It Works
+Policy resolution merges CLI/env overrides, local repo config, the policy ref, and working fallbacks. See [`docs/features/policy.md`](./docs/features/policy.md).
 
-- Refs (where data lives)
-  - Journals: `refs/_shiplog/journal/<env>` (append‑only, fast‑forward)
-  - Policy:   `refs/_shiplog/policy/current`
-  - Trust:    `refs/_shiplog/trust/root`
-- Policy resolution: merges CLI/env overrides, repo config, policy ref, and working fallback. See docs/features/policy.md.
-- Notes: attachments (e.g., logs) under `refs/_shiplog/notes/logs` are associated with entries.
+---
 
-—
+## Multi-Sig Trust Modes
 
-## Multi‑Sig Trust Modes
+Choose how maintainer approval is expressed. Both are supported.
 
-Choose how maintainer approval is expressed. Both are supported; pick what fits your workflow.
+### 1. Chain (`sig_mode=chain`)
 
-- Chain (sig_mode=chain)
-  - Maintainers co‑sign trust commits; threshold distinct signers over the same trust tree.
-  - Pros: fully Git‑native, great audit trail.
-  - Cons: maintainers sign trust commits (often via a maintainer workflow).
+- Maintainers co-sign trust commits. The policy requires a threshold of distinct signers over the same trust tree.
+- **Pros**: Fully Git-native, excellent audit trail.
+- **Cons**: Maintainers must sign trust commits (often via a dedicated workflow).
 
-- Attestation (sig_mode=attestation)
-  - Maintainers sign a canonical payload (tree OID + context); verified via `ssh-keygen -Y verify`.
-  - Pros: flexible; easy to automate with SSH keys.
-  - Cons: additional artifact handling; precise canonicalization matters.
+### 2. Attestation (`sig_mode=attestation`)
 
-Fast pick: chain if maintainers can sign commits; attestation when signatures come from automation/SSH. See docs/TRUST.md for bootstrapping and verifier details.
+- Maintainers sign a canonical payload (tree OID + context); verified via `ssh-keygen -Y verify`.
+- **Pros**: Flexible; easier to automate with SSH keys/CI.
+- **Cons**: Requires additional artifact handling; precise canonicalization matters.
 
-—
+**Fast Pick**: Use chain if your maintainers are comfortable signing commits. Use attestation when signatures primarily come from automation or dedicated SSH keys.
+
+> [!important]  
+> See [`docs/TRUST.md`](./docs/TRUST.md) for bootstrapping and verifier details.
+
+---
 
 ## Git Hosts & Enforcement
 
-- GitHub.com (SaaS): no custom server hooks. Protect Shiplog refs with Branch/Push Rulesets and Required Status Checks. For SaaS, prefer a branch namespace (`refs/heads/_shiplog/**`) so rules apply. See docs/hosting/github.md.
-- Self‑hosted (GH Enterprise, GitLab self‑managed, Gitea, Bitbucket DC): install the pre‑receive hook (`contrib/hooks/pre-receive.shiplog`) to enforce policy/trust server‑side.
-- Matrix & recipes: docs/hosting/matrix.md summarizes capabilities and recommended configs.
-
-Switching namespaces (custom refs ↔ branch namespace) is supported via scripts/shiplog-migrate-ref-root.sh and `git config shiplog.refRoot`.
-
-—
-
-## Publish vs Auto‑push
-
-To avoid tripping hooks mid‑deploy, Shiplog separates writing from publishing.
-
-- Precedence: command flags > `git config shiplog.autoPush` > environment/default.
-- Publish explicitly when ready:
-
-```bash
-git shiplog publish [--env <env>|--all] [--no-notes] [--policy] [--trust]
-```
-
-Examples:
-- Disable auto‑push per repo: `git config shiplog.autoPush false` then publish at the end of a deploy: `git shiplog publish --env prod`.
-- Force a one‑off publish: `git shiplog write --push` (overrides config).
-
-—
+| Host Type | Enforcement Strategy | Recommended Ref Namespace |
+|-----------|----------------------|-------------|
+| GitHub.com (SaaS) | Use Branch/Push Rulesets + Required Status Checks. | SaaS does not run custom server hooks. Prefer a branch namespace (`refs/heads/_shiplog/**`) so rules apply. |
+| Self-hosted (GH Enterprise, GitLab, Gitea) | Install the pre-receive hook (`contrib/hooks/pre-receive.shiplog`) to enforce policy/trust server-side. | The default ref namespace (refs/_shiplog/**) is fine. Switching namespaces is supported via `scripts/shiplog-migrate-ref-root.sh` and `git config shiplog.refRoot`. |
+---
 
 ## What’s Live vs Roadmap
 
-Live now
-- Journals (append‑only by env) with human + JSON views.
-- Policy/trust refs; allowlists by env; threshold verification.
-- Two trust modes (chain, attestation) + shared verifier script.
-- Commands: `run`, `write`, `append`, `ls`, `show`, `export-json`, `publish`.
-- Hosting docs: GitHub SaaS guidance and self‑hosted hooks; enforcement matrix.
-- Dockerized cross‑distro tests; CI lint (shell/markdown/yaml); policy validate (CLI + CI schema).
+### Live Now
 
-Roadmap (short‑term)
+- Journals (append-only by env) with human + JSON views.
+- Policy/trust refs; allow lists by env; threshold verification.
+- Two trust modes (chain, attestation) + shared verifier script.
+- Core commands: `run`, `write`, `append`, `ls`, `show`, `export-json`, `publish`.
+- Hosting docs: GitHub SaaS guidance and self-hosted hooks; enforcement matrix.
+- Dockerized cross-distro tests and CI linting/validation.
+
+### Roadmap (Short-term)
+
 - Setup Questionnaire improvements and emitters (Rulesets + CI snippets per host).
 - Attestation E2E fixtures across distros.
 - Flip CI linters to blocking after baseline cleanup.
 
-—
-
-## Upgrading
-
-See RELEASE_NOTES.md for version‑specific guidance (e.g., namespace changes, publish defaults, or trust signature gates like `SHIPLOG_REQUIRE_SIGNED_TRUST`).
-
-### Upgrading attestation signatures (legacy → canonical)
-
-Older experimental builds used a “full tree” attestation payload that included the commit’s tree OID, which created a circular dependency when signatures were stored under `.shiplog/trust_sigs/`. Shiplog now uses a canonical “base tree” payload (default) that excludes the `trust_sigs` directory:
-
-```
-shiplog-trust-tree-v1
-<base_tree_oid_of(trust.json + allowed_signers)>
-<trust_id>
-<threshold>
-```
-
-Compatibility:
-- The hook/verifier accept both modes. Set `SHIPLOG_ATTEST_BACKCOMP=1` to allow legacy signatures during a transition.
-- To prefer a specific mode: `SHIPLOG_ATTEST_PAYLOAD_MODE=base|full` (default `base`).
-- We recommend re‑signing with the base payload going forward. See TRUST.md for the exact `ssh-keygen -Y sign`/`-Y verify` commands.
-
-—
+---
 
 ## Contributing & Tests
 
-- Please read AGENTS.md before running tests or editing hooks/scripts.
-- Run tests inside Docker: `make test` (optionally: `TEST_TIMEOUT_SECS=180 make test`). Do not run Bats directly on your host.
+- Please read [`AGENTS.md`](./AGENTS.md) before running tests or editing hooks/scripts.
+- **Run tests inside Docker**: `make test` (optionally: `TEST_TIMEOUT_SECS=180 make test`).
 
-—
+> [!warning]
+> Do not run Bats directly on your host!
+> Shiplog tests perform destructive Git operations, and it's essential they run in isolation to avoid clobbering your host's Git setup.
+
+---
 
 ## FAQ
 
-- What is AJV and why does CI mention it?
-  - AJV is a fast JSON Schema validator for Node.js. CI uses it to validate `.shiplog/policy.json` against `examples/policy.schema.json`. Locally, `git shiplog policy validate` performs jq‑based checks without Node.
-
-- Can Shiplog enforce policy on GitHub.com (SaaS)?
-  - SaaS doesn’t run custom server hooks; use Branch/Push Rulesets + Required Checks and a branch namespace so rules apply to Shiplog refs. See docs/hosting/github.md and docs/hosting/matrix.md.
-
-- Should I use chain or attestation for multi‑sig?
-  - Chain if maintainers can sign commits; attestation if signatures come from automation/SSH. Both are supported.
-
-—
+| Question | Answer |
+|----------|--------|
+| What is AJV and why does CI mention it? | AJV is a fast JSON Schema validator for Node.js. CI uses it to validate `.shiplog/policy.json` against its schema. Locally, `git shiplog policy validate` performs `jq` checks. |
+|Can Shiplog enforce policy on GitHub.com (SaaS)? | Yes, but via **Branch/Push Rulesets + Required Checks** and a branch namespace for Shiplog refs, as SaaS doesn't run custom server hooks. | 
+| Which trust mode should I use? | **Chain** if maintainers can sign commits; **attestation** if signatures come from automation/SSH. Both are fully supported. | 
 
 ## License
 
 MIT © J. Kirby Ross (@flyingrobots)
 
-Jenkins was not harmed in the making of this project.
-
-—
-
-## FAQ
-
-- What is AJV and why does CI mention it?
-  - AJV is a fast JSON Schema validator for Node.js. We use it in CI to validate `.shiplog/policy.json` (and examples) against `examples/policy.schema.json` so malformed policies are caught early. Locally, `git shiplog policy validate` performs jq‑based structural checks without requiring Node.
-
-- Can Shiplog enforce policy on GitHub.com (SaaS)?
-  - GitHub SaaS does not run custom server hooks. Use Branch/Push Rulesets and Required Status Checks to protect a branch namespace (e.g., `refs/heads/_shiplog/**`) and run verification in CI. For self‑hosted Git, install the pre‑receive hook for server‑side enforcement. See `docs/hosting/matrix.md` and `docs/hosting/github.md`.
-
-- Should I use chain or attestation for multi‑sig?
-  - Chain uses signed Git commits; attestation uses `ssh-keygen -Y verify` over a canonical payload. Chain is simplest when maintainers can sign commits; attestation is great when signatures are produced by automation using SSH keys. Both are supported; pick during setup and document in TRUST.md.
- 
----
-
-```text
-                                                        
-                                                       █████                                                            
-                                                    █████████                                                           
-                                                   ██████████                                                           
-                                                   ██      ███                                                          
-                                                   ███      ██                                                          
-                                              ██████████████████████                                                    
-                                         ████   ██               ██                                                     
-                                      ████      ██   ████ ████ █████          ████                                      
-                                    ███         ██   ████ ████  ████     █████████                                      
-                                   ███         ███                ███████████████                                       
-                                 ███      ███████              ██████████████████                                       
-                                ███      █████             █████████████████████    █                                   
-                               ███       ██              ██████████████████████    ███                                  
-                               ██        ██            ████████████████████████     ██                                  
-                              ██        ███        ███████████████████████████       ██                                 
-                              ██        █████████████████████████████████████        ███                                
-                             ███   ██████████████████████████████████████████         ██                                
-                             ██     ███████████████████████             ████          ██                                
-                             ██     ███████████████████        ██████     █           ██                                
-                             ███     ██████████████       ████████████████           ███                                
-                             ██████████████████       ███████           ████████████████                                
-                              ██  ███████        ██████    ███               ████    ███                                
-                              ██         █████████       ███████                     ██                                 
-                              ███                       ███   ██                    ███                                 
-                               ██                        ███████                    ██                                  
-                                ██                         ██  ███                 ██                                   
-                                 ██                        ██   ██████            ██                                    
-                                  ██                       ██    ███ ███         ██                                     
-                                   ███                     ██    ██  ███       ███                                      
-                                     ███                   ██   ███████       ███                                       
-                                      ████      █          ██ ████         ████                                         
-                                         ███    ███      ███████     ████  ██                                           
-                                           ██  ██████    ██  ███   ██████                                               
-                                               █████     ██████      ████                                               
-                                                  ████     ██      ███  █                                               
-                                                    █████  ██   █████                                                   
-                                                      ████████████                                                      
-                                                          █████                                                         
-                                                            █                                                           
-                                                                                                                        
-                                                                                                                        
-              ███████    ████     ████    ████   █████████      ████            ██████            ███████               
-           ███████████   ████     ████    ████   ████████████   ████         ████████████       ███████████             
-           █████   ███   ████     ████    ████   ████    █████  ████        ██████  ██████    ██████   █████            
-          █████          ████     ████    ████   ████     ████  ████       █████      █████   ████      █               
-           ███████       █████████████    ████   ████     ████  ████       ████        ████  █████                      
-             ████████    █████████████    ████   ████████████   ████       ████        ████  █████    ███████           
-                ██████   ████     ████    ████   ███████████    ████       ████        ████  █████    ███████           
-          █       █████  ████     ████    ████   ████           ████       █████      █████   █████      ████           
-          ████████████   ████     ████    ████   ████           ██████████  ██████████████    ███████████████           
-          ███████████   █████     ████    ████   ████           ██████████    ██████████        ███████████             
-              ████                                                               ████              ████                 
-                                                                                                                        
-                                                                                      
-```
+_Jenkins was not harmed in the making of this project._
