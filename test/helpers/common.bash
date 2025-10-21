@@ -321,6 +321,15 @@ shiplog_cleanup_sandbox_repo() {
     rm -rf "$SHIPLOG_SANDBOX_DIR"
     unset SHIPLOG_SANDBOX_DIR
   fi
+  if [[ -n "${SHIPLOG_TEST_SSH_TMPDIR:-}" && -d "$SHIPLOG_TEST_SSH_TMPDIR" ]]; then
+    rm -rf "$SHIPLOG_TEST_SSH_TMPDIR"
+    unset SHIPLOG_TEST_SSH_TMPDIR
+  fi
+  if [[ -n "${SHIPLOG_TEST_GNUPGHOME:-}" && -d "$SHIPLOG_TEST_GNUPGHOME" ]]; then
+    rm -rf "$SHIPLOG_TEST_GNUPGHOME"
+    unset SHIPLOG_TEST_GNUPGHOME
+    unset GNUPGHOME
+  fi
 }
 
 shiplog_setup_test_signing() {
@@ -335,15 +344,21 @@ shiplog_setup_test_signing() {
     fi
     git config gpg.format ssh
     git config user.signingkey "$tmpdir/id_ed25519"
-    # TODO: Track tmpdir for cleanup
+    export SHIPLOG_TEST_SSH_TMPDIR="$tmpdir"
   else
-    export GNUPGHOME="$(mktemp -d)"
+    local gnupg_tmp
+    gnupg_tmp="$(mktemp -d)"
+    export GNUPGHOME="$gnupg_tmp"
+    export SHIPLOG_TEST_GNUPGHOME="$gnupg_tmp"
     printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
     printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
     gpgconf --kill gpg-agent >/dev/null 2>&1 || true
     if ! gpg --batch --pinentry-mode loopback --passphrase '' \
        --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1; then
       echo "ERROR: Failed to generate GPG key" >&2
+      rm -rf "$GNUPGHOME"
+      unset GNUPGHOME
+      unset SHIPLOG_TEST_GNUPGHOME
       return 1
     fi
     local fpr

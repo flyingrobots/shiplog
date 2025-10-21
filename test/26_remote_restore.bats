@@ -32,7 +32,7 @@ teardown() {
 }
 
 escape_remote_regex() {
-  printf '%s' "$1" | sed -e 's/[-[][\\.^$*+?{}()|]/\\&/g'
+  printf '%s' "$1" | sed -e 's/[][\\/.\^$*+?{}()|-]/\\&/g'
 }
 
 @test "restore removes unexpected remotes" {
@@ -66,8 +66,6 @@ escape_remote_regex() {
   shiplog_git_caller config --add "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*"
   shiplog_git_caller config --add "remote.${remote}.mirror" true
 
-  local escaped_remote
-  escaped_remote="$(escape_remote_regex "$remote")"
   local before_urls before_pushurls before_fetch before_mirror
   before_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
   before_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
@@ -341,9 +339,14 @@ escape_remote_regex() {
   shiplog_git_caller config "remote.${remote}.prune" "true"
   shiplog_git_caller config "remote.${remote}.skipDefaultUpdate" "true"
 
-  local before escaped_remote
-  escaped_remote="$(escape_remote_regex "$remote")"
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
+  local before_urls before_pushurls before_fetch before_tagopt before_prune before_skip before_custom
+  before_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  before_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  before_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  before_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  before_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  before_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  before_custom="$(shiplog_git_caller config --get-all remote.${remote}.customKey 2>/dev/null || true)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -353,9 +356,21 @@ escape_remote_regex() {
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
-  [ "$before" = "$after" ]
+  local after_urls after_pushurls after_fetch after_tagopt after_prune after_skip after_custom
+  after_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  after_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  after_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  after_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  after_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  after_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  after_custom="$(shiplog_git_caller config --get-all remote.${remote}.customKey 2>/dev/null || true)"
+  [ "$before_urls" = "$after_urls" ]
+  [ "$before_pushurls" = "$after_pushurls" ]
+  [ "$before_fetch" = "$after_fetch" ]
+  [ "$before_tagopt" = "$after_tagopt" ]
+  [ "$before_prune" = "$after_prune" ]
+  [ "$before_skip" = "$after_skip" ]
+  [ "$before_custom" = "$after_custom" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -393,18 +408,35 @@ escape_remote_regex() {
   shiplog_git_caller remote add "$remote" https://example.invalid/idempotent.git
   shiplog_git_caller config "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*"
 
-  local original escaped_remote
-  escaped_remote="$(escape_remote_regex "$remote")"
-  original="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
+  local before_urls before_pushurls before_fetch before_tagopt before_prune before_skip before_mirror
+  before_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  before_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  before_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  before_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  before_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  before_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  before_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
 
   shiplog_snapshot_caller_repo_state
 
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  local after_first
-  after_first="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
-  [ "$original" = "$after_first" ]
+  local after_first_urls after_first_pushurls after_first_fetch after_first_tagopt after_first_prune after_first_skip after_first_mirror
+  after_first_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  after_first_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  after_first_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  after_first_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  after_first_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  after_first_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  after_first_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
+  [ "$before_urls" = "$after_first_urls" ]
+  [ "$before_pushurls" = "$after_first_pushurls" ]
+  [ "$before_fetch" = "$after_first_fetch" ]
+  [ "$before_tagopt" = "$after_first_tagopt" ]
+  [ "$before_prune" = "$after_first_prune" ]
+  [ "$before_skip" = "$after_first_skip" ]
+  [ "$before_mirror" = "$after_first_mirror" ]
 
   shiplog_git_caller config "remote.${remote}.tagOpt" "--tags"
   shiplog_snapshot_caller_repo_state
@@ -413,9 +445,21 @@ escape_remote_regex() {
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  run shiplog_git_caller config --get "remote.${remote}.tagOpt"
-  [ "$status" -eq 0 ]
-  [ "$output" = "--tags" ]
+  local final_urls final_pushurls final_fetch final_tagopt final_prune final_skip final_mirror
+  final_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  final_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  final_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  final_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  final_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  final_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  final_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
+  [ "$before_urls" = "$final_urls" ]
+  [ "$before_pushurls" = "$final_pushurls" ]
+  [ "$before_fetch" = "$final_fetch" ]
+  [ "$final_tagopt" = "--tags" ]
+  [ "$before_prune" = "$final_prune" ]
+  [ "$before_skip" = "$final_skip" ]
+  [ "$before_mirror" = "$final_mirror" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -497,9 +541,10 @@ escape_remote_regex() {
   local remote="shimtest-fail-${BATS_TEST_NUMBER}"
   shiplog_git_caller remote add "$remote" https://example.invalid/existing.git
 
-  run shiplog_restore_exec "test context" remote add "$remote" https://example.invalid/duplicate.git
+  run --separate-stderr shiplog_restore_exec "test context" remote add "$remote" https://example.invalid/duplicate.git
   [ "$status" -eq 2 ]
-  echo "$output" | grep -q "test context"
+  [ -z "$output" ]
+  echo "$stderr" | grep -q "test context"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -545,13 +590,21 @@ escape_remote_regex() {
 
   shiplog_git_caller remote add "$remote3" https://example.invalid/dev.git
 
-  local config_prod config_staging config_dev escaped_remote1 escaped_remote2 escaped_remote3
-  escaped_remote1="$(escape_remote_regex "$remote1")"
-  escaped_remote2="$(escape_remote_regex "$remote2")"
-  escaped_remote3="$(escape_remote_regex "$remote3")"
-  config_prod="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote1}\." | sort)"
-  config_staging="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote2}\." | sort)"
-  config_dev="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote3}\." | sort)"
+  local prod_before_urls prod_before_pushurls prod_before_fetch prod_before_mirror
+  local staging_before_urls staging_before_pushurls staging_before_fetch staging_before_mirror
+  local dev_before_urls dev_before_pushurls dev_before_fetch dev_before_mirror
+  prod_before_urls="$(shiplog_git_caller config --get-all remote.${remote1}.url 2>/dev/null || true)"
+  prod_before_pushurls="$(shiplog_git_caller config --get-all remote.${remote1}.pushurl 2>/dev/null || true)"
+  prod_before_fetch="$(shiplog_git_caller config --get-all remote.${remote1}.fetch 2>/dev/null || true)"
+  prod_before_mirror="$(shiplog_git_caller config remote.${remote1}.mirror 2>/dev/null || true)"
+  staging_before_urls="$(shiplog_git_caller config --get-all remote.${remote2}.url 2>/dev/null || true)"
+  staging_before_pushurls="$(shiplog_git_caller config --get-all remote.${remote2}.pushurl 2>/dev/null || true)"
+  staging_before_fetch="$(shiplog_git_caller config --get-all remote.${remote2}.fetch 2>/dev/null || true)"
+  staging_before_mirror="$(shiplog_git_caller config remote.${remote2}.mirror 2>/dev/null || true)"
+  dev_before_urls="$(shiplog_git_caller config --get-all remote.${remote3}.url 2>/dev/null || true)"
+  dev_before_pushurls="$(shiplog_git_caller config --get-all remote.${remote3}.pushurl 2>/dev/null || true)"
+  dev_before_fetch="$(shiplog_git_caller config --get-all remote.${remote3}.fetch 2>/dev/null || true)"
+  dev_before_mirror="$(shiplog_git_caller config remote.${remote3}.mirror 2>/dev/null || true)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -565,14 +618,34 @@ escape_remote_regex() {
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  local after_prod after_staging after_dev
-  after_prod="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote1}\." | sort)"
-  after_staging="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote2}\." | sort)"
-  after_dev="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote3}\." | sort)"
+  local prod_after_urls prod_after_pushurls prod_after_fetch prod_after_mirror
+  local staging_after_urls staging_after_pushurls staging_after_fetch staging_after_mirror
+  local dev_after_urls dev_after_pushurls dev_after_fetch dev_after_mirror
+  prod_after_urls="$(shiplog_git_caller config --get-all remote.${remote1}.url 2>/dev/null || true)"
+  prod_after_pushurls="$(shiplog_git_caller config --get-all remote.${remote1}.pushurl 2>/dev/null || true)"
+  prod_after_fetch="$(shiplog_git_caller config --get-all remote.${remote1}.fetch 2>/dev/null || true)"
+  prod_after_mirror="$(shiplog_git_caller config remote.${remote1}.mirror 2>/dev/null || true)"
+  staging_after_urls="$(shiplog_git_caller config --get-all remote.${remote2}.url 2>/dev/null || true)"
+  staging_after_pushurls="$(shiplog_git_caller config --get-all remote.${remote2}.pushurl 2>/dev/null || true)"
+  staging_after_fetch="$(shiplog_git_caller config --get-all remote.${remote2}.fetch 2>/dev/null || true)"
+  staging_after_mirror="$(shiplog_git_caller config remote.${remote2}.mirror 2>/dev/null || true)"
+  dev_after_urls="$(shiplog_git_caller config --get-all remote.${remote3}.url 2>/dev/null || true)"
+  dev_after_pushurls="$(shiplog_git_caller config --get-all remote.${remote3}.pushurl 2>/dev/null || true)"
+  dev_after_fetch="$(shiplog_git_caller config --get-all remote.${remote3}.fetch 2>/dev/null || true)"
+  dev_after_mirror="$(shiplog_git_caller config remote.${remote3}.mirror 2>/dev/null || true)"
 
-  [ "$config_prod" = "$after_prod" ]
-  [ "$config_staging" = "$after_staging" ]
-  [ "$config_dev" = "$after_dev" ]
+  [ "$prod_before_urls" = "$prod_after_urls" ]
+  [ "$prod_before_pushurls" = "$prod_after_pushurls" ]
+  [ "$prod_before_fetch" = "$prod_after_fetch" ]
+  [ "$prod_before_mirror" = "$prod_after_mirror" ]
+  [ "$staging_before_urls" = "$staging_after_urls" ]
+  [ "$staging_before_pushurls" = "$staging_after_pushurls" ]
+  [ "$staging_before_fetch" = "$staging_after_fetch" ]
+  [ "$staging_before_mirror" = "$staging_after_mirror" ]
+  [ "$dev_before_urls" = "$dev_after_urls" ]
+  [ "$dev_before_pushurls" = "$dev_after_pushurls" ]
+  [ "$dev_before_fetch" = "$dev_after_fetch" ]
+  [ "$dev_before_mirror" = "$dev_after_mirror" ]
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
@@ -708,9 +781,15 @@ escape_remote_regex() {
   shiplog_git_caller remote add "$remote" https://example.invalid/test.git
   shiplog_git_caller config "remote.${remote}.important" "true"
 
-  local before escaped_remote
-  escaped_remote="$(escape_remote_regex "$remote")"
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
+  local before_urls before_pushurls before_fetch before_tagopt before_prune before_skip before_mirror before_important
+  before_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  before_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  before_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  before_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  before_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  before_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  before_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
+  before_important="$(shiplog_git_caller config remote.${remote}.important 2>/dev/null || true)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -719,9 +798,23 @@ escape_remote_regex() {
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
-  [ "$before" = "$after" ]
+  local after_urls after_pushurls after_fetch after_tagopt after_prune after_skip after_mirror after_important
+  after_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  after_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  after_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  after_tagopt="$(shiplog_git_caller config remote.${remote}.tagOpt 2>/dev/null || true)"
+  after_prune="$(shiplog_git_caller config remote.${remote}.prune 2>/dev/null || true)"
+  after_skip="$(shiplog_git_caller config remote.${remote}.skipDefaultUpdate 2>/dev/null || true)"
+  after_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
+  after_important="$(shiplog_git_caller config remote.${remote}.important 2>/dev/null || true)"
+  [ "$before_urls" = "$after_urls" ]
+  [ "$before_pushurls" = "$after_pushurls" ]
+  [ "$before_fetch" = "$after_fetch" ]
+  [ "$before_tagopt" = "$after_tagopt" ]
+  [ "$before_prune" = "$after_prune" ]
+  [ "$before_skip" = "$after_skip" ]
+  [ "$before_mirror" = "$after_mirror" ]
+  [ "$before_important" = "$after_important" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
