@@ -27,7 +27,8 @@ The `test/` directory contains the Bats-based integration suite that exercises t
 2. Reuse shared setup logic via `load helpers/common` and environment variables (`SHIPLOG_*`) rather than duplicating installation code.
 3. Use the global `--yes` flag instead of piping `yes |` when a test needs to auto-confirm prompts.
 4. Keep tests hermetic: they should initialize their own temporary repos, configure required policy files, and avoid relying on host state.
-5. Document new scenarios by updating `docs/features/` or the README feature table so tooling stays in sync.
+5. If a test needs to mutate the repository’s remotes, call `shiplog_snapshot_caller_repo_state` before making changes and `shiplog_restore_caller_remotes` (or rely on the shared teardown) so the caller repo is restored accurately—including multiple URLs, push URLs, and custom fetch specs.
+6. Document new scenarios by updating `docs/features/` or the README feature table so tooling stays in sync.
 
 ## Running Specific Tests
 
