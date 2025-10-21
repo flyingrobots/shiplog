@@ -32,7 +32,7 @@ teardown() {
 }
 
 escape_remote_regex() {
-  printf '%s' "$1" | sed -e 's/[][\\.^$*+?{}()|]/\\&/g'
+  printf '%s' "$1" | sed -e 's/[-[][\\.^$*+?{}()|]/\\&/g'
 }
 
 @test "restore removes unexpected remotes" {
@@ -66,9 +66,13 @@ escape_remote_regex() {
   shiplog_git_caller config --add "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*"
   shiplog_git_caller config --add "remote.${remote}.mirror" true
 
-  local before escaped_remote
+  local escaped_remote
   escaped_remote="$(escape_remote_regex "$remote")"
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
+  local before_urls before_pushurls before_fetch before_mirror
+  before_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  before_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  before_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  before_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -79,9 +83,15 @@ escape_remote_regex() {
   run shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
 
-  local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
-  [ "$before" = "$after" ]
+  local after_urls after_pushurls after_fetch after_mirror
+  after_urls="$(shiplog_git_caller config --get-all remote.${remote}.url 2>/dev/null || true)"
+  after_pushurls="$(shiplog_git_caller config --get-all remote.${remote}.pushurl 2>/dev/null || true)"
+  after_fetch="$(shiplog_git_caller config --get-all remote.${remote}.fetch 2>/dev/null || true)"
+  after_mirror="$(shiplog_git_caller config remote.${remote}.mirror 2>/dev/null || true)"
+  [ "$before_urls" = "$after_urls" ]
+  [ "$before_pushurls" = "$after_pushurls" ]
+  [ "$before_fetch" = "$after_fetch" ]
+  [ "$before_mirror" = "$after_mirror" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -179,9 +189,9 @@ escape_remote_regex() {
   original_root="${SHIPLOG_TEST_ROOT}"
   export SHIPLOG_TEST_ROOT="$temp_dir"
 
-  run shiplog_snapshot_caller_repo_state
+  run --separate-stderr shiplog_snapshot_caller_repo_state
   [ "$status" -ne 0 ]
-  echo "$output" | grep -q "not a git repository"
+  echo "$stderr" | grep -q "not a git repository"
 
   rm -rf "$temp_dir"
   export SHIPLOG_TEST_ROOT="$original_root"
@@ -282,7 +292,7 @@ escape_remote_regex() {
   shiplog_git_caller config --add "remote.${remote}.fetch" "+refs/tags/*:refs/tags/*"
 
   local before
-  before="$(shiplog_git_caller config --get-all remote.${remote}.fetch | sort)"
+  before="$(shiplog_git_caller config --get-all remote.${remote}.fetch)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -293,7 +303,7 @@ escape_remote_regex() {
   [ "$status" -eq 0 ]
 
   local after
-  after="$(shiplog_git_caller config --get-all remote.${remote}.fetch | sort)"
+  after="$(shiplog_git_caller config --get-all remote.${remote}.fetch)"
   [ "$before" = "$after" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
@@ -307,7 +317,7 @@ escape_remote_regex() {
   shiplog_git_caller remote set-url --push --add "$remote" ssh://push3.invalid/repo.git
 
   local before
-  before="$(shiplog_git_caller config --get-all remote.${remote}.pushurl | sort)"
+  before="$(shiplog_git_caller config --get-all remote.${remote}.pushurl)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -318,7 +328,7 @@ escape_remote_regex() {
   [ "$status" -eq 0 ]
 
   local after
-  after="$(shiplog_git_caller config --get-all remote.${remote}.pushurl | sort)"
+  after="$(shiplog_git_caller config --get-all remote.${remote}.pushurl)"
   [ "$before" = "$after" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
@@ -421,9 +431,9 @@ escape_remote_regex() {
 
   shiplog_git_caller remote remove "$remote"
 
-  run shiplog_restore_caller_remotes
+  run --separate-stderr shiplog_restore_caller_remotes
   [ "$status" -ne 0 ]
-  echo "$output" | grep -q "Missing URL"
+  echo "$stderr" | grep -q "Missing URL"
 }
 
 @test "git_caller executes commands in correct directory" {

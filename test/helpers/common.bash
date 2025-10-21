@@ -33,7 +33,6 @@ shiplog_restore_exec() {
         shopt -u nocasematch
       fi
       shiplog_helper_error "Skipping remote restore: config is read-only" || true
-      shiplog_reset_remote_snapshot_state
       return 1
     fi
     if [ "$nocasematch_was_disabled" -eq 1 ]; then
@@ -166,7 +165,10 @@ shiplog_restore_caller_remotes() {
     shiplog_restore_exec "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"
     case $? in
       0) ;;
-      1) return 0 ;;
+      1)
+        shiplog_reset_remote_snapshot_state
+        return 0
+        ;;
       *) return 1 ;;
     esac
 
@@ -187,7 +189,10 @@ shiplog_restore_caller_remotes() {
           shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
           case $? in
             0) ;;
-            1) return 0 ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
             *) return 1 ;;
           esac
           ;;
@@ -195,7 +200,10 @@ shiplog_restore_caller_remotes() {
           shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
           case $? in
             0) ;;
-            1) return 0 ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
             *) return 1 ;;
           esac
           ;;
@@ -203,7 +211,10 @@ shiplog_restore_caller_remotes() {
           shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
           case $? in
             0) ;;
-            1) return 0 ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
             *) return 1 ;;
           esac
           ;;
@@ -211,7 +222,10 @@ shiplog_restore_caller_remotes() {
           shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
           case $? in
             0) ;;
-            1) return 0 ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
             *) return 1 ;;
           esac
           ;;
