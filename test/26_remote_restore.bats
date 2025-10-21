@@ -2,15 +2,17 @@
 
 load helpers/common
 
+bats_require_minimum_version 1.5.0
+
 setup() {
   shiplog_reset_remote_snapshot_state >/dev/null 2>&1 || true
   _RESTORE_ORIG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-}"
   _RESTORE_TEST_ROOT="$(mktemp -d)"
   export SHIPLOG_TEST_ROOT="$_RESTORE_TEST_ROOT"
   export LC_ALL=C
-  git -C "$SHIPLOG_TEST_ROOT" init -q
-  git -C "$SHIPLOG_TEST_ROOT" config user.name "Shiplog Tester"
-  git -C "$SHIPLOG_TEST_ROOT" config user.email "shiplog-tester@example.com"
+  shiplog_git_caller init -q
+  shiplog_git_caller config user.name "Shiplog Tester"
+  shiplog_git_caller config user.email "shiplog-tester@example.com"
 }
 
 teardown() {
@@ -27,6 +29,10 @@ teardown() {
   unset _RESTORE_TEST_ROOT
   unset _RESTORE_ORIG_TEST_ROOT
   unset LC_ALL
+}
+
+escape_remote_regex() {
+  printf '%s' "$1" | sed -e 's/[][\\.^$*+?{}()|]/\\&/g'
 }
 
 @test "restore removes unexpected remotes" {
@@ -60,8 +66,9 @@ teardown() {
   shiplog_git_caller config --add "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*"
   shiplog_git_caller config --add "remote.${remote}.mirror" true
 
-  local before
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  local before escaped_remote
+  escaped_remote="$(escape_remote_regex "$remote")"
+  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -73,7 +80,7 @@ teardown() {
   [ "$status" -eq 0 ]
 
   local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
   [ "$before" = "$after" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
@@ -87,9 +94,9 @@ teardown() {
   shiplog_git_caller remote remove "$remote"
   export SHIPLOG_FORCE_REMOTE_RESTORE_SKIP=1
 
-  run shiplog_restore_caller_remotes
+  run --separate-stderr shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Skipping remote restore: config is read-only"
+  echo "$stderr" | grep -q "Skipping remote restore: config is read-only"
 
   run shiplog_git_caller remote
   [ "$status" -eq 0 ]
@@ -324,8 +331,9 @@ teardown() {
   shiplog_git_caller config "remote.${remote}.prune" "true"
   shiplog_git_caller config "remote.${remote}.skipDefaultUpdate" "true"
 
-  local before
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  local before escaped_remote
+  escaped_remote="$(escape_remote_regex "$remote")"
+  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -336,7 +344,7 @@ teardown() {
   [ "$status" -eq 0 ]
 
   local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
   [ "$before" = "$after" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
@@ -375,8 +383,9 @@ teardown() {
   shiplog_git_caller remote add "$remote" https://example.invalid/idempotent.git
   shiplog_git_caller config "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*"
 
-  local original
-  original="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  local original escaped_remote
+  escaped_remote="$(escape_remote_regex "$remote")"
+  original="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -384,7 +393,7 @@ teardown() {
   [ "$status" -eq 0 ]
 
   local after_first
-  after_first="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  after_first="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
   [ "$original" = "$after_first" ]
 
   shiplog_git_caller config "remote.${remote}.tagOpt" "--tags"
@@ -436,24 +445,26 @@ teardown() {
 }
 
 @test "helper_error outputs to stderr" {
-  run shiplog_helper_error "test error message"
+  run --separate-stderr shiplog_helper_error "test error message"
   [ "$status" -eq 1 ]
-  echo "$output" | grep -q "ERROR: test error message"
+  [ -z "$output" ]
+  echo "$stderr" | grep -q "ERROR: test error message"
 }
 
 @test "helper_error formats multiple arguments" {
-  run shiplog_helper_error "multiple" "args" "test"
+  run --separate-stderr shiplog_helper_error "multiple" "args" "test"
   [ "$status" -eq 1 ]
-  echo "$output" | grep -q "ERROR: multiple args test"
+  [ -z "$output" ]
+  echo "$stderr" | grep -q "ERROR: multiple args test"
 }
 
 @test "restore skip flag triggers read-only handling" {
   export SHIPLOG_FORCE_REMOTE_RESTORE_SKIP=1
   shiplog_snapshot_caller_repo_state
 
-  run shiplog_restore_caller_remotes
+  run --separate-stderr shiplog_restore_caller_remotes
   [ "$status" -eq 0 ]
-    echo "$output" | grep -q "Skipping remote restore: config is read-only"
+  echo "$stderr" | grep -q "Skipping remote restore: config is read-only"
 
   unset SHIPLOG_FORCE_REMOTE_RESTORE_SKIP
 }
@@ -524,10 +535,13 @@ teardown() {
 
   shiplog_git_caller remote add "$remote3" https://example.invalid/dev.git
 
-  local config_prod config_staging config_dev
-  config_prod="$(shiplog_git_caller config --get-regexp "^remote\.${remote1}\." | sort)"
-  config_staging="$(shiplog_git_caller config --get-regexp "^remote\.${remote2}\." | sort)"
-  config_dev="$(shiplog_git_caller config --get-regexp "^remote\.${remote3}\." | sort)"
+  local config_prod config_staging config_dev escaped_remote1 escaped_remote2 escaped_remote3
+  escaped_remote1="$(escape_remote_regex "$remote1")"
+  escaped_remote2="$(escape_remote_regex "$remote2")"
+  escaped_remote3="$(escape_remote_regex "$remote3")"
+  config_prod="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote1}\." | sort)"
+  config_staging="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote2}\." | sort)"
+  config_dev="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote3}\." | sort)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -542,9 +556,9 @@ teardown() {
   [ "$status" -eq 0 ]
 
   local after_prod after_staging after_dev
-  after_prod="$(shiplog_git_caller config --get-regexp "^remote\.${remote1}\." | sort)"
-  after_staging="$(shiplog_git_caller config --get-regexp "^remote\.${remote2}\." | sort)"
-  after_dev="$(shiplog_git_caller config --get-regexp "^remote\.${remote3}\." | sort)"
+  after_prod="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote1}\." | sort)"
+  after_staging="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote2}\." | sort)"
+  after_dev="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote3}\." | sort)"
 
   [ "$config_prod" = "$after_prod" ]
   [ "$config_staging" = "$after_staging" ]
@@ -684,8 +698,9 @@ teardown() {
   shiplog_git_caller remote add "$remote" https://example.invalid/test.git
   shiplog_git_caller config "remote.${remote}.important" "true"
 
-  local before
-  before="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  local before escaped_remote
+  escaped_remote="$(escape_remote_regex "$remote")"
+  before="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
 
   shiplog_snapshot_caller_repo_state
 
@@ -695,7 +710,7 @@ teardown() {
   [ "$status" -eq 0 ]
 
   local after
-  after="$(shiplog_git_caller config --get-regexp "^remote\.${remote}\." | sort)"
+  after="$(shiplog_git_caller config --get-regexp "^remote\.${escaped_remote}\." | sort)"
   [ "$before" = "$after" ]
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
