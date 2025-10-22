@@ -22,6 +22,9 @@ sanitize_remote_error() {
   local normalized_input first_line="" second_line="" trimmed_line=""
   local current_line total_lines=0 extra_lines=0
 
+  SANITIZE_REMOTE_EXTRA_LINES=0
+  SANITIZE_REMOTE_TOTAL_LINES=0
+
   normalized_input=$(printf '%s' "$raw_input" | tr -d '\r')
 
   while IFS= read -r current_line; do
@@ -37,6 +40,9 @@ sanitize_remote_error() {
         ;;
     esac
   done <<<"$normalized_input"
+
+  SANITIZE_REMOTE_EXTRA_LINES=$extra_lines
+  SANITIZE_REMOTE_TOTAL_LINES=$total_lines
 
   case $total_lines in
     0) printf '' ;;
@@ -1749,10 +1755,20 @@ cmd_setup() {
         if [ "$probe_status" -eq 124 ]; then
           remote_probe_error="timeout after ${remote_probe_timeout}"
         else
-          remote_probe_error="$(sanitize_remote_error "$probe_output")"
+          local sanitized
+          sanitized="$(sanitize_remote_error "$probe_output")"
+          remote_probe_error="$sanitized"
           if [ -z "$remote_probe_error" ]; then
             remote_probe_error="command failed with exit code $probe_status"
+          else
+            if [ "${SANITIZE_REMOTE_EXTRA_LINES:-0}" -gt 0 ]; then
+              local probe_cmd_display
+              probe_cmd_display=$(printf '%q ' "${probe_cmd[@]}")
+              probe_cmd_display=${probe_cmd_display% }
+              remote_probe_error+=" (trimmed; run '${probe_cmd_display}' for full output)"
+            fi
           fi
+          unset SANITIZE_REMOTE_EXTRA_LINES SANITIZE_REMOTE_TOTAL_LINES
         fi
       fi
       if [ -z "$remote_probe_error" ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
