@@ -18,12 +18,17 @@ get_remote_oid() {
 }
 
 sanitize_remote_error() {
-  local raw_input="$1"
-  local normalized_input first_line="" second_line="" trimmed_line=""
-  local current_line total_lines=0 extra_lines=0
+  local raw_input normalized_input first_line="" second_line="" trimmed_line="" current_line total_lines=0 extra_lines=0
+
+  raw_input="${1:-}"
 
   SANITIZE_REMOTE_EXTRA_LINES=0
   SANITIZE_REMOTE_TOTAL_LINES=0
+
+  if [ -z "$raw_input" ]; then
+    printf ''
+    return 0
+  fi
 
   normalized_input=$(printf '%s' "$raw_input" | tr -d '\r')
 
