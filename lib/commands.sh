@@ -17,6 +17,46 @@ get_remote_oid() {
   printf '%s' "$(printf '%s\n' "$output" | awk 'NF{print $1; exit}')"
 }
 
+sanitize_remote_error() {
+  local raw_input normalized_input first_line="" second_line="" trimmed_line="" current_line total_lines=0 extra_lines=0
+
+  raw_input="${1:-}"
+
+  SANITIZE_REMOTE_EXTRA_LINES=0
+  SANITIZE_REMOTE_TOTAL_LINES=0
+
+  if [ -z "$raw_input" ]; then
+    printf ''
+    return 0
+  fi
+
+  normalized_input=$(printf '%s' "$raw_input" | tr -d '\r')
+
+  while IFS= read -r current_line; do
+    case "$current_line" in
+      *[![:space:]]*)
+        total_lines=$((total_lines + 1))
+        trimmed_line=$(printf '%s' "$current_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        case "$total_lines" in
+          1) first_line="$trimmed_line" ;;
+          2) second_line="$trimmed_line" ;;
+          *) extra_lines=$((extra_lines + 1)) ;;
+        esac
+        ;;
+    esac
+  done <<<"$normalized_input"
+
+  SANITIZE_REMOTE_EXTRA_LINES=$extra_lines
+  SANITIZE_REMOTE_TOTAL_LINES=$total_lines
+
+  case $total_lines in
+    0) printf '' ;;
+    1) printf '%s' "$first_line" ;;
+    2) printf '%s; %s' "$first_line" "$second_line" ;;
+    *) printf '%s; %s; (+%d more lines)' "$first_line" "$second_line" "$extra_lines" ;;
+  esac
+}
+
 fast_forward_ref() {
   local ref="$1" context="${2:-fast-forward}" remote
   remote=$(shiplog_remote_name)
@@ -1720,10 +1760,20 @@ cmd_setup() {
         if [ "$probe_status" -eq 124 ]; then
           remote_probe_error="timeout after ${remote_probe_timeout}"
         else
-          remote_probe_error="$probe_output"
+          local sanitized
+          sanitized="$(sanitize_remote_error "$probe_output")"
+          remote_probe_error="$sanitized"
           if [ -z "$remote_probe_error" ]; then
-            remote_probe_error="git ls-remote exited with status $probe_status"
+            remote_probe_error="command failed with exit code $probe_status"
+          else
+            if [ "${SANITIZE_REMOTE_EXTRA_LINES:-0}" -gt 0 ]; then
+              local probe_cmd_display
+              probe_cmd_display=$(printf '%q ' "${probe_cmd[@]}")
+              probe_cmd_display=${probe_cmd_display% }
+              remote_probe_error+=" (trimmed; run '${probe_cmd_display}' for full output)"
+            fi
           fi
+          unset SANITIZE_REMOTE_EXTRA_LINES SANITIZE_REMOTE_TOTAL_LINES
         fi
       fi
       if [ -z "$remote_probe_error" ] && { [ "$remote_missing_policy" -eq 1 ] || [ "$remote_missing_trust" -eq 1 ]; }; then
