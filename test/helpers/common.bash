@@ -181,7 +181,7 @@ shiplog_restore_caller_remotes() {
       shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
     fi
 
-    local restore_abort=0
+    local restore_abort
     if ! shiplog_restore_exec_step restore_abort "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"; then
       return 1
     fi
@@ -192,19 +192,26 @@ shiplog_restore_caller_remotes() {
     shiplog_git_caller config --local --unset-all "remote.$remote.fetch" >/dev/null 2>&1 || true
     shiplog_git_caller config --local --unset-all "remote.$remote.pushurl" >/dev/null 2>&1 || true
 
-    local primary_seen=0
+    declare -A seen_remote_urls=()
+    seen_remote_urls["$first_url"]=1
+
     local key value
     for line in "${lines[@]}"; do
       key=${line%% *}
       value=${line#* }
       if [[ "$key" == "remote.$remote.url" ]]; then
-        if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
-          primary_seen=1
+        if [[ -n ${seen_remote_urls[$value]+_} ]]; then
+          printf 'Skipping duplicate remote URL for "%s": %s\n' "$remote" "$value" >&2
           continue
         fi
         if ! shiplog_restore_exec_step restore_abort "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"; then
           return 1
         fi
+        if [ "$restore_abort" -eq 1 ]; then
+          return 0
+        fi
+        seen_remote_urls["$value"]=1
+        continue
       elif [[ "$key" == "remote.$remote.pushurl" ]]; then
         if ! shiplog_restore_exec_step restore_abort "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"; then
           return 1
