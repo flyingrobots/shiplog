@@ -207,11 +207,7 @@ shiplog_restore_caller_remotes() {
         if ! shiplog_restore_exec_step restore_abort "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"; then
           return 1
         fi
-        if [ "$restore_abort" -eq 1 ]; then
-          return 0
-        fi
         seen_remote_urls["$value"]=1
-        continue
       elif [[ "$key" == "remote.$remote.pushurl" ]]; then
         if ! shiplog_restore_exec_step restore_abort "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"; then
           return 1
