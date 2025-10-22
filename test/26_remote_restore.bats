@@ -713,6 +713,8 @@ teardown() {
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 0 ]
   [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -eq 0 ]
   [ "${#SHIPLOG_ORIG_REMOTES_CONFIG[@]}" -eq 0 ]
+  # Paranoid guard: Bash 5.x has occasional associative array bugs where length checks
+  # pass even though keys remain; fail loudly if we ever observe that inconsistent state.
   local key
   for key in "${!SHIPLOG_ORIG_REMOTES_CONFIG[@]}"; do
     echo "Expected empty SHIPLOG_ORIG_REMOTES_CONFIG but found key: $key" >&2
