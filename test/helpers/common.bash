@@ -175,56 +175,39 @@ shiplog_restore_caller_remotes() {
     for line in "${lines[@]}"; do
       key=${line%% *}
       value=${line#* }
-      case "$key" in
-        "remote.$remote.url")
-          if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
-            primary_seen=1
-            continue
-          fi
-          shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        "remote.$remote.pushurl")
-          shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        "remote.$remote.fetch")
-          shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        *)
-          shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-      esac
+      if [[ "$key" == "remote.$remote.url" ]]; then
+        if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
+          primary_seen=1
+          continue
+        fi
+        shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
+        case $? in
+          0) ;;
+          1) shiplog_reset_remote_snapshot_state; return 0 ;;
+          *) return 1 ;;
+        esac
+      elif [[ "$key" == "remote.$remote.pushurl" ]]; then
+        shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
+        case $? in
+          0) ;;
+          1) shiplog_reset_remote_snapshot_state; return 0 ;;
+          *) return 1 ;;
+        esac
+      elif [[ "$key" == "remote.$remote.fetch" ]]; then
+        shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
+        case $? in
+          0) ;;
+          1) shiplog_reset_remote_snapshot_state; return 0 ;;
+          *) return 1 ;;
+        esac
+      else
+        shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
+        case $? in
+          0) ;;
+          1) shiplog_reset_remote_snapshot_state; return 0 ;;
+          *) return 1 ;;
+        esac
+      fi
     done
   done
 
