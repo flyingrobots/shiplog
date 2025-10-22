@@ -31,10 +31,6 @@ teardown() {
   unset LC_ALL
 }
 
-escape_remote_regex() {
-  printf '%s' "$1" | sed -e 's/[][\\/.\^$*+?{}()|-]/\\&/g'
-}
-
 @test "restore removes unexpected remotes" {
   local remote="shimtest-${BATS_TEST_NUMBER}"
   shiplog_reset_remote_snapshot_state

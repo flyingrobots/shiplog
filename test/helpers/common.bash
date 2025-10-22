@@ -18,25 +18,31 @@ shiplog_helper_error() {
   return 1
 }
 
+shiplog_is_readonly_error() {
+  local msg="$1"
+  local nocasematch_was_disabled=0
+  if ! shopt -q nocasematch; then
+    shopt -s nocasematch
+    nocasematch_was_disabled=1
+  fi
+  local rc=1
+  if [[ "$msg" =~ read-?only || "$msg" =~ permission\ denied || "$msg" =~ operation\ not\ permitted ]]; then
+    rc=0
+  fi
+  if [ "$nocasematch_was_disabled" -eq 1 ]; then
+    shopt -u nocasematch
+  fi
+  return $rc
+}
+
 shiplog_restore_exec() {
   local context="$1"
   shift
   local output
   if ! output=$(shiplog_git_caller "$@" 2>&1); then
-    local nocasematch_was_disabled=0
-    if ! shopt -q nocasematch; then
-      shopt -s nocasematch
-      nocasematch_was_disabled=1
-    fi
-    if [[ "$output" =~ read-?only || "$output" =~ permission\ denied || "$output" =~ operation\ not\ permitted ]]; then
-      if [ "$nocasematch_was_disabled" -eq 1 ]; then
-        shopt -u nocasematch
-      fi
+    if shiplog_is_readonly_error "$output"; then
       shiplog_helper_error "Skipping remote restore: config is read-only" || true
       return 1
-    fi
-    if [ "$nocasematch_was_disabled" -eq 1 ]; then
-      shopt -u nocasematch
     fi
     shiplog_helper_error "$context: $output" || true
     return 2
@@ -111,21 +117,10 @@ shiplog_restore_caller_remotes() {
     if [[ -z ${expected[$listed]+_} ]]; then
       local removal_output
       if ! removal_output=$(shiplog_git_caller remote remove "$listed" 2>&1); then
-        local nocasematch_was_disabled=0
-        if ! shopt -q nocasematch; then
-          shopt -s nocasematch
-          nocasematch_was_disabled=1
-        fi
-        if [[ "$removal_output" =~ read-?only || "$removal_output" =~ permission\ denied || "$removal_output" =~ operation\ not\ permitted ]]; then
-          if [ "$nocasematch_was_disabled" -eq 1 ]; then
-            shopt -u nocasematch
-          fi
+        if shiplog_is_readonly_error "$removal_output"; then
           shiplog_helper_error "Skipping remote restore: config is read-only" || true
           shiplog_reset_remote_snapshot_state
           return 0
-        fi
-        if [ "$nocasematch_was_disabled" -eq 1 ]; then
-          shopt -u nocasematch
         fi
         if [[ "$removal_output" =~ "No such remote" ]]; then
           :
