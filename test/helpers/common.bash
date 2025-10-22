@@ -5,6 +5,233 @@ SHIPLOG_SANDBOX_REPO="${SHIPLOG_SANDBOX_REPO:-https://github.com/flyingrobots/sh
 SHIPLOG_SANDBOX_BRANCH="${SHIPLOG_SANDBOX_BRANCH:-main}"
 SHIPLOG_TEST_ROOT="${SHIPLOG_TEST_ROOT:-$(pwd)}"
 
+declare -ag SHIPLOG_ORIG_REMOTE_ORDER=()
+declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+declare -gi SHIPLOG_CALLER_REPO_CAPTURED=0
+
+shiplog_git_caller() {
+  git -c safe.directory="$SHIPLOG_TEST_ROOT" -C "$SHIPLOG_TEST_ROOT" "$@"
+}
+
+shiplog_helper_error() {
+  echo "ERROR: $*" >&2
+  return 1
+}
+
+shiplog_is_readonly_error() {
+  local msg="$1"
+  local nocasematch_was_disabled=0
+  if ! shopt -q nocasematch; then
+    shopt -s nocasematch
+    nocasematch_was_disabled=1
+  fi
+  local rc=1
+  if [[ "$msg" =~ read-?only || "$msg" =~ permission\ denied || "$msg" =~ operation\ not\ permitted ]]; then
+    rc=0
+  fi
+  if [ "$nocasematch_was_disabled" -eq 1 ]; then
+    shopt -u nocasematch
+  fi
+  return $rc
+}
+
+shiplog_restore_exec() {
+  local context="$1"
+  shift
+  local output
+  if ! output=$(shiplog_git_caller "$@" 2>&1); then
+    if shiplog_is_readonly_error "$output"; then
+      shiplog_helper_error "Skipping remote restore: config is read-only" || true
+      return 1
+    fi
+    shiplog_helper_error "$context: $output" || true
+    return 2
+  fi
+  return 0
+}
+
+shiplog_reset_remote_snapshot_state() {
+  SHIPLOG_ORIG_REMOTE_ORDER=()
+  unset SHIPLOG_ORIG_REMOTES_CONFIG
+  declare -Ag SHIPLOG_ORIG_REMOTES_CONFIG=()
+  SHIPLOG_CALLER_REPO_CAPTURED=0
+}
+
+shiplog_snapshot_caller_repo_state() {
+  local -a order=()
+  declare -A config_map=()
+
+  if ! shiplog_git_caller rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    shiplog_helper_error "Caller repository is not a git repository: $SHIPLOG_TEST_ROOT" || return 1
+  fi
+
+  local remote_list config_dump
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes: $remote_list" || return 1
+  fi
+  config_dump=$(shiplog_git_caller config --local --get-regexp '^remote\.' 2>/dev/null || true)
+
+  local remote
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    order+=("$remote")
+    local config
+    config=$(printf '%s\n' "$config_dump" | grep -F "remote.${remote}." || true)
+    config_map["$remote"]="$config"
+  done <<<"$remote_list"
+
+  shiplog_reset_remote_snapshot_state
+  SHIPLOG_ORIG_REMOTE_ORDER=("${order[@]}")
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    SHIPLOG_ORIG_REMOTES_CONFIG["$remote"]="${config_map[$remote]}"
+  done
+  SHIPLOG_CALLER_REPO_CAPTURED=1
+  return 0
+}
+
+shiplog_restore_caller_remotes() {
+  [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ] || return 0
+
+  # Test harness override: allows Bats to simulate read-only configs while running
+  # as root inside the Docker container. See test/26_remote_restore.bats.
+  if [[ "${SHIPLOG_FORCE_REMOTE_RESTORE_SKIP:-0}" = "1" ]]; then
+    shiplog_helper_error "Skipping remote restore: config is read-only" || true
+    shiplog_reset_remote_snapshot_state
+    return 0
+  fi
+
+  local remote_list
+  if ! remote_list=$(shiplog_git_caller remote 2>&1); then
+    shiplog_helper_error "Failed to list caller remotes during restore: $remote_list" || return 1
+  fi
+
+  declare -A expected=()
+  local remote
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    expected["$remote"]=1
+  done
+
+  local listed
+  while IFS= read -r listed; do
+    [ -n "$listed" ] || continue
+    if [[ -z ${expected[$listed]+_} ]]; then
+      local removal_output
+      if ! removal_output=$(shiplog_git_caller remote remove "$listed" 2>&1); then
+        if shiplog_is_readonly_error "$removal_output"; then
+          shiplog_helper_error "Skipping remote restore: config is read-only" || true
+          shiplog_reset_remote_snapshot_state
+          return 0
+        fi
+        if [[ "$removal_output" =~ "No such remote" ]]; then
+          :
+        else
+          shiplog_helper_error "Failed to remove unexpected remote \"$listed\": $removal_output" || return 1
+        fi
+      fi
+      shiplog_git_caller config --local --remove-section "remote.$listed" >/dev/null 2>&1 || true
+    fi
+  done <<<"$remote_list"
+
+  for remote in "${SHIPLOG_ORIG_REMOTE_ORDER[@]}"; do
+    local desired="${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
+    shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --remove-section "remote.$remote" >/dev/null 2>&1 || true
+
+    [ -n "$desired" ] || continue
+
+    local first_url=""
+    local -a lines=()
+    local line
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      lines+=("$line")
+      local key value
+      key=${line%% *}
+      value=${line#* }
+      if [[ "$key" == "remote.$remote.url" && -z "$first_url" ]]; then
+        first_url="$value"
+      fi
+    done <<<"$desired"
+
+    if [ -z "$first_url" ]; then
+      shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
+    fi
+
+    shiplog_restore_exec "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"
+    case $? in
+      0) ;;
+      1)
+        shiplog_reset_remote_snapshot_state
+        return 0
+        ;;
+      *) return 1 ;;
+    esac
+
+    shiplog_git_caller config --local --unset-all "remote.$remote.fetch" >/dev/null 2>&1 || true
+    shiplog_git_caller config --local --unset-all "remote.$remote.pushurl" >/dev/null 2>&1 || true
+
+    local primary_seen=0
+    local key value
+    for line in "${lines[@]}"; do
+      key=${line%% *}
+      value=${line#* }
+      case "$key" in
+        "remote.$remote.url")
+          if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
+            primary_seen=1
+            continue
+          fi
+          shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
+          case $? in
+            0) ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
+            *) return 1 ;;
+          esac
+          ;;
+        "remote.$remote.pushurl")
+          shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
+          case $? in
+            0) ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
+            *) return 1 ;;
+          esac
+          ;;
+        "remote.$remote.fetch")
+          shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
+          case $? in
+            0) ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
+            *) return 1 ;;
+          esac
+          ;;
+        *)
+          shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
+          case $? in
+            0) ;;
+            1)
+              shiplog_reset_remote_snapshot_state
+              return 0
+              ;;
+            *) return 1 ;;
+          esac
+          ;;
+      esac
+    done
+  done
+
+  shiplog_reset_remote_snapshot_state
+  return 0
+}
+
 shiplog_install_cli() {
   local project_home="${SHIPLOG_HOME:-$SHIPLOG_PROJECT_ROOT}"
 
@@ -60,7 +287,7 @@ shiplog_use_sandbox_repo() {
   else
     mkdir -p "$dest"
   fi
-  if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-0}" = "1" ]]; then
+  if [[ "${SHIPLOG_USE_LOCAL_SANDBOX:-1}" = "1" ]]; then
     # Initialize a local empty repo instead of cloning from network
     cd "$dest" || { echo "ERROR: Failed to cd to $dest" >&2; return 1; }
     git init -q
@@ -89,6 +316,15 @@ shiplog_cleanup_sandbox_repo() {
     rm -rf "$SHIPLOG_SANDBOX_DIR"
     unset SHIPLOG_SANDBOX_DIR
   fi
+  if [[ -n "${SHIPLOG_TEST_SSH_TMPDIR:-}" && -d "$SHIPLOG_TEST_SSH_TMPDIR" ]]; then
+    rm -rf "$SHIPLOG_TEST_SSH_TMPDIR"
+    unset SHIPLOG_TEST_SSH_TMPDIR
+  fi
+  if [[ -n "${SHIPLOG_TEST_GNUPGHOME:-}" && -d "$SHIPLOG_TEST_GNUPGHOME" ]]; then
+    rm -rf "$SHIPLOG_TEST_GNUPGHOME"
+    unset SHIPLOG_TEST_GNUPGHOME
+    unset GNUPGHOME
+  fi
 }
 
 shiplog_setup_test_signing() {
@@ -103,15 +339,21 @@ shiplog_setup_test_signing() {
     fi
     git config gpg.format ssh
     git config user.signingkey "$tmpdir/id_ed25519"
-    # TODO: Track tmpdir for cleanup
+    export SHIPLOG_TEST_SSH_TMPDIR="$tmpdir"
   else
-    export GNUPGHOME="$(mktemp -d)"
+    local gnupg_tmp
+    gnupg_tmp="$(mktemp -d)"
+    export GNUPGHOME="$gnupg_tmp"
+    export SHIPLOG_TEST_GNUPGHOME="$gnupg_tmp"
     printf '%s\n' allow-loopback-pinentry >"$GNUPGHOME/gpg-agent.conf"
     printf '%s\n' pinentry-mode\ loopback >"$GNUPGHOME/gpg.conf"
     gpgconf --kill gpg-agent >/dev/null 2>&1 || true
     if ! gpg --batch --pinentry-mode loopback --passphrase '' \
        --quick-gen-key "Shiplog Tester <shiplog-tester@example.com>" ed25519 sign 1y >/dev/null 2>&1; then
       echo "ERROR: Failed to generate GPG key" >&2
+      rm -rf "$GNUPGHOME"
+      unset GNUPGHOME
+      unset SHIPLOG_TEST_GNUPGHOME
       return 1
     fi
     local fpr
