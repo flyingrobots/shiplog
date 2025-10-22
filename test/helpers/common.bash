@@ -50,6 +50,30 @@ shiplog_restore_exec() {
   return 0
 }
 
+shiplog_restore_exec_step() {
+  local abort_flag_name="$1"
+  shift
+  printf -v "$abort_flag_name" '%s' 0
+  local context="$1"
+  shift
+
+  shiplog_restore_exec "$context" "$@"
+  local rc=$?
+  case "$rc" in
+    0)
+      return 0
+      ;;
+    1)
+      shiplog_reset_remote_snapshot_state
+      printf -v "$abort_flag_name" '%s' 1
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 shiplog_reset_remote_snapshot_state() {
   SHIPLOG_ORIG_REMOTE_ORDER=()
   unset SHIPLOG_ORIG_REMOTES_CONFIG
@@ -157,74 +181,50 @@ shiplog_restore_caller_remotes() {
       shiplog_helper_error "Missing URL while restoring remote \"$remote\"" || return 1
     fi
 
-    shiplog_restore_exec "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"
-    case $? in
-      0) ;;
-      1)
-        shiplog_reset_remote_snapshot_state
-        return 0
-        ;;
-      *) return 1 ;;
-    esac
+    local restore_abort
+    if ! shiplog_restore_exec_step restore_abort "Failed to re-add remote \"$remote\"" remote add "$remote" "$first_url"; then
+      return 1
+    fi
+    if [ "$restore_abort" -eq 1 ]; then
+      return 0
+    fi
 
     shiplog_git_caller config --local --unset-all "remote.$remote.fetch" >/dev/null 2>&1 || true
     shiplog_git_caller config --local --unset-all "remote.$remote.pushurl" >/dev/null 2>&1 || true
 
-    local primary_seen=0
+    declare -A seen_remote_urls=()
+    seen_remote_urls["$first_url"]=1
+
     local key value
     for line in "${lines[@]}"; do
       key=${line%% *}
       value=${line#* }
-      case "$key" in
-        "remote.$remote.url")
-          if [ "$value" = "$first_url" ] && [ $primary_seen -eq 0 ]; then
-            primary_seen=1
-            continue
-          fi
-          shiplog_restore_exec "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        "remote.$remote.pushurl")
-          shiplog_restore_exec "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        "remote.$remote.fetch")
-          shiplog_restore_exec "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-        *)
-          shiplog_restore_exec "Failed to restore $key" config --local --add "$key" "$value"
-          case $? in
-            0) ;;
-            1)
-              shiplog_reset_remote_snapshot_state
-              return 0
-              ;;
-            *) return 1 ;;
-          esac
-          ;;
-      esac
+      if [[ "$key" == "remote.$remote.url" ]]; then
+        if [[ -n ${seen_remote_urls[$value]+_} ]]; then
+          printf 'Skipping duplicate remote URL for "%s": %s\n' "$remote" "$value" >&2
+          continue
+        fi
+        if ! shiplog_restore_exec_step restore_abort "Failed to add additional URL for \"$remote\"" remote set-url --add "$remote" "$value"; then
+          return 1
+        fi
+        seen_remote_urls["$value"]=1
+      elif [[ "$key" == "remote.$remote.pushurl" ]]; then
+        if ! shiplog_restore_exec_step restore_abort "Failed to add pushurl for \"$remote\"" remote set-url --push --add "$remote" "$value"; then
+          return 1
+        fi
+      elif [[ "$key" == "remote.$remote.fetch" ]]; then
+        if ! shiplog_restore_exec_step restore_abort "Failed to restore fetch spec for \"$remote\"" config --local --add "remote.$remote.fetch" "$value"; then
+          return 1
+        fi
+      else
+        if ! shiplog_restore_exec_step restore_abort "Failed to restore $key" config --local --add "$key" "$value"; then
+          return 1
+        fi
+      fi
+
+      if [ "$restore_abort" -eq 1 ]; then
+        return 0
+      fi
     done
   done
 

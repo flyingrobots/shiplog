@@ -136,7 +136,7 @@ teardown() {
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 1 ]
   [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -eq 1 ]
   [ "${SHIPLOG_ORIG_REMOTE_ORDER[0]}" = "$remote" ]
-  [[ "${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}" == *"$remote.url"* ]]
+  grep -qF "remote.${remote}.url " <<<"${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -173,7 +173,7 @@ teardown() {
   local rc=$?
   [ "$rc" -eq 0 ]
   [ "${SHIPLOG_ORIG_REMOTE_ORDER[0]}" = "$remote" ]
-  [[ "${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}" == *"$remote.url"* ]]
+  grep -qF "remote.${remote}.url " <<<"${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -553,7 +553,7 @@ teardown() {
 
   shiplog_snapshot_caller_repo_state
   [ "$?" -eq 0 ]
-  [[ "${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}" == *"$remote.url"* ]]
+  grep -qF "remote.${remote}.url " <<<"${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -564,7 +564,7 @@ teardown() {
   if shiplog_git_caller remote add "$remote" https://example.invalid/bracket.git 2>/dev/null; then
     shiplog_snapshot_caller_repo_state
     [ "$?" -eq 0 ]
-    [[ "${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}" == *"url"* ]]
+    grep -qF "remote.${remote}.url " <<<"${SHIPLOG_ORIG_REMOTES_CONFIG[$remote]}"
     shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
   else
     skip "Git does not support this remote name format"
@@ -713,6 +713,13 @@ teardown() {
   [ "$SHIPLOG_CALLER_REPO_CAPTURED" -eq 0 ]
   [ "${#SHIPLOG_ORIG_REMOTE_ORDER[@]}" -eq 0 ]
   [ "${#SHIPLOG_ORIG_REMOTES_CONFIG[@]}" -eq 0 ]
+  # Paranoid guard: Bash 5.x has occasional associative array bugs where length checks
+  # pass even though keys remain; fail loudly if we ever observe that inconsistent state.
+  local key
+  for key in "${!SHIPLOG_ORIG_REMOTES_CONFIG[@]}"; do
+    echo "Expected empty SHIPLOG_ORIG_REMOTES_CONFIG but found key: $key" >&2
+    false
+  done
 
   shiplog_git_caller remote remove "$remote" >/dev/null 2>&1 || true
 }
@@ -767,11 +774,15 @@ teardown() {
     run shiplog_restore_caller_remotes
     [ "$status" -eq 0 ]
 
-    run shiplog_git_caller remote -v
+    run shiplog_git_caller remote
     [ "$status" -eq 0 ]
     echo "$output" | grep -qxF "$remote"
 
     run shiplog_git_caller remote get-url "$remote"
+    [ "$status" -eq 0 ]
+    [ "$output" = "https://example.invalid/special.git" ]
+
+    run shiplog_git_caller config --get-all "remote.${remote}.url"
     [ "$status" -eq 0 ]
     [ "$output" = "https://example.invalid/special.git" ]
 
