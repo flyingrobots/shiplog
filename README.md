@@ -207,6 +207,6 @@ Choose how maintainer approval is expressed. Both are supported.
 
 ## License
 
-MIT © J. Kirby Ross (@flyingrobots)
+MIT © J. Kirby Ross ([flyingrobots](https://github.com/flyingrobots)
 
 _Jenkins was not harmed in the making of this project._
