@@ -85,10 +85,28 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage: `git shiplog export-json prod | jq '.'`
   - Requires: `jq`.
 
+- `replay [OPTIONS]`
+  - Purpose: Replay journal entries. Wrapper around `scripts/shiplog-replay.sh` with convenience sources.
+  - Usage:
+    - Durable by ID: `git shiplog replay --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step`
+    - Durable by anchor: `git shiplog replay --env prod --since-anchor`
+    - Pointer (local reflog): `git shiplog replay --pointer refs/_shiplog/deploy/prod --env prod`
+    - Tag (best-effort): `git shiplog replay --tag deploy/prod --env prod`
+  - Flags: `--env`, `--from`, `--to`, `--count`, `--speed`, `--step`, `--no-notes`, `--compact`, `--deployment`, `--ticket`, `--since-anchor`, `--pointer`, `--tag`.
+  - Notes: prefers portable sources (`--deployment`, `--since-anchor`). Pointer/tag rely on local reflogs.
+
 - `publish [ENV] [--no-notes] [--policy] [--trust] [--all]`
   - Purpose: push Shiplog refs (journals/notes, and optionally policy/trust) to origin without writing a new entry.
   - Usage: `git shiplog publish` (current env), `git shiplog publish --env prod`, `git shiplog publish --all --policy`
   - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`. Shiplog uses `git push --no-verify` to avoid pre‑push hooks by design.
+
+- `anchor set|show|list`
+  - Purpose: manage durable replay boundaries for an environment.
+  - Usage:
+    - Set: `git shiplog anchor set --env prod [--ref <sha>] [--reason "text"]`
+    - Show: `git shiplog anchor show --env prod [--json]`
+    - List: `git shiplog anchor list --env prod`
+  - Notes: anchors live under `refs/_shiplog/anchors/<env>` and are used by `git shiplog replay --since-anchor`.
 
 - `policy [show|validate|require-signed|toggle] [--json] [--boring]`
   - Purpose: inspect/change effective policy and signing requirement.

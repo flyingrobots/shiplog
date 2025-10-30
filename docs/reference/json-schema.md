@@ -41,6 +41,7 @@ This document captures the layout of the JSON trailer that `git shiplog` writes 
   "seq": 17,
   "journal_parent": "0d135ab...",
   "trust_oid": "63c2d9c...",
+  "deployment": { "id": "REL-2025-09-30.1" },
   "previous_anchor": null,
   "repo_head": "0f4e7890...",
   "run": {
@@ -162,6 +163,12 @@ The `run` block appears when the entry was produced by `git shiplog run`. Its sh
     "journal_parent": {"type": ["string", "null"]},
     "trust_oid": {"type": "string"},
     "previous_anchor": {"type": ["string", "null"]},
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"}
+      }
+    },
     "repo_head": {"type": "string"},
     "run": {
       "type": "object",

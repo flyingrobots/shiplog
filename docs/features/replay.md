@@ -44,6 +44,12 @@ scripts/shiplog-replay.sh --env prod --deployment "$SHIPLOG_DEPLOY_ID" --speed 0
 - `--step` — Step through entries interactively.
 - `--deployment <id>` — Replay only entries stamped with `deployment.id=<id>` (or with back‑compat `why.ticket=<id>`). Alias: `--ticket <id>`.
 
+## Convenience Sources
+
+- `--since-anchor` (portable): use the last anchor for the environment as the start boundary and the current journal tip as the end.
+- `--pointer <ref>` (local convenience): resolve `<ref>@{1}..@{0}` from the local reflog; handy for a “last deployment” pointer like `refs/_shiplog/deploy/prod`.
+- `--tag <name>`: equivalent to `--pointer refs/tags/<name>` and depends on tag reflogs.
+
 ## Notes & Limitations
 
 - Logs attached as git notes are printed as saved; per-line timestamps aren’t preserved, so intra-log pacing is approximated uniformly.
