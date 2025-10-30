@@ -253,6 +253,7 @@ Options:
   --image IMG             Artifact image
   --tag TAG               Artifact tag
   --run-url URL           CI/CD run URL
+  --log PATH              Attach PATH as a note (alias: --attach PATH)
   --dry-run               Preview without writing
 
 Global flags: --boring (plain), --yes (auto-confirm), --no-push/--push
@@ -292,6 +293,10 @@ EOF
       --run-url) shift; SHIPLOG_RUN_URL="${1:-}"; export SHIPLOG_RUN_URL; shift; continue ;;
       --run-url=*)
         SHIPLOG_RUN_URL="${1#*=}"; export SHIPLOG_RUN_URL; shift; continue ;;
+      --log) shift; SHIPLOG_LOG="${1:-}"; export SHIPLOG_LOG; shift; continue ;;
+      --log=*) SHIPLOG_LOG="${1#*=}"; export SHIPLOG_LOG; shift; continue ;;
+      --attach) shift; SHIPLOG_LOG="${1:-}"; export SHIPLOG_LOG; shift; continue ;;
+      --attach=*) SHIPLOG_LOG="${1#*=}"; export SHIPLOG_LOG; shift; continue ;;
       --dry-run)
         dry_run=1
         SHIPLOG_DRY_RUN=1
@@ -542,6 +547,7 @@ cmd_run() {
   local ticket="${SHIPLOG_TICKET:-}"
   local region="${SHIPLOG_REGION:-}"
   local cluster="${SHIPLOG_CLUSTER:-}"
+  local preamble_cli=""
 
   local dry_run=0
   local skip_execution=0
@@ -584,10 +590,14 @@ cmd_run() {
         shift; region="${1:-}"; shift; continue ;;
       --region=*)
         region="${1#*=}"; shift; continue ;;
-      --cluster)
+      --cluster) 
         shift; cluster="${1:-}"; shift; continue ;;
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
+      --preamble)
+        preamble_cli=1; shift; continue ;;
+      --no-preamble)
+        preamble_cli=0; shift; continue ;;
       --dry-run)
         dry_run=1
         skip_execution=1
@@ -623,6 +633,24 @@ cmd_run() {
     esac
   done
 
+  # Best-effort safety: warn if any literal command substitution tokens are present.
+  # This cannot catch expansions already performed by the caller shell, but it helps
+  # when users accidentally pass unquoted backticks or $(...) as literals.
+  if [ ${#run_argv[@]} -gt 0 ]; then
+    local _suspicious=0 _arg_sample=""
+    for arg in "${run_argv[@]}"; do
+      case "$arg" in
+        *\`*|*\$\(*) _suspicious=1; _arg_sample="$arg"; break ;;
+      esac
+    done
+    if [ "$_suspicious" -eq 1 ]; then
+      printf '%s\n' '⚠️ shiplog: detected possible command substitution token in arguments.' >&2
+      printf '%s\n' '   These would be evaluated by your shell before Shiplog could capture them.' >&2
+      printf '%s\n' "   Offending arg: $_arg_sample" >&2
+      printf '%s\n' "💡 Tip: run via: git shiplog run -- bash -lc 'your command here'" >&2
+    fi
+  fi
+
   if [ ${#run_argv[@]} -eq 0 ]; then
     die "shiplog: run requires a command to execute (tip: place it after --)"
   fi
@@ -655,9 +683,13 @@ cmd_run() {
   local log_attached_bool="false"
   # Optional pretty preamble around command output (console only)
   local preamble=0
-  case "${SHIPLOG_PREAMBLE:-$(git config --bool shiplog.preamble 2>/dev/null || echo 0)}" in
-    1|true|yes|on) preamble=1 ;;
-  esac
+  if [ -n "$preamble_cli" ]; then
+    case "$preamble_cli" in 1|true|yes|on) preamble=1 ;; *) preamble=0 ;; esac
+  else
+    case "${SHIPLOG_PREAMBLE:-$(git config --bool shiplog.preamble 2>/dev/null || echo 0)}" in
+      1|true|yes|on) preamble=1 ;;
+    esac
+  fi
 
   if [ "$skip_execution" -eq 0 ]; then
     started_at="$(fmt_ts)"
