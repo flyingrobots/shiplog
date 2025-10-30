@@ -154,9 +154,14 @@ See also: docs/reference/env.md for a complete list of environment variables and
   - Back‑compat: if `--ticket` is omitted, the ID mirrors into `why.ticket`.
 
 - Replay the deployment
-  - scripts/shiplog-replay.sh --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step
-  - Or filter by legacy ticket: `--ticket <ID>`.
-  - Range/speed/step options are documented under docs/features/replay.md and docs/commands/replay.md.
+  - Durable by ID: `git shiplog replay --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step`
+  - Durable by anchor: `git shiplog replay --env prod --since-anchor`
+  - Operator convenience: `git shiplog replay --pointer refs/_shiplog/deploy/prod` (uses local reflog)
+  - Under the hood script: `scripts/shiplog-replay.sh` (same options)
+  - See docs/features/replay.md and docs/commands/replay.md for details.
+
+Related commands
+- Anchors: `git shiplog anchor set|show|list` (docs/commands/anchor.md)
 
 ---
 

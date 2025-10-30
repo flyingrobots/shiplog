@@ -790,10 +790,12 @@ cmd_run() {
     --argjson duration "$duration_s" \
     --argjson log_attached "$log_attached_bool" \
     --arg dep_id "${deployment:-}" \
-    '{run: {argv: $argv, cmd: $cmd, exit_code: $exit_code, status: $status, duration_s: $duration, started_at: $started, finished_at: $finished, log_attached: $log_attached}}'
-    + ( ($dep_id|length) > 0 \
-        ? { deployment: { id: $dep_id } } \
-        : {} )
+    '
+    { run: { argv: $argv, cmd: $cmd, exit_code: $exit_code, status: $status,
+             duration_s: $duration, started_at: $started, finished_at: $finished,
+             log_attached: $log_attached } }
+    + ( if ($dep_id|length) > 0 then { deployment: { id: $dep_id } } else {} end )
+    '
   )
 
   # Call cmd_write in a subshell to isolate env changes and capture output
@@ -1119,6 +1121,188 @@ cmd_export_json() {
   git rev-list "$ref" | while read -r c; do
     git show -s --format=%B "$c" | awk 'BEGIN{p=0} /^---$/{p=1;next} p{print}' | jq -c --arg sha "$c" '. + {commit:$sha}'
   done
+}
+
+# Replay wrapper: delegates to scripts/shiplog-replay.sh and adds --since-anchor/--pointer/--tag
+cmd_replay() {
+  ensure_in_repo
+  local env="$DEFAULT_ENV" from="" to="" count=5 speed="1.0" step=0 no_notes=0 compact=0
+  local deployment="" ticket="" pointer="" tag="" since_anchor=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) shift; env="${1:-$env}"; shift; continue ;;
+      --env=*) env="${1#*=}"; shift; continue ;;
+      --from) shift; from="${1:-}"; shift; continue ;;
+      --from=*) from="${1#*=}"; shift; continue ;;
+      --to) shift; to="${1:-}"; shift; continue ;;
+      --to=*) to="${1#*=}"; shift; continue ;;
+      --count) shift; count="${1:-$count}"; shift; continue ;;
+      --count=*) count="${1#*=}"; shift; continue ;;
+      --speed) shift; speed="${1:-$speed}"; shift; continue ;;
+      --speed=*) speed="${1#*=}"; shift; continue ;;
+      --step) step=1; shift; continue ;;
+      --no-notes) no_notes=1; shift; continue ;;
+      --compact) compact=1; shift; continue ;;
+      --deployment) shift; deployment="${1:-}"; shift; continue ;;
+      --deployment=*) deployment="${1#*=}"; shift; continue ;;
+      --ticket) shift; ticket="${1:-}"; shift; continue ;;
+      --ticket=*) ticket="${1#*=}"; shift; continue ;;
+      --since-anchor) since_anchor=1; shift; continue ;;
+      --pointer) shift; pointer="${1:-}"; shift; continue ;;
+      --pointer=*) pointer="${1#*=}"; shift; continue ;;
+      --tag) shift; tag="${1:-}"; shift; continue ;;
+      --tag=*) tag="${1#*=}"; shift; continue ;;
+      --help|-h) usage; return 0 ;;
+      --) shift; break ;;
+      -*) die "shiplog: unknown replay option: $1" ;;
+      *) break ;;
+    esac
+  done
+
+  # Resolve tag to pointer ref
+  if [ -n "$tag" ]; then
+    pointer="refs/tags/$tag"
+  fi
+
+  # Pointer: use reflog window pointer@{1}..pointer@{0}
+  if [ -n "$pointer" ]; then
+    if git rev-parse --verify "$pointer@{0}" >/dev/null 2>&1 \
+       && git rev-parse --verify "$pointer@{1}" >/dev/null 2>&1; then
+      from="$(git rev-parse "$pointer@{1}")"
+      to="$(git rev-parse "$pointer@{0}")"
+    else
+      printf '%s\n' "⚠️ shiplog: pointer '$pointer' lacks sufficient reflog; ignoring." >&2
+    fi
+  fi
+
+  # Since-anchor: from=anchor tip, to=journal tip
+  if [ "$since_anchor" -eq 1 ]; then
+    local anchor_ref journal_ref anchor_sha tip_sha
+    anchor_ref="$(ref_anchor "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/anchors/$env")"
+    journal_ref="$(ref_journal "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/journal/$env")"
+    tip_sha="$(git rev-parse "$journal_ref" 2>/dev/null || true)"
+    if git rev-parse --verify "$anchor_ref" >/dev/null 2>&1; then
+      anchor_sha="$(git rev-parse "$anchor_ref")"
+      from="$anchor_sha"
+      [ -z "$to" ] && to="$tip_sha"
+    else
+      printf '%s\n' "⚠️ shiplog: no anchor found for env '$env'; using journal tip only." >&2
+      [ -z "$to" ] && to="$tip_sha"
+    fi
+  fi
+
+  local script_path
+  script_path="${SHIPLOG_HOME:-$DEFAULT_HOME}/scripts/shiplog-replay.sh"
+  [ -x "$script_path" ] || die "shiplog: missing replay script at $script_path"
+
+  local -a pass
+  pass=("--env" "$env" "--count" "$count" "--speed" "$speed")
+  [ "$step" -eq 1 ] && pass+=("--step")
+  [ "$no_notes" -eq 1 ] && pass+=("--no-notes")
+  [ "$compact" -eq 1 ] && pass+=("--compact")
+  [ -n "$deployment" ] && pass+=("--deployment" "$deployment")
+  [ -n "$ticket" ] && pass+=("--ticket" "$ticket")
+  [ -n "$from" ] && pass+=("--from" "$from")
+  [ -n "$to" ] && pass+=("--to" "$to")
+
+  "$script_path" "${pass[@]}"
+}
+
+# Anchor command: set/show/list durable env anchors used by --since-anchor
+cmd_anchor() {
+  ensure_in_repo
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    set)  _cmd_anchor_set "$@";;
+    show) _cmd_anchor_show "$@";;
+    list) _cmd_anchor_list "$@";;
+    ''|--help|-h) usage; return 0 ;;
+    *) die "shiplog: unknown anchor subcommand: $sub" ;;
+  esac
+}
+
+_cmd_anchor_set() {
+  local env="$DEFAULT_ENV" reason="" ref=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) shift; env="${1:-$env}"; shift; continue ;;
+      --env=*) env="${1#*=}"; shift; continue ;;
+      --reason) shift; reason="${1:-}"; shift; continue ;;
+      --reason=*) reason="${1#*=}"; shift; continue ;;
+      --ref) shift; ref="${1:-}"; shift; continue ;;
+      --ref=*) ref="${1#*=}"; shift; continue ;;
+      --help|-h) usage; return 0 ;;
+      --) shift; break ;;
+      -*) die "shiplog: unknown anchor set option: $1" ;;
+      *) break ;;
+    esac
+  done
+  local anchor_ref journal_ref tip
+  anchor_ref="$(ref_anchor "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/anchors/$env")"
+  journal_ref="$(ref_journal "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/journal/$env")"
+  if [ -z "$ref" ]; then
+    git rev-parse --verify "$journal_ref" >/dev/null 2>&1 || die "shiplog: no journal at $journal_ref"
+    tip="$(git rev-parse "$journal_ref")"
+  else
+    git rev-parse --verify "$ref" >/dev/null 2>&1 || die "shiplog: invalid --ref: $ref"
+    tip="$(git rev-parse "$ref")"
+  fi
+  local msg
+  msg="shiplog: anchor set env=$env"
+  [ -n "$reason" ] && msg="$msg: $reason"
+  git update-ref -m "$msg" "$anchor_ref" "$tip"
+  printf '⚓️  anchor set: %s → %s\n' "$anchor_ref" "$tip"
+}
+
+_cmd_anchor_show() {
+  local env="$DEFAULT_ENV" as_json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) shift; env="${1:-$env}"; shift; continue ;;
+      --env=*) env="${1#*=}"; shift; continue ;;
+      --json) as_json=1; shift; continue ;;
+      --help|-h) usage; return 0 ;;
+      --) shift; break ;;
+      -*) die "shiplog: unknown anchor show option: $1" ;;
+      *) break ;;
+    esac
+  done
+  local anchor_ref sha
+  anchor_ref="$(ref_anchor "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/anchors/$env")"
+  if ! sha="$(git rev-parse --verify "$anchor_ref" 2>/dev/null)"; then
+    if [ $as_json -eq 1 ]; then
+      printf '{ "env": "%s", "ref": "%s", "commit": null }\n' "$env" "$anchor_ref"
+    else
+      printf 'ℹ️  no anchor for env=%s (%s)\n' "$env" "$anchor_ref"
+    fi
+    return 0
+  fi
+  if [ $as_json -eq 1 ]; then
+    printf '{ "env": "%s", "ref": "%s", "commit": "%s" }\n' "$env" "$anchor_ref" "$sha"
+  else
+    printf '⚓️  %s = %s\n' "$anchor_ref" "$sha"
+  fi
+}
+
+_cmd_anchor_list() {
+  local env="$DEFAULT_ENV"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) shift; env="${1:-$env}"; shift; continue ;;
+      --env=*) env="${1#*=}"; shift; continue ;;
+      --help|-h) usage; return 0 ;;
+      --) shift; break ;;
+      -*) die "shiplog: unknown anchor list option: $1" ;;
+      *) break ;;
+    esac
+  done
+  local anchor_ref
+  anchor_ref="$(ref_anchor "$env" 2>/dev/null || echo "${REF_ROOT:-refs/_shiplog}/anchors/$env")"
+  if ! git rev-parse --verify "$anchor_ref" >/dev/null 2>&1; then
+    printf 'ℹ️  no anchor for env=%s (%s)\n' "$env" "$anchor_ref"
+    return 0
+  fi
+  git log -g --format='%C(auto)%gd %h %cd %Creset%m %s' --date=iso "$anchor_ref"
 }
 
 cmd_publish() {
@@ -2164,6 +2348,8 @@ Usage:
   verify [ENV]         Verify signatures and authorization of entries
   export-json [ENV]    Export entries as JSON lines
   publish [ENV]        Push/publish journal (and notes) for ENV (default: current env)
+  replay               Replay journal entries (wrapper for scripts/shiplog-replay.sh)
+  anchor               Manage journal anchors (durable replay boundaries)
   trust sync [REF]     Refresh signer roster from the trust ref (default: refs/_shiplog/trust/root)
   trust show [REF]     Display trust roster and metadata (use --json for raw output)
   policy [show]        Show current policy configuration
@@ -2227,6 +2413,8 @@ run_command() {
     verify)        cmd_verify "$@";;
     export-json)   cmd_export_json "$@";;
     publish)       cmd_publish "$@";;
+    replay)        cmd_replay "$@";;
+    anchor)        cmd_anchor "$@";;
     trust)         cmd_trust "$@";;
     policy)        cmd_policy "$@";;
     refs)          cmd_refs "$@";;

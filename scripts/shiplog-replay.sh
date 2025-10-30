@@ -89,10 +89,11 @@ RANGE=("$JOURNAL_REF")
 [ -n "$FROM_SHA" ] && RANGE+=("^$FROM_SHA")
 
 if [ -n "$DEPLOY_ID" ]; then
+  # Reverse order (oldest first) without relying on non-POSIX tac
   mapfile -t COMMITS < <(
     git shiplog export-json "$ENV_NAME" \
       | jq -r --arg id "$DEPLOY_ID" 'select((.deployment.id // "") == $id or (.why.ticket // "") == $id) | .commit' \
-      | tac
+      | awk '{a[NR]=$0} END{for(i=NR;i>=1;i--) print a[i]}'
   )
 else
   mapfile -t COMMITS < <(git rev-list --max-count="$COUNT" "${RANGE[@]}")
