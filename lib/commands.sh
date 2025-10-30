@@ -252,7 +252,8 @@ Options:
   --namespace NS          Namespace (defaults to ENV when blank)
   --image IMG             Artifact image
   --tag TAG               Artifact tag
-  --run-url URL           CI/CD run URL
+      --run-url URL           CI/CD run URL
+      --deployment ID         Deployment identifier to stamp (mirrors ticket if unset)
   --log PATH              Attach PATH as a note (alias: --attach PATH)
   --dry-run               Preview without writing
 
@@ -293,6 +294,10 @@ EOF
       --run-url) shift; SHIPLOG_RUN_URL="${1:-}"; export SHIPLOG_RUN_URL; shift; continue ;;
       --run-url=*)
         SHIPLOG_RUN_URL="${1#*=}"; export SHIPLOG_RUN_URL; shift; continue ;;
+      --deployment)
+        shift; SHIPLOG_DEPLOY_ID="${1:-}"; export SHIPLOG_DEPLOY_ID; shift; continue ;;
+      --deployment=*)
+        SHIPLOG_DEPLOY_ID="${1#*=}"; export SHIPLOG_DEPLOY_ID; shift; continue ;;
       --log) shift; SHIPLOG_LOG="${1:-}"; export SHIPLOG_LOG; shift; continue ;;
       --log=*) SHIPLOG_LOG="${1#*=}"; export SHIPLOG_LOG; shift; continue ;;
       --attach) shift; SHIPLOG_LOG="${1:-}"; export SHIPLOG_LOG; shift; continue ;;
@@ -367,6 +372,10 @@ EOF
   status="$(shiplog_prompt_choice "Status" "SHIPLOG_STATUS" success failed in_progress skipped override revert finalize)"
   reason="$(shiplog_prompt_input "reason (e.g., hotfix 503s)" "SHIPLOG_REASON")"
   ticket="$(shiplog_prompt_input "ticket/PR (optional, e.g., OPS-7421)" "SHIPLOG_TICKET")"
+  # If a deployment id was provided and no explicit ticket, mirror it for back-compat
+  if [ -n "${SHIPLOG_DEPLOY_ID:-}" ] && [ -z "$ticket" ]; then
+    ticket="$SHIPLOG_DEPLOY_ID"; export SHIPLOG_TICKET="$ticket"
+  fi
   region="$(shiplog_prompt_input "region (e.g., us-west-2)" "SHIPLOG_REGION")"
   cluster="$(shiplog_prompt_input "cluster (e.g., prod-1)" "SHIPLOG_CLUSTER")"
   ns="$(shiplog_prompt_input "namespace (e.g., pf3)" "SHIPLOG_NAMESPACE")"
@@ -436,6 +445,18 @@ EOF
 
   local write_ts
   write_ts="$(fmt_ts)"
+
+  # If a deployment id is present, add a JSON overlay for {deployment:{id}} via SHIPLOG_EXTRA_JSON
+  if [ -n "${SHIPLOG_DEPLOY_ID:-}" ]; then
+    local _deploy_overlay
+    _deploy_overlay=$(jq -n --arg id "${SHIPLOG_DEPLOY_ID}" '{deployment:{id:$id}}')
+    if [ -n "${SHIPLOG_EXTRA_JSON:-}" ]; then
+      SHIPLOG_EXTRA_JSON=$(jq -c -n --argjson a "${SHIPLOG_EXTRA_JSON}" --argjson b "$_deploy_overlay" '$a + $b')
+    else
+      SHIPLOG_EXTRA_JSON="$_deploy_overlay"
+    fi
+    export SHIPLOG_EXTRA_JSON
+  fi
 
   local msg; msg="$(compose_message "$env" "$service" "$status" "$reason" "$ticket" "$region" "$cluster" "$ns" "$start_ts" "$end_ts" "$dur_s" "$repo_head" "$artifact" "$run_url" "$seq" "$parent" "$trust_oid" "$previous_anchor" "$write_ts" "$author_name" "$author_email")"
   # Apply plugin filter if available, fallback gracefully if not
@@ -547,6 +568,7 @@ cmd_run() {
   local ticket="${SHIPLOG_TICKET:-}"
   local region="${SHIPLOG_REGION:-}"
   local cluster="${SHIPLOG_CLUSTER:-}"
+  local deployment="${SHIPLOG_DEPLOY_ID:-}"
   local preamble_cli=""
 
   local dry_run=0
@@ -594,6 +616,10 @@ cmd_run() {
         shift; cluster="${1:-}"; shift; continue ;;
       --cluster=*)
         cluster="${1#*=}"; shift; continue ;;
+      --deployment)
+        shift; deployment="${1:-}"; shift; continue ;;
+      --deployment=*)
+        deployment="${1#*=}"; shift; continue ;;
       --preamble)
         preamble_cli=1; shift; continue ;;
       --no-preamble)
@@ -763,7 +789,11 @@ cmd_run() {
     --argjson exit_code "$cmd_status" \
     --argjson duration "$duration_s" \
     --argjson log_attached "$log_attached_bool" \
+    --arg dep_id "${deployment:-}" \
     '{run: {argv: $argv, cmd: $cmd, exit_code: $exit_code, status: $status, duration_s: $duration, started_at: $started, finished_at: $finished, log_attached: $log_attached}}'
+    + ( ($dep_id|length) > 0 \
+        ? { deployment: { id: $dep_id } } \
+        : {} )
   )
 
   # Call cmd_write in a subshell to isolate env changes and capture output
@@ -782,6 +812,12 @@ cmd_run() {
     SHIPLOG_TICKET="$ticket"; export SHIPLOG_TICKET
     SHIPLOG_REGION="$region"; export SHIPLOG_REGION
     SHIPLOG_CLUSTER="$cluster"; export SHIPLOG_CLUSTER
+    if [ -n "${deployment:-}" ]; then
+      SHIPLOG_DEPLOY_ID="$deployment"; export SHIPLOG_DEPLOY_ID
+      if [ -z "${SHIPLOG_TICKET:-}" ]; then
+        SHIPLOG_TICKET="$deployment"; export SHIPLOG_TICKET
+      fi
+    fi
     if [ "$log_attached_bool" = "true" ]; then
       SHIPLOG_LOG="$log_path"; export SHIPLOG_LOG
     fi
@@ -835,6 +871,7 @@ cmd_append() {
   local tag="${SHIPLOG_TAG:-}"
   local run_url="${SHIPLOG_RUN_URL:-}"
   local log_path="${SHIPLOG_LOG:-}"
+  local deployment="${SHIPLOG_DEPLOY_ID:-}"
   local extra_json=""
   local json_from_stdin=0
   local dry_run=0
@@ -888,6 +925,10 @@ cmd_append() {
         shift; run_url="${1:-}"; shift; continue ;;
       --run-url=*)
         run_url="${1#*=}"; shift; continue ;;
+      --deployment)
+        shift; deployment="${1:-}"; shift; continue ;;
+      --deployment=*)
+        deployment="${1#*=}"; shift; continue ;;
       --log)
         shift; log_path="${1:-}"; shift; continue ;;
       --log=*)
@@ -936,6 +977,17 @@ EOF
     extra_json=$(printf '%s' "$extra_json" | jq -c .)
   else
     die "shiplog: --json payload must be a JSON object"
+  fi
+
+  # If a deployment id is provided (flag or env), add it to the overlay JSON and set ticket fallback
+  if [ -z "$deployment" ] && [ -n "${SHIPLOG_DEPLOY_ID:-}" ]; then
+    deployment="$SHIPLOG_DEPLOY_ID"
+  fi
+  if [ -n "$deployment" ]; then
+    extra_json=$(printf '%s' "$extra_json" | jq -c --arg id "$deployment" '. + {deployment:{id:$id}}')
+    if [ -z "$ticket" ]; then
+      ticket="$deployment"
+    fi
   fi
 
   if [ -z "$service" ]; then
