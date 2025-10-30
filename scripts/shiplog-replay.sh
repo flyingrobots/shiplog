@@ -27,6 +27,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REF_ROOT="${SHIPLOG_REF_ROOT:-refs/_shiplog}"
 NOTES_REF="${SHIPLOG_NOTES_REF:-refs/_shiplog/notes/logs}"
 ENV_NAME="${SHIPLOG_ENV:-prod}"
+DEPLOY_ID=""
 FROM_SHA=""
 TO_SHA=""
 COUNT=5
@@ -51,6 +52,10 @@ while [ $# -gt 0 ]; do
     --count=*) COUNT="${1#*=}"; shift; continue ;;
     --speed) shift; SPEED="${1:-$SPEED}"; shift; continue ;;
     --speed=*) SPEED="${1#*=}"; shift; continue ;;
+    --deployment) shift; DEPLOY_ID="${1:-}"; shift; continue ;;
+    --deployment=*) DEPLOY_ID="${1#*=}"; shift; continue ;;
+    --ticket) shift; DEPLOY_ID="${1:-}"; shift; continue ;;
+    --ticket=*) DEPLOY_ID="${1#*=}"; shift; continue ;;
     --no-notes) PRINT_NOTES=0; shift; continue ;;
     --compact) COMPACT=1; shift; continue ;;
     --step) STEP=1; shift; continue ;;
@@ -83,7 +88,15 @@ RANGE=("$JOURNAL_REF")
 [ -n "$TO_SHA" ] && RANGE=("$TO_SHA".."$JOURNAL_REF")
 [ -n "$FROM_SHA" ] && RANGE+=("^$FROM_SHA")
 
-mapfile -t COMMITS < <(git rev-list --max-count="$COUNT" "${RANGE[@]}")
+if [ -n "$DEPLOY_ID" ]; then
+  mapfile -t COMMITS < <(
+    git shiplog export-json "$ENV_NAME" \
+      | jq -r --arg id "$DEPLOY_ID" 'select((.deployment.id // "") == $id or (.why.ticket // "") == $id) | .commit' \
+      | tac
+  )
+else
+  mapfile -t COMMITS < <(git rev-list --max-count="$COUNT" "${RANGE[@]}")
+fi
 [ "${#COMMITS[@]}" -gt 0 ] || { echo "ℹ️ No entries to replay"; exit 0; }
 
 render_entry() {
@@ -158,4 +171,3 @@ for c in "${COMMITS[@]}"; do
 done
 
 echo "✅ replay complete (${#COMMITS[@]} entries)"
-

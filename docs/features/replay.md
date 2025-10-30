@@ -16,6 +16,10 @@ scripts/shiplog-replay.sh --env prod --from <old-sha> --to <new-sha> --step
 
 # Compact mode (no trailer JSON), suppress logs
 scripts/shiplog-replay.sh --env prod --count 20 --compact --no-notes
+
+# Replay a specific deployment by ID (or ticket)
+scripts/shiplog-replay.sh --env prod --deployment "$SHIPLOG_DEPLOY_ID" --speed 0
+# alias: --ticket <id>
 ```
 
 ## Behavior
@@ -38,6 +42,7 @@ scripts/shiplog-replay.sh --env prod --count 20 --compact --no-notes
 - `--no-notes` — Do not print attached logs.
 - `--compact` — Do not print the trailer JSON, only the entry header.
 - `--step` — Step through entries interactively.
+- `--deployment <id>` — Replay only entries stamped with `deployment.id=<id>` (or with back‑compat `why.ticket=<id>`). Alias: `--ticket <id>`.
 
 ## Notes & Limitations
 
@@ -50,4 +55,3 @@ scripts/shiplog-replay.sh --env prod --count 20 --compact --no-notes
 - `git shiplog ls`, `git shiplog show` — inspect individual entries.
 - `git shiplog export-json` — stream trailer JSONs as NDJSON for custom tooling.
 - `docs/features/run.md` — structured `run` payload captured by `git shiplog run`.
-

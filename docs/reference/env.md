@@ -55,6 +55,14 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_QUIET_ON_SUCCESS` — Suppress the success confirmation line entirely.
   - Values: `1` to suppress; `0` (default) to print.
 
+## Deployments
+
+- `SHIPLOG_DEPLOY_ID` — First-class deployment identifier stamped on entries.
+  - Scope: honored by `git shiplog run`, `write`, and `append`.
+  - Behavior: when set (or provided via `--deployment ID`), Shiplog writes a dedicated `deployment.id` field into the trailer JSON. For backward compatibility, if no `why.ticket` is provided, Shiplog mirrors the Deployment ID into `why.ticket`.
+  - Minting IDs: use `scripts/shiplog-deploy-id.sh` to generate a sortable id (ULID if available, else UUID, else a timestamp+sha fallback). Example:
+    - `eval "$(scripts/shiplog-deploy-id.sh --export)"` then run your steps; all entries in that shell inherit the ID.
+
 ## Policy & Signing
 
 - `SHIPLOG_AUTHORS` — Space-separated allowlist of authors (emails). Overrides policy.

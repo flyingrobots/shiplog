@@ -48,6 +48,17 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - Attaches the captured log as a git note under `refs/_shiplog/notes/logs` when an entry is written successfully.
 - Returns the wrapped command’s exit code so it can chain cleanly in scripts or CI pipelines.
 
+### Deployment IDs
+
+- Stamp a first-class Deployment ID on every step with `--deployment <ID>` (or by exporting `SHIPLOG_DEPLOY_ID`).
+- The trailer gains `deployment.id = "<ID>"`. For backward compatibility, if no `--ticket` is provided, the ID is mirrored into `why.ticket`.
+- Tip: mint an ID and export it for the session:
+  ```bash
+  eval "$(scripts/shiplog-deploy-id.sh --export)"  # sets SHIPLOG_DEPLOY_ID
+  git shiplog run --service web -- env printf prechecks
+  git shiplog run --service web -- env printf rollout
+  ```
+
 ### Confirmation Output
 
 - After the wrapped command completes and Shiplog records the entry, it prints a one‑line confirmation.
@@ -80,6 +91,7 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - `--reason <text>` — Optional free-form description.
 - `--status-success <status>` — Status recorded when the wrapped command exits 0. Default `success`.
 - `--status-failure <status>` — Status recorded when the command fails. Default `failed`.
+- `--deployment <id>` — Stamp `deployment.id=<id>` and mirror to ticket when unset.
 - `--preamble` / `--no-preamble` — Toggle the live preamble and output prefixing for this invocation (overrides env/config).
 - `--ticket <id>`, `--region <r>`, `--cluster <c>`, `--namespace <ns>` — Override standard write metadata.
 

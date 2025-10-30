@@ -8,6 +8,7 @@
 git shiplog write [ENV] \
   [--service NAME] [--status success|failed|in_progress|skipped|override|revert|finalize] \
   [--reason TEXT] [--ticket ID] \
+  [--deployment ID] \
   [--region R] [--cluster C] [--namespace NS] \
   [--image IMG] [--tag TAG] [--run-url URL] \
   [--log PATH]   # alias: --attach PATH
@@ -23,6 +24,7 @@ Tip (non‑interactive/CI): avoid prompts by passing required fields via flags o
 - Prompts for service, status, change details, and artifact information. You can prefill or bypass prompts with flags (`--service`, `--reason`, etc.) or environment variables listed below.
 - Defaults the namespace to the journal environment when left blank (e.g., `prod`).
 - Generates both a human-readable header and a JSON trailer; optionally attaches NDJSON logs via `--log/--attach` or `SHIPLOG_LOG`.
+- If `--deployment ID` (or `SHIPLOG_DEPLOY_ID`) is provided, the trailer includes `deployment.id = "ID"`. If no `--ticket` is provided, the ID is mirrored to `why.ticket` for backward compatibility.
 - Human-readable header hides missing location parts: if you only provide `env=prod`, it renders `→ prod` (no placeholders for region/cluster/namespace).
 - Accepts `--yes` to skip confirmation prompts (sets `SHIPLOG_ASSUME_YES=1`).
 - Fast-forwards the journal ref; aborts if the ref is missing or would require a force update.
