@@ -653,16 +653,40 @@ cmd_run() {
 
   local cmd_status run_status
   local log_attached_bool="false"
+  # Optional pretty preamble around command output (console only)
+  local preamble=0
+  case "${SHIPLOG_PREAMBLE:-$(git config --bool shiplog.preamble 2>/dev/null || echo 0)}" in
+    1|true|yes|on) preamble=1 ;;
+  esac
 
   if [ "$skip_execution" -eq 0 ]; then
     started_at="$(fmt_ts)"
     start_epoch=$(date -u +%s)
 
     if [ "$tee_output" -eq 1 ]; then
+      # Optional start preamble
+      if [ $preamble -eq 1 ]; then
+        printf '%s\n' "${SHIPLOG_PREAMBLE_START_TEXT:-🚢🪵🎬}"
+      fi
       set +e
-      "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+      if [ $preamble -eq 1 ]; then
+        # Prefix console output with " |  " while keeping raw logs in $log_path
+        "${run_argv[@]}" \
+          > >(tee -a "$log_path" | sed 's/^/ |  /') \
+          2> >(tee -a "$log_path" >&2 | sed 's/^/ |  /')
+      else
+        "${run_argv[@]}" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2)
+      fi
       cmd_status=$?
       set -e
+      # Optional end preamble reflecting command success/failure
+      if [ $preamble -eq 1 ]; then
+        if [ $cmd_status -eq 0 ]; then
+          printf '%s\n' "${SHIPLOG_PREAMBLE_END_TEXT:-🚢🪵✅}"
+        else
+          printf '%s\n' "${SHIPLOG_PREAMBLE_END_TEXT_FAIL:-🚢🪵❌}"
+        fi
+      fi
     else
       set +e
       "${run_argv[@]}" >"$log_path" 2>&1
