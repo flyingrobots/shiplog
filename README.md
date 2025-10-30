@@ -144,6 +144,22 @@ See also: docs/reference/env.md for a complete list of environment variables and
 
 ---
 
+## Deployments & Replay
+
+- Stamp a first‑class Deployment ID
+  - One session:
+    - eval "$(scripts/shiplog-deploy-id.sh --export)"
+    - Every `run`/`write`/`append` will include `deployment.id="$SHIPLOG_DEPLOY_ID"`.
+  - One‑off per command: pass `--deployment <ID>`.
+  - Back‑compat: if `--ticket` is omitted, the ID mirrors into `why.ticket`.
+
+- Replay the deployment
+  - scripts/shiplog-replay.sh --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step
+  - Or filter by legacy ticket: `--ticket <ID>`.
+  - Range/speed/step options are documented under docs/features/replay.md and docs/commands/replay.md.
+
+---
+
 ## How It Works: Ref Structure
 
 Shiplog stores all its data in lightweight Git refs, separate from your main code branches.

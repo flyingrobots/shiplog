@@ -13,6 +13,9 @@
   - [v0.2.0](releases/v0.2.0.md)
 - [Bosun Helpers](bosun)
 - [Plugin Hooks](plugins.md)
- - Git Hosts & Enforcement:
-   - [Hosting Matrix](hosting/matrix.md)
-   - [GitHub and Shiplog Refs](hosting/github.md)
+- Git Hosts & Enforcement:
+  - [Hosting Matrix](hosting/matrix.md)
+  - [GitHub and Shiplog Refs](hosting/github.md)
+ - Commands:
+   - [Replay (experimental)](commands/replay.md)
+   - [Mint Deployment IDs](commands/deploy-id.md)
