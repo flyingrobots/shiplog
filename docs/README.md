@@ -4,6 +4,7 @@
 - [Trust Bootstrap and Enforcement](TRUST.md)
 - [Feature Guides](features)
   - [Config Wizard](features/config.md)
+  - [Replay (experimental)](features/replay.md)
 - [Structured Entry Schema](reference/json-schema.md)
 - [Environment & Config Reference](reference/env.md)
 - Release Notes:
