@@ -24,6 +24,7 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 - `SHIPLOG_AUTO_PUSH` — Auto-push Shiplog refs to the configured remote when available (`write`, some `setup` flows)
   - Values: `1` (default) or `0`
   - Precedence: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
+  - Note: Shiplog invokes `git push --no-verify` for these pushes to avoid triggering pre-push hooks during deployments. Use `git shiplog publish` to push later; it also uses `--no-verify`.
 
 - `SHIPLOG_REMOTE` — Remote name shiplog commands use for fetch/publish/push operations
   - Default: `origin` (or `git config shiplog.remote` when set)
@@ -37,9 +38,22 @@ This is a compact reference for key `SHIPLOG_*` environment variables. Most can 
 
 ## UX
 
-- `SHIPLOG_CONFIRM_TEXT` — Override the confirmation line printed by `git shiplog run` after a successful write.
-  - Default: the log emoji `🪵`
-  - Example: `export SHIPLOG_CONFIRM_TEXT="> Shiplogged"`
+- `SHIPLOG_PREAMBLE` — Enable a start/end preamble around `run` output (console only).
+  - Values: `1|true|yes|on` to enable; `0|false|no|off` to disable (default `0`).
+  - Git config equivalent: `git config shiplog.preamble true`
+  - Related overrides:
+    - `SHIPLOG_PREAMBLE_START_TEXT` (default: `🚢🪵🎬`)
+    - `SHIPLOG_PREAMBLE_END_TEXT` (default: `🚢🪵✅`)
+    - `SHIPLOG_PREAMBLE_END_TEXT_FAIL` (default: `🚢🪵❌`)
+  - CLI toggles for a single invocation: `git shiplog run --preamble` / `--no-preamble`.
+
+- `SHIPLOG_CONFIRM_TEXT` — Override the one-line confirmation printed after a successful entry write.
+  - Default when unset: a context-aware glyph built from `🚢🪵` and:
+    - `⚓️` if an anchor exists for the env, otherwise `✅`.
+  - Example: `export SHIPLOG_CONFIRM_TEXT="> entry recorded"`
+
+- `SHIPLOG_QUIET_ON_SUCCESS` — Suppress the success confirmation line entirely.
+  - Values: `1` to suppress; `0` (default) to print.
 
 ## Policy & Signing
 
