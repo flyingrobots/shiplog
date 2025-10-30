@@ -123,6 +123,48 @@ git shiplog config --interactive --emit-github-workflow
 
 ---
 
+## Customization
+
+- Preamble (run): wrap live command output with a start/end marker on TTYs.
+  - Enable per‑invocation: `git shiplog run --preamble -- …`
+  - Enable globally: `git config shiplog.preamble true` (or `SHIPLOG_PREAMBLE=1`)
+  - Defaults: Start `🚢🪵🎬`, End `🚢🪵✅` (success) / `🚢🪵❌` (failure)
+  - Override text: `SHIPLOG_PREAMBLE_START_TEXT`, `SHIPLOG_PREAMBLE_END_TEXT`, `SHIPLOG_PREAMBLE_END_TEXT_FAIL`
+
+- Confirmation glyph (after write): one‑line success indicator
+  - Default: `🚢🪵⚓️` when an anchor exists; otherwise `🚢🪵✅`
+  - Override: `SHIPLOG_CONFIRM_TEXT="…"`
+  - Suppress: `SHIPLOG_QUIET_ON_SUCCESS=1`
+
+- Auto‑push behavior
+  - Default: auto‑push is on and uses `git push --no-verify` to avoid pre‑push hooks during deployments.
+  - Disable per‑run: `--no-push` (or `SHIPLOG_AUTO_PUSH=0`); publish later with `git shiplog publish` (also uses `--no-verify`).
+
+See also: docs/reference/env.md for a complete list of environment variables and config toggles.
+
+---
+
+## Deployments & Replay
+
+- Stamp a first‑class Deployment ID
+  - One session:
+    - eval "$(scripts/shiplog-deploy-id.sh --export)"
+    - Every `run`/`write`/`append` will include `deployment.id="$SHIPLOG_DEPLOY_ID"`.
+  - One‑off per command: pass `--deployment <ID>`.
+  - Back‑compat: if `--ticket` is omitted, the ID mirrors into `why.ticket`.
+
+- Replay the deployment
+  - Durable by ID: `git shiplog replay --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step`
+  - Durable by anchor: `git shiplog replay --env prod --since-anchor`
+  - Operator convenience: `git shiplog replay --pointer refs/_shiplog/deploy/prod` (uses local reflog)
+  - Under the hood script: `scripts/shiplog-replay.sh` (same options)
+  - See docs/features/replay.md and docs/commands/replay.md for details.
+
+Related commands
+- Anchors: `git shiplog anchor set|show|list` (docs/commands/anchor.md)
+
+---
+
 ## How It Works: Ref Structure
 
 Shiplog stores all its data in lightweight Git refs, separate from your main code branches.

@@ -81,8 +81,16 @@ sig_file="$OUTDIR/$PRINCIPAL.sig"
 tmp_in=$(mktemp)
 printf '%s' "$payload" > "$tmp_in"
 
-ssh-keygen -Y sign -f "$signing_key" -n "$NAMESPACE" - < "$tmp_in" > "$sig_file" 2>/dev/null \
-  || die "ssh-keygen failed to sign payload"
+{
+  if ! ssh_keygen_output=$(ssh-keygen -Y sign -f "$signing_key" -n "$NAMESPACE" - < "$tmp_in" 2>&1 > "$sig_file"); then
+    # Show a concise reason if available
+    first_two=$(printf '%s' "$ssh_keygen_output" | sed 's/\r//g' | awk 'NF{print; c++; if (c==2) exit}')
+    if [ -n "$first_two" ]; then
+      die "ssh-keygen failed to sign payload — $first_two"
+    else
+      die "ssh-keygen failed to sign payload"
+    fi
+  fi
+}
 
 echo "✅ wrote $sig_file"
-

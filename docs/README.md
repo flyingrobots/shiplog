@@ -4,13 +4,19 @@
 - [Trust Bootstrap and Enforcement](TRUST.md)
 - [Feature Guides](features)
   - [Config Wizard](features/config.md)
+  - [Replay (experimental)](features/replay.md)
 - [Structured Entry Schema](reference/json-schema.md)
+- [Environment & Config Reference](reference/env.md)
 - Release Notes:
   - [v0.4.0-alpha](releases/v0.4.0-alpha.md)
   - [v0.2.1](releases/v0.2.1.md)
   - [v0.2.0](releases/v0.2.0.md)
 - [Bosun Helpers](bosun)
 - [Plugin Hooks](plugins.md)
- - Git Hosts & Enforcement:
-   - [Hosting Matrix](hosting/matrix.md)
-   - [GitHub and Shiplog Refs](hosting/github.md)
+- Git Hosts & Enforcement:
+  - [Hosting Matrix](hosting/matrix.md)
+ - [GitHub and Shiplog Refs](hosting/github.md)
+ - Commands:
+   - [Replay (experimental)](commands/replay.md)
+   - [Mint Deployment IDs](commands/deploy-id.md)
+   - [Anchors](commands/anchor.md)

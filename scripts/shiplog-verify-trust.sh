@@ -76,14 +76,19 @@ verify_commit_sig() {
   if [ -n "$fmt" ]; then
     gitopts=(-c "gpg.format=$fmt")
   fi
+  V_ERR=""
   if [ -n "$SIGNERS_FILE" ]; then
-    if ! GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1; then
+    local _e
+    if ! _e=$(GIT_SSH_ALLOWED_SIGNERS="$SIGNERS_FILE" git "${gitopts[@]}" verify-commit "$c" 2>&1 >/dev/null); then
+      V_ERR=$(printf '%s' "$_e" | sed 's/\r//g' | awk 'NF{print; c++; if (c==2) exit}')
       dbg "git verify-commit failed (gpg.format=${fmt:-default}); showing signature block:"
       dbg "$(git log -1 --show-signature --pretty=medium "$c" 2>/dev/null || true)"
       return 1
     fi
   else
-    if ! git "${gitopts[@]}" verify-commit "$c" >/dev/null 2>&1; then
+    local _e
+    if ! _e=$(git "${gitopts[@]}" verify-commit "$c" 2>&1 >/dev/null); then
+      V_ERR=$(printf '%s' "$_e" | sed 's/\r//g' | awk 'NF{print; c++; if (c==2) exit}')
       dbg "git verify-commit failed without allowed_signers (gpg.format=${fmt:-default})"
       dbg "$(git log -1 --show-signature --pretty=medium "$c" 2>/dev/null || true)"
       return 1
@@ -105,7 +110,9 @@ if [ "$gate_enabled" = "1" ] || [ "$gate_enabled" = "true" ] || [ "$gate_enabled
   case "$gate_mode" in
     commit)
       commit_gate_checked=1
-      verify_commit_sig "$NEW" || err "trust commit $NEW failed signature verification"
+      if ! verify_commit_sig "$NEW"; then
+        [ -n "$V_ERR" ] && err "trust commit $NEW failed signature verification — $V_ERR" || err "trust commit $NEW failed signature verification"
+      fi
       commit_gate_ok=1
       ;;
     either)

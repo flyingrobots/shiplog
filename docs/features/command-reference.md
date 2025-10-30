@@ -39,14 +39,14 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage:
     - Interactive: `git shiplog write prod`
     - Non-interactive: `SHIPLOG_BORING=1 git shiplog --yes write prod`
-  - Env: `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`, `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`, `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`, `SHIPLOG_LOG`, `SHIPLOG_AUTO_PUSH`.
+  - Env: `SHIPLOG_SERVICE`, `SHIPLOG_STATUS`, `SHIPLOG_REASON`, `SHIPLOG_TICKET`, `SHIPLOG_DEPLOY_ID`, `SHIPLOG_REGION`, `SHIPLOG_CLUSTER`, `SHIPLOG_NAMESPACE`, `SHIPLOG_IMAGE`, `SHIPLOG_TAG`, `SHIPLOG_RUN_URL`, `SHIPLOG_LOG`, `SHIPLOG_AUTO_PUSH`.
   - Flags: accepts `--dry-run` to preview the entry after prompts without appending to the journal or pushing notes.
   - Effects: honors allowlists/signing per policy; pushes journal (+notes) to origin unless disabled.
 
 - `append [OPTIONS]`
   - Purpose: append a new entry non-interactively by supplying a JSON payload via CLI, stdin, or file.
   - Usage: `printf '{"deployment":"green"}' | git shiplog append --service deploy --status success --json -`
-  - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`, `--dry-run`).
+  - Flags: mirrors `write` (`--service`, `--status`, `--reason`, `--ticket`, `--deployment`, `--region`, `--cluster`, `--namespace`, `--image`, `--tag`, `--run-url`, `--log`, `--env`, `--dry-run`).
   - Notes: sets `SHIPLOG_EXTRA_JSON` automatically with the provided object and runs `write` in boring/auto-confirm mode.
 
 - `run [OPTIONS] -- <command ...>`
@@ -54,8 +54,8 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage:
     - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
     - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
-  - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`, `--dry-run`.
-  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. Prints a minimal confirmation after the run (default `🪵`), configurable via `SHIPLOG_CONFIRM_TEXT`. `--dry-run` prints the command that would execute and exits without running it or writing a journal entry. See `docs/features/run.md` for details.
+  - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--deployment`, `--region`, `--cluster`, `--namespace`, `--env`, `--dry-run`.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. Prints a one‑line confirmation after the run (default `🚢🪵⚓️` when an anchor exists or `🚢🪵✅` otherwise); override via `SHIPLOG_CONFIRM_TEXT` or suppress with `SHIPLOG_QUIET_ON_SUCCESS=1`. Optional console preamble can be enabled with `--preamble` or `SHIPLOG_PREAMBLE=1`. `--deployment <id>` stamps `deployment.id` and mirrors to `why.ticket` when unset. `--dry-run` prints what would execute and exits without running or writing. See `docs/features/run.md`.
 
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.
@@ -85,10 +85,28 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
   - Usage: `git shiplog export-json prod | jq '.'`
   - Requires: `jq`.
 
+- `replay [OPTIONS]`
+  - Purpose: Replay journal entries. Wrapper around `scripts/shiplog-replay.sh` with convenience sources.
+  - Usage:
+    - Durable by ID: `git shiplog replay --env prod --deployment "$SHIPLOG_DEPLOY_ID" --step`
+    - Durable by anchor: `git shiplog replay --env prod --since-anchor`
+    - Pointer (local reflog): `git shiplog replay --pointer refs/_shiplog/deploy/prod --env prod`
+    - Tag (best-effort): `git shiplog replay --tag deploy/prod --env prod`
+  - Flags: `--env`, `--from`, `--to`, `--count`, `--speed`, `--step`, `--no-notes`, `--compact`, `--deployment`, `--ticket`, `--since-anchor`, `--pointer`, `--tag`.
+  - Notes: prefers portable sources (`--deployment`, `--since-anchor`). Pointer/tag rely on local reflogs.
+
 - `publish [ENV] [--no-notes] [--policy] [--trust] [--all]`
   - Purpose: push Shiplog refs (journals/notes, and optionally policy/trust) to origin without writing a new entry.
   - Usage: `git shiplog publish` (current env), `git shiplog publish --env prod`, `git shiplog publish --all --policy`
-  - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
+  - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`. Shiplog uses `git push --no-verify` to avoid pre‑push hooks by design.
+
+- `anchor set|show|list`
+  - Purpose: manage durable replay boundaries for an environment.
+  - Usage:
+    - Set: `git shiplog anchor set --env prod [--ref <sha>] [--reason "text"]`
+    - Show: `git shiplog anchor show --env prod [--json]`
+    - List: `git shiplog anchor list --env prod`
+  - Notes: anchors live under `refs/_shiplog/anchors/<env>` and are used by `git shiplog replay --since-anchor`.
 
 - `policy [show|validate|require-signed|toggle] [--json] [--boring]`
   - Purpose: inspect/change effective policy and signing requirement.
