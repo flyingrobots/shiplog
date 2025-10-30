@@ -8,6 +8,50 @@ is_boring() {
   esac
 }
 
+# Summarize a multi-line stderr blob into a compact, user-friendly line.
+# Prints one or two trimmed lines; appends a (+N more lines) suffix when long.
+shiplog_summarize_error() {
+  local raw_input="${1:-}"
+  local first_line="" second_line="" trimmed current extra=0 total=0
+  # Normalize CRLF and iterate non-empty lines
+  raw_input=${raw_input//$'\r'/}
+  while IFS= read -r current; do
+    # Skip all-whitespace lines
+    case "$current" in *[![:space:]]*) ;; *) continue ;; esac
+    total=$((total+1))
+    trimmed=$(printf '%s' "$current" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    case "$total" in
+      1) first_line="$trimmed" ;;
+      2) second_line="$trimmed" ;;
+      *) extra=$((extra+1)) ;;
+    esac
+  done <<<"$raw_input"
+  case "$total" in
+    0) printf '' ;;
+    1) printf '%s' "$first_line" ;;
+    2) printf '%s; %s' "$first_line" "$second_line" ;;
+    *) printf '%s; %s; (+%d more lines)' "$first_line" "$second_line" "$extra" ;;
+  esac
+}
+
+# Build confirmation glyphs for successful operations.
+# Usage: shiplog_confirm_glyphs <has_anchor:0|1> [status]
+# - status: success|error_note (default: success)
+shiplog_confirm_glyphs() {
+  local has_anchor="${1:-0}"
+  local status="${2:-success}"
+  local base="🚢🪵"
+  local tail=""
+  case "$status" in
+    success)
+      if [ "$has_anchor" = "1" ]; then tail="⚓️"; else tail="✅"; fi ;;
+    error_note)
+      tail="❌" ;;
+    *) : ;;
+  esac
+  printf '%s%s' "$base" "$tail"
+}
+
 die() {
   echo "❌ $*" >&2
   exit 1
@@ -149,13 +193,23 @@ shiplog_prompt_input() {
   else
     local result=""
     if shiplog_have_bosun; then
-      local bosun
+      local bosun err tmp rc
       bosun=$(shiplog_bosun_bin)
-      if result=$("$bosun" input --placeholder "$placeholder" --value "$value" 2>/dev/null); then
+      tmp=$(mktemp)
+      result=$("$bosun" input --placeholder "$placeholder" --value "$value" 2>"$tmp" || true)
+      rc=$?
+      if [ $rc -eq 0 ]; then
         printf '%s\n' "$result"
         _log_prompt_interaction prompt "$placeholder" "$result"
         return
+      else
+        err=$(shiplog_summarize_error "$(cat "$tmp" 2>/dev/null || true)")
+        [ -n "${SHIPLOG_PROMPT_UI_WARNED:-}" ] || {
+          [ -n "$err" ] && printf '⚠️ shiplog: bosun prompt failed; falling back to text (%s)\n' "$err" >&2 || printf '⚠️ shiplog: bosun prompt failed; falling back to text\n' >&2
+          SHIPLOG_PROMPT_UI_WARNED=1
+        }
       fi
+      rm -f "$tmp" 2>/dev/null || true
     fi
     # Fallback to POSIX prompt
     printf '%s ' "$placeholder" >&2
@@ -184,13 +238,23 @@ shiplog_prompt_choice() {
   else
     local result=""
     if shiplog_have_bosun; then
-      local bosun
+      local bosun tmp rc err
       bosun=$(shiplog_bosun_bin)
+      tmp=$(mktemp)
       if [ -n "$value" ]; then
-        result=$("$bosun" choose --header "$header" --default "$value" "${options[@]}" 2>/dev/null) || true
+        result=$("$bosun" choose --header "$header" --default "$value" "${options[@]}" 2>"$tmp" || true)
       else
-        result=$("$bosun" choose --header "$header" "${options[@]}" 2>/dev/null) || true
+        result=$("$bosun" choose --header "$header" "${options[@]}" 2>"$tmp" || true)
       fi
+      rc=$?
+      if [ $rc -ne 0 ]; then
+        err=$(shiplog_summarize_error "$(cat "$tmp" 2>/dev/null || true)")
+        [ -n "${SHIPLOG_PROMPT_UI_WARNED:-}" ] || {
+          [ -n "$err" ] && printf '⚠️ shiplog: bosun choose failed; falling back to text (%s)\n' "$err" >&2 || printf '⚠️ shiplog: bosun choose failed; falling back to text\n' >&2
+          SHIPLOG_PROMPT_UI_WARNED=1
+        }
+      fi
+      rm -f "$tmp" 2>/dev/null || true
     fi
     if [ -z "$result" ]; then
       # Fallback: print options and read a line
