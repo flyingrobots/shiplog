@@ -55,7 +55,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
     - Success case: `git shiplog run --service deploy --reason "Smoke test" -- env printf hi`
     - Failure case: `git shiplog run --service deploy --status-failure failed -- false`
   - Flags: `--service`, `--reason`, `--status-success`, `--status-failure`, `--ticket`, `--region`, `--cluster`, `--namespace`, `--env`, `--dry-run`.
-  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. Prints a minimal confirmation after the run (default `🪵`), configurable via `SHIPLOG_CONFIRM_TEXT`. `--dry-run` prints the command that would execute and exits without running it or writing a journal entry. See `docs/features/run.md` for details.
+  - Notes: captures stdout/stderr to a temporary log that is attached as a git note (skipped if empty) and merges `{run:{...}}` into the JSON trailer via `SHIPLOG_EXTRA_JSON`. Prints a one‑line confirmation after the run (default `🚢🪵⚓️` when an anchor exists or `🚢🪵✅` otherwise); override via `SHIPLOG_CONFIRM_TEXT` or suppress with `SHIPLOG_QUIET_ON_SUCCESS=1`. Optional console preamble can be enabled with `--preamble` or `SHIPLOG_PREAMBLE=1`. `--dry-run` prints what would execute and exits without running or writing. See `docs/features/run.md`.
 
 - `ls [ENV] [LIMIT]`
   - Purpose: list recent entries.
@@ -88,7 +88,7 @@ A concise, code-sourced reference for Shiplog commands, flags, and examples. Glo
 - `publish [ENV] [--no-notes] [--policy] [--trust] [--all]`
   - Purpose: push Shiplog refs (journals/notes, and optionally policy/trust) to origin without writing a new entry.
   - Usage: `git shiplog publish` (current env), `git shiplog publish --env prod`, `git shiplog publish --all --policy`
-  - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`.
+  - Notes: use this at the end of a deployment if you disable auto-push. Precedence for pushing: command flags > `git config shiplog.autoPush` > `SHIPLOG_AUTO_PUSH`. Shiplog uses `git push --no-verify` to avoid pre‑push hooks by design.
 
 - `policy [show|validate|require-signed|toggle] [--json] [--boring]`
   - Purpose: inspect/change effective policy and signing requirement.

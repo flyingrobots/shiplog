@@ -14,6 +14,11 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 
 - `--service` is required in non-interactive mode (and strongly recommended for clarity).
 - Place the command to execute after `--`; all arguments are preserved and logged.
+ - Place the command to execute after `--`; all arguments are preserved and logged. If you need shell features (globbing, expansions like `$(...)`), pass a shell explicitly, e.g.:
+   ```bash
+   git shiplog run --service deploy -- bash -lc 'echo $(date) && run_deploy'
+   ```
+   Shiplog emits a warning when it sees literal backticks or `$()` tokens in arguments, since those are usually evaluated by your shell before Shiplog can capture them.
 - Successful executions inherit `--status-success` (default `success`); failures use `--status-failure` (default `failed`).
 
 ## Dry Run Mode (`--dry-run`)
@@ -45,10 +50,20 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 
 ### Confirmation Output
 
-- After the wrapped command completes, Shiplog prints a minimal confirmation line.
-- Default: a log emoji only (`🪵`).
-- Customize with `SHIPLOG_CONFIRM_TEXT` (e.g., `> Shiplogged`, `Recorded`).
-- The previous verbose preview is suppressed to keep terminals quiet; use `git shiplog show` if you want to inspect the entry that was written.
+- After the wrapped command completes and Shiplog records the entry, it prints a one‑line confirmation.
+- Default (when not overridden): `🚢🪵⚓️` if an anchor exists for the env, otherwise `🚢🪵✅`.
+- Customize entirely with `SHIPLOG_CONFIRM_TEXT` (e.g., `> Shiplogged`).
+- Suppress with `SHIPLOG_QUIET_ON_SUCCESS=1`.
+
+### Optional Preamble
+
+- Enable a start/end preamble around the command’s live output (console only); the saved note remains unprefixed.
+- Start line defaults to `🚢🪵🎬`; end line defaults to `🚢🪵✅` (success) or `🚢🪵❌` (failure).
+- Turn on via `SHIPLOG_PREAMBLE=1` (or `git config shiplog.preamble true`), or per‑invocation with `--preamble`.
+- Customize glyphs with:
+  - `SHIPLOG_PREAMBLE_START_TEXT`
+  - `SHIPLOG_PREAMBLE_END_TEXT`
+  - `SHIPLOG_PREAMBLE_END_TEXT_FAIL`
 
 ## Exit Codes
 - Dry run
@@ -65,7 +80,10 @@ git shiplog run --dry-run --service deploy --reason "Smoke test" -- env printf h
 - `--reason <text>` — Optional free-form description.
 - `--status-success <status>` — Status recorded when the wrapped command exits 0. Default `success`.
 - `--status-failure <status>` — Status recorded when the command fails. Default `failed`.
+- `--preamble` / `--no-preamble` — Toggle the live preamble and output prefixing for this invocation (overrides env/config).
 - `--ticket <id>`, `--region <r>`, `--cluster <c>`, `--namespace <ns>` — Override standard write metadata.
+
+See also: test/29_run_preamble_and_warnings.bats for executable examples.
 - When there is no output, log attachment is skipped and `log_attached=false` is recorded in the trailer.
 - Confirmation text: set `SHIPLOG_CONFIRM_TEXT` to override the default emoji (see above).
 

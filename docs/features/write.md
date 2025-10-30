@@ -9,7 +9,8 @@ git shiplog write [ENV] \
   [--service NAME] [--status success|failed|in_progress|skipped|override|revert|finalize] \
   [--reason TEXT] [--ticket ID] \
   [--region R] [--cluster C] [--namespace NS] \
-  [--image IMG] [--tag TAG] [--run-url URL]
+  [--image IMG] [--tag TAG] [--run-url URL] \
+  [--log PATH]   # alias: --attach PATH
 
 # Non-interactive
 SHIPLOG_BORING=1 git shiplog --yes write prod --service release --reason "MVP release"
@@ -21,11 +22,12 @@ Tip (non‑interactive/CI): avoid prompts by passing required fields via flags o
 - Validates the author against the resolved allowlist and performs a signing precheck when signatures are required.
 - Prompts for service, status, change details, and artifact information. You can prefill or bypass prompts with flags (`--service`, `--reason`, etc.) or environment variables listed below.
 - Defaults the namespace to the journal environment when left blank (e.g., `prod`).
-- Generates both a human-readable header and a JSON trailer; optionally attaches NDJSON logs via `SHIPLOG_LOG`.
+- Generates both a human-readable header and a JSON trailer; optionally attaches NDJSON logs via `--log/--attach` or `SHIPLOG_LOG`.
 - Human-readable header hides missing location parts: if you only provide `env=prod`, it renders `→ prod` (no placeholders for region/cluster/namespace).
 - Accepts `--yes` to skip confirmation prompts (sets `SHIPLOG_ASSUME_YES=1`).
 - Fast-forwards the journal ref; aborts if the ref is missing or would require a force update.
-- Automatically pushes the updated journal (and attached notes) to `origin` when available; disable with `SHIPLOG_AUTO_PUSH=0` or `--no-push`.
+- Automatically pushes the updated journal (and attached notes) to the configured remote when available; disable with `SHIPLOG_AUTO_PUSH=0` or `--no-push`.
+  - Implementation detail: Shiplog uses `git push --no-verify` for these pushes to avoid triggering repository pre‑push hooks during deployments. Use `git shiplog publish` later if you prefer to push explicitly (it also uses `--no-verify`).
 
 ## Flags and Environment Overrides
 | Variable | Purpose | Accepted values | Default | Example |
